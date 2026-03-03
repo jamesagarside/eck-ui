@@ -22,12 +22,26 @@ import (
 	"github.com/jamesagarside/eck-ui/pkg/resources"
 )
 
+// Version information set at build time
+var (
+	Version   = "dev"
+	GitCommit = "unknown"
+	BuildDate = "unknown"
+)
+
 func main() {
 	// Initialize logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
+
+	// Log version information
+	slog.Info("starting ECK UI",
+		"version", Version,
+		"commit", GitCommit,
+		"buildDate", BuildDate,
+	)
 
 	// Load configuration
 	cfg, err := config.Load()
