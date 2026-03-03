@@ -1,0 +1,768 @@
+openapi: 3.0.3
+info:
+  title: ECK UI API
+  description: |
+    REST API for Elastic Cloud on Kubernetes (ECK) UI.
+    Provides management and monitoring capabilities for ECK deployments.
+  version: 0.1.0
+  contact:
+    name: ECK UI
+    url: https://github.com/jamesagarside/eck-ui
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+
+tags:
+  - name: organizations
+    description: Organization management
+  - name: elasticsearch
+    description: Elasticsearch cluster management
+  - name: kibana
+    description: Kibana instance management
+  - name: apm
+    description: APM Server management
+  - name: agent
+    description: Elastic Agent management
+  - name: beat
+    description: Beat management
+  - name: logstash
+    description: Logstash management
+
+paths:
+  /orgs:
+    get:
+      summary: List organizations
+      description: Returns all organizations the user has access to
+      operationId: listOrganizations
+      tags:
+        - organizations
+      responses:
+        '200':
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /orgs/{org}:
+    get:
+      summary: Get organization
+      description: Returns details of a specific organization
+      operationId: getOrganization
+      tags:
+        - organizations
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orgs/{org}/elasticsearch:
+    get:
+      summary: List Elasticsearch clusters
+      description: Returns all Elasticsearch clusters in the organization
+      operationId: listElasticsearch
+      tags:
+        - elasticsearch
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: List of Elasticsearch clusters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Elasticsearch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create Elasticsearch cluster
+      description: Creates a new Elasticsearch cluster
+      operationId: createElasticsearch
+      tags:
+        - elasticsearch
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElasticsearchCreate'
+      responses:
+        '201':
+          description: Elasticsearch cluster created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Elasticsearch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /orgs/{org}/elasticsearch/{name}:
+    get:
+      summary: Get Elasticsearch cluster
+      description: Returns details of a specific Elasticsearch cluster
+      operationId: getElasticsearch
+      tags:
+        - elasticsearch
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Elasticsearch cluster details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Elasticsearch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Update Elasticsearch cluster
+      description: Updates an existing Elasticsearch cluster
+      operationId: updateElasticsearch
+      tags:
+        - elasticsearch
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ElasticsearchUpdate'
+      responses:
+        '200':
+          description: Elasticsearch cluster updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Elasticsearch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      summary: Delete Elasticsearch cluster
+      description: Deletes an Elasticsearch cluster
+      operationId: deleteElasticsearch
+      tags:
+        - elasticsearch
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '204':
+          description: Elasticsearch cluster deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orgs/{org}/kibana:
+    get:
+      summary: List Kibana instances
+      operationId: listKibana
+      tags:
+        - kibana
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: List of Kibana instances
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Kibana'
+    post:
+      summary: Create Kibana instance
+      operationId: createKibana
+      tags:
+        - kibana
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KibanaCreate'
+      responses:
+        '201':
+          description: Kibana instance created
+
+  /orgs/{org}/kibana/{name}:
+    get:
+      summary: Get Kibana instance
+      operationId: getKibana
+      tags:
+        - kibana
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Kibana instance details
+    put:
+      summary: Update Kibana instance
+      operationId: updateKibana
+      tags:
+        - kibana
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Kibana instance updated
+    delete:
+      summary: Delete Kibana instance
+      operationId: deleteKibana
+      tags:
+        - kibana
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '204':
+          description: Kibana instance deleted
+
+  /orgs/{org}/apm:
+    get:
+      summary: List APM Servers
+      operationId: listAPMServer
+      tags:
+        - apm
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: List of APM Servers
+    post:
+      summary: Create APM Server
+      operationId: createAPMServer
+      tags:
+        - apm
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '201':
+          description: APM Server created
+
+  /orgs/{org}/apm/{name}:
+    get:
+      summary: Get APM Server
+      operationId: getAPMServer
+      tags:
+        - apm
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: APM Server details
+    put:
+      summary: Update APM Server
+      operationId: updateAPMServer
+      tags:
+        - apm
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: APM Server updated
+    delete:
+      summary: Delete APM Server
+      operationId: deleteAPMServer
+      tags:
+        - apm
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '204':
+          description: APM Server deleted
+
+  /orgs/{org}/agent:
+    get:
+      summary: List Elastic Agents
+      operationId: listAgent
+      tags:
+        - agent
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: List of Elastic Agents
+    post:
+      summary: Create Elastic Agent
+      operationId: createAgent
+      tags:
+        - agent
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '201':
+          description: Elastic Agent created
+
+  /orgs/{org}/agent/{name}:
+    get:
+      summary: Get Elastic Agent
+      operationId: getAgent
+      tags:
+        - agent
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Elastic Agent details
+    put:
+      summary: Update Elastic Agent
+      operationId: updateAgent
+      tags:
+        - agent
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Elastic Agent updated
+    delete:
+      summary: Delete Elastic Agent
+      operationId: deleteAgent
+      tags:
+        - agent
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '204':
+          description: Elastic Agent deleted
+
+  /orgs/{org}/beat:
+    get:
+      summary: List Beats
+      operationId: listBeat
+      tags:
+        - beat
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: List of Beats
+    post:
+      summary: Create Beat
+      operationId: createBeat
+      tags:
+        - beat
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '201':
+          description: Beat created
+
+  /orgs/{org}/beat/{name}:
+    get:
+      summary: Get Beat
+      operationId: getBeat
+      tags:
+        - beat
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Beat details
+    put:
+      summary: Update Beat
+      operationId: updateBeat
+      tags:
+        - beat
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Beat updated
+    delete:
+      summary: Delete Beat
+      operationId: deleteBeat
+      tags:
+        - beat
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '204':
+          description: Beat deleted
+
+  /orgs/{org}/logstash:
+    get:
+      summary: List Logstash instances
+      operationId: listLogstash
+      tags:
+        - logstash
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '200':
+          description: List of Logstash instances
+    post:
+      summary: Create Logstash instance
+      operationId: createLogstash
+      tags:
+        - logstash
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+      responses:
+        '201':
+          description: Logstash instance created
+
+  /orgs/{org}/logstash/{name}:
+    get:
+      summary: Get Logstash instance
+      operationId: getLogstash
+      tags:
+        - logstash
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Logstash instance details
+    put:
+      summary: Update Logstash instance
+      operationId: updateLogstash
+      tags:
+        - logstash
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '200':
+          description: Logstash instance updated
+    delete:
+      summary: Delete Logstash instance
+      operationId: deleteLogstash
+      tags:
+        - logstash
+      parameters:
+        - $ref: '#/components/parameters/OrgParam'
+        - $ref: '#/components/parameters/ResourceName'
+      responses:
+        '204':
+          description: Logstash instance deleted
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Kubernetes service account token or OIDC JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: eck_session
+      description: Session cookie from OIDC login
+
+  parameters:
+    OrgParam:
+      name: org
+      in: path
+      required: true
+      description: Organization identifier (maps to Kubernetes namespace)
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        maxLength: 63
+    ResourceName:
+      name: name
+      in: path
+      required: true
+      description: Resource name
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        maxLength: 253
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource already exists or conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: string
+          description: Additional error context
+        request_id:
+          type: string
+          description: Correlation ID for the request
+
+    Organization:
+      type: object
+      required:
+        - name
+        - namespace
+      properties:
+        name:
+          type: string
+          description: Organization display name
+        namespace:
+          type: string
+          description: Kubernetes namespace for the organization
+        description:
+          type: string
+          description: Organization description
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+
+    Elasticsearch:
+      type: object
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+          description: Cluster name
+        version:
+          type: string
+          description: Elasticsearch version
+        health:
+          type: string
+          enum: [green, yellow, red, unknown]
+          description: Cluster health status
+        phase:
+          type: string
+          enum: [Ready, ApplyingChanges, MigratingData, Stalled, Invalid]
+          description: Current deployment phase
+        node_sets:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeSet'
+        http:
+          $ref: '#/components/schemas/HTTPConfig'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ElasticsearchCreate:
+      type: object
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+          maxLength: 253
+        version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+        node_sets:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeSetCreate'
+
+    ElasticsearchUpdate:
+      type: object
+      properties:
+        version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+        node_sets:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeSetCreate'
+
+    NodeSet:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+        roles:
+          type: array
+          items:
+            type: string
+        config:
+          type: object
+          additionalProperties: true
+        volume_claim_templates:
+          type: array
+          items:
+            type: object
+
+    NodeSetCreate:
+      type: object
+      required:
+        - name
+        - count
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [master, data, data_content, data_hot, data_warm, data_cold, data_frozen, ingest, ml, remote_cluster_client, transform, voting_only]
+        config:
+          type: object
+          additionalProperties: true
+
+    HTTPConfig:
+      type: object
+      properties:
+        tls:
+          type: object
+          properties:
+            self_signed_certificate:
+              type: object
+              properties:
+                disabled:
+                  type: boolean
+
+    Kibana:
+      type: object
+      required:
+        - name
+        - version
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        health:
+          type: string
+          enum: [green, yellow, red, unknown]
+        elasticsearch_ref:
+          type: string
+          description: Reference to associated Elasticsearch cluster
+        count:
+          type: integer
+          description: Number of Kibana pods
+        created_at:
+          type: string
+          format: date-time
+
+    KibanaCreate:
+      type: object
+      required:
+        - name
+        - version
+        - elasticsearch_ref
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        elasticsearch_ref:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+          default: 1

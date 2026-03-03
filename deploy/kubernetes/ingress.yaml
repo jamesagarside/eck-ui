@@ -1,0 +1,31 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eck-ui
+  namespace: eck-ui
+  labels:
+    app.kubernetes.io/name: eck-ui
+    app.kubernetes.io/component: ui
+  annotations:
+    # Adjust these annotations based on your Ingress controller
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: nginx  # Change based on your Ingress controller
+  rules:
+    - host: eck-ui.example.com  # Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eck-ui
+                port:
+                  name: http
+  # Uncomment and configure for TLS
+  # tls:
+  #   - hosts:
+  #       - eck-ui.example.com
+  #     secretName: eck-ui-tls
