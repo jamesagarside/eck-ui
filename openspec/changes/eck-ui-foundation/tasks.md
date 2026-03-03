@@ -54,14 +54,14 @@
 
 ## 5. Audit Logging
 
-- [ ] 5.1 Create audit log event structure following OTel format
-- [ ] 5.2 Implement audit middleware capturing all mutations
-- [ ] 5.3 Add diff calculation for UPDATE operations
-- [ ] 5.4 Implement sensitive field redaction (secrets, passwords)
-- [ ] 5.5 Add user identity extraction from auth context
-- [ ] 5.6 Configure JSON log output to stdout
-- [ ] 5.7 Add trace context propagation (W3C format)
-- [ ] 5.8 Create audit log failure handling (non-blocking)
+- [x] 5.1 Create audit log event structure following OTel format
+- [x] 5.2 Implement audit middleware capturing all mutations
+- [x] 5.3 Add diff calculation for UPDATE operations
+- [x] 5.4 Implement sensitive field redaction (secrets, passwords)
+- [x] 5.5 Add user identity extraction from auth context
+- [x] 5.6 Configure JSON log output to stdout
+- [x] 5.7 Add trace context propagation (W3C format)
+- [x] 5.8 Create audit log failure handling (non-blocking)
 
 ## 6. Frontend Shell
 

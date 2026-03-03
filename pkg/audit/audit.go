@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -95,6 +96,12 @@ func Initialize(ctx context.Context) (*Logger, error) {
 	// Set global trace provider
 	otel.SetTracerProvider(provider)
 
+	// Set up W3C Trace Context propagation (W3C standard format)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
 	logger := &Logger{
 		tracer:   provider.Tracer(ServiceName),
 		provider: provider,
@@ -133,6 +140,8 @@ type Event struct {
 	ErrorMessage string
 	// Metadata contains additional context.
 	Metadata map[string]string
+	// DiffSummary contains a summary of changes for UPDATE operations.
+	DiffSummary string
 }
 
 // Log records an audit event.
@@ -149,6 +158,7 @@ func (l *Logger) Log(ctx context.Context, event Event) {
 			attribute.Bool("audit.success", event.Success),
 			attribute.String("audit.error", event.ErrorMessage),
 			attribute.String("audit.timestamp", time.Now().UTC().Format(time.RFC3339)),
+			attribute.String("audit.diff_summary", event.DiffSummary),
 		),
 	)
 	defer span.End()
@@ -171,6 +181,9 @@ func (l *Logger) Log(ctx context.Context, event Event) {
 	}
 	if event.ErrorMessage != "" {
 		logAttrs = append(logAttrs, "error", event.ErrorMessage)
+	}
+	if event.DiffSummary != "" {
+		logAttrs = append(logAttrs, "diff", event.DiffSummary)
 	}
 
 	slog.Info("audit", logAttrs...)
