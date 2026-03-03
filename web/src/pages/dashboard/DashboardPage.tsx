@@ -26,7 +26,7 @@ import type { EuiBasicTableColumn } from '@elastic/eui';
 import {
   useElasticsearchList,
   useKibanaList,
-  useApmServerList,
+  useApmList,
   useAgentList,
   useBeatList,
   useLogstashList,
@@ -58,7 +58,7 @@ export function DashboardPage() {
   // Fetch all resources
   const { data: esData, isLoading: esLoading } = useElasticsearchList();
   const { data: kibanaData, isLoading: kibanaLoading } = useKibanaList();
-  const { data: apmData, isLoading: apmLoading } = useApmServerList();
+  const { data: apmData, isLoading: apmLoading } = useApmList();
   const { data: agentData, isLoading: agentLoading } = useAgentList();
   const { data: beatData, isLoading: beatLoading } = useBeatList();
   const { data: logstashData, isLoading: logstashLoading } = useLogstashList();

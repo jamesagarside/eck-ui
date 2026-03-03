@@ -17,7 +17,8 @@ import (
 var staticFS embed.FS
 
 // hashPattern matches Vite's hashed asset filenames (e.g., index-a1b2c3d4.js)
-var hashPattern = regexp.MustCompile(`\.[a-f0-9]{8}\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$`)
+// Vite uses format: name-[hash].ext where hash is 8 lowercase hex chars
+var hashPattern = regexp.MustCompile(`-[a-f0-9]{8}\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$`)
 
 // cacheableExtensions for assets that should be cached long-term
 var cacheableExtensions = map[string]bool{

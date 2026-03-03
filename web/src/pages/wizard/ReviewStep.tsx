@@ -23,7 +23,7 @@ import { useWizard } from './WizardContext';
 import {
   useCreateElasticsearch,
   useCreateKibana,
-  useCreateApmServer,
+  useCreateApm,
   useCreateAgent,
   useCreateBeat,
 } from '../../hooks/useResources';
@@ -46,7 +46,7 @@ export function ReviewStep() {
 
   const createElasticsearch = useCreateElasticsearch();
   const createKibana = useCreateKibana();
-  const createApmServer = useCreateApmServer();
+  const createApm = useCreateApm();
   const createAgent = useCreateAgent();
   const createBeat = useCreateBeat();
 
@@ -238,7 +238,7 @@ export function ReviewStep() {
       resources.push({
         name: 'APM Server',
         deploy: () =>
-          createApmServer.mutateAsync({
+          createApm.mutateAsync({
             namespace: elasticsearch.namespace,
             data: apmSpec,
           }),
