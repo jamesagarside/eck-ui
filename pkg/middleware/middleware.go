@@ -12,6 +12,44 @@ import (
 	"github.com/jamesagarside/eck-ui/pkg/config"
 )
 
+// SecurityHeaders adds security headers to all responses.
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		// Enable XSS filtering (legacy browsers)
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+		// Prevent clickjacking
+		w.Header().Set("X-Frame-Options", "DENY")
+
+		// Referrer policy
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Permissions policy (disable potentially dangerous features)
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=()")
+
+		// Content Security Policy
+		// Allow same-origin resources, EUI styles, and inline styles for EUI
+		csp := strings.Join([]string{
+			"default-src 'self'",
+			"script-src 'self'",
+			"style-src 'self' 'unsafe-inline'",          // EUI requires inline styles
+			"img-src 'self' data: blob:",                 // EUI uses data URLs for icons
+			"font-src 'self' data:",                      // EUI fonts
+			"connect-src 'self'",                         // API calls
+			"frame-ancestors 'none'",                     // Prevent embedding
+			"form-action 'self'",                         // Form submissions
+			"base-uri 'self'",                            // Base URL
+			"object-src 'none'",                          // Disable plugins
+		}, "; ")
+		w.Header().Set("Content-Security-Policy", csp)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // RequestLogger logs HTTP requests in JSON format.
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,4 +154,72 @@ func OrgAccess(next http.Handler) http.Handler {
 		// TODO: Implement organization access validation
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequestSizeLimit limits the maximum request body size to prevent DoS attacks.
+func RequestSizeLimit(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Limit request body size
+			if r.ContentLength > maxBytes {
+				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+
+			// Wrap body with a size-limited reader
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// InputSanitizer provides basic input sanitization.
+// Note: This is a defensive layer - primary validation should be in handlers.
+func InputSanitizer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check for suspicious patterns in URL parameters
+		for key, values := range r.URL.Query() {
+			for _, value := range values {
+				if containsSuspiciousContent(value) {
+					slog.Warn("suspicious query parameter detected",
+						"key", key,
+						"path", r.URL.Path,
+						"remote_addr", r.RemoteAddr,
+					)
+					http.Error(w, "Invalid request", http.StatusBadRequest)
+					return
+				}
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// containsSuspiciousContent checks for common attack patterns.
+func containsSuspiciousContent(s string) bool {
+	// Convert to lowercase for case-insensitive matching
+	lower := strings.ToLower(s)
+
+	// Check for script injection attempts
+	suspicious := []string{
+		"<script",
+		"javascript:",
+		"onerror=",
+		"onload=",
+		"onclick=",
+		"onmouseover=",
+		"onfocus=",
+		"eval(",
+		"expression(",
+	}
+
+	for _, pattern := range suspicious {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+
+	return false
 }

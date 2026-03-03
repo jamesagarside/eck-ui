@@ -67,11 +67,12 @@ func main() {
 	// Global middleware
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(eckMiddleware.SecurityHeaders)  // Security headers for all responses
 	r.Use(eckMiddleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	// Health endpoints
+	// Health endpoints (no size limit needed)
 	r.Get("/healthz", handlers.Healthz)
 	r.Get("/readyz", handlers.Readyz)
 
@@ -79,6 +80,8 @@ func main() {
 	r.Route("/api", func(r chi.Router) {
 		r.Use(eckMiddleware.CORS(cfg.AllowedOrigins))
 		r.Use(eckMiddleware.RateLimit(cfg.RateLimit))
+		r.Use(eckMiddleware.RequestSizeLimit(1 << 20)) // 1MB limit for API requests
+		r.Use(eckMiddleware.InputSanitizer)            // Basic input validation
 
 		// OpenAPI spec
 		r.Get("/openapi.json", handlers.ServeOpenAPISpec)
