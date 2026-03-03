@@ -88,17 +88,17 @@
 
 ## 8. Frontend - Elasticsearch UI
 
-- [ ] 8.1 Create Elasticsearch list page with EuiBasicTable
-- [ ] 8.2 Implement search and filter controls
-- [ ] 8.3 Create Elasticsearch detail page with tabs (Overview, Nodes, YAML, Events)
-- [ ] 8.4 Build Elasticsearch create form with node set configuration
-- [ ] 8.5 Implement form validation against CRD schema
-- [ ] 8.6 Create node set editor component (roles, count, resources, storage)
-- [ ] 8.7 Build Elasticsearch edit form with diff preview
-- [ ] 8.8 Create YAML editor with syntax highlighting (Monaco)
-- [ ] 8.9 Implement delete confirmation modal
-- [ ] 8.10 Display cluster health status with EuiHealth component
-- [ ] 8.11 Create events timeline component
+- [x] 8.1 Create Elasticsearch list page with EuiBasicTable
+- [x] 8.2 Implement search and filter controls
+- [x] 8.3 Create Elasticsearch detail page with tabs (Overview, Nodes, YAML, Events)
+- [x] 8.4 Build Elasticsearch create form with node set configuration
+- [x] 8.5 Implement form validation against CRD schema
+- [x] 8.6 Create node set editor component (roles, count, resources, storage)
+- [x] 8.7 Build Elasticsearch edit form with diff preview
+- [x] 8.8 Create YAML editor with syntax highlighting (EuiCodeBlock)
+- [x] 8.9 Implement delete confirmation modal
+- [x] 8.10 Display cluster health status with EuiHealth component
+- [x] 8.11 Create events timeline component
 
 ## 9. Frontend - Kibana UI
 

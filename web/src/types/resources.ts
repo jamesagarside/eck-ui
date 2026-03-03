@@ -236,15 +236,17 @@ export interface ElasticsearchStatus {
 
 // Kibana Types
 export interface KibanaInstance {
+  apiVersion?: string;
+  kind?: string;
   metadata: ResourceMetadata;
   spec: KibanaSpec;
-  status: KibanaStatus;
+  status?: KibanaStatus;
 }
 
 export interface KibanaSpec {
   version: string;
-  count: number;
-  elasticsearchRef: ElasticsearchRef;
+  count?: number;
+  elasticsearchRef?: ElasticsearchRef;
   http?: HttpSettings;
   podTemplate?: PodTemplate;
 }
