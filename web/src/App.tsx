@@ -23,6 +23,9 @@ import { AgentListPage, AgentDetailPage, AgentCreatePage, AgentEditPage } from '
 // Beat pages
 import { BeatListPage, BeatDetailPage, BeatCreatePage, BeatEditPage } from './pages/beats';
 
+// Logstash pages
+import { LogstashListPage, LogstashDetailPage, LogstashCreatePage, LogstashEditPage } from './pages/logstash';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -90,8 +93,12 @@ function App() {
                   <Route path="/beats/create" element={<BeatCreatePage />} />
                   <Route path="/beats/:namespace/:name" element={<BeatDetailPage />} />
                   <Route path="/beats/:namespace/:name/edit" element={<BeatEditPage />} />
+                  {/* Logstash routes */}
+                  <Route path="/logstash" element={<LogstashListPage />} />
+                  <Route path="/logstash/create" element={<LogstashCreatePage />} />
+                  <Route path="/logstash/:namespace/:name" element={<LogstashDetailPage />} />
+                  <Route path="/logstash/:namespace/:name/edit" element={<LogstashEditPage />} />
                   {/* Placeholder routes */}
-                  <Route path="/logstash" element={<PlaceholderPage title="Logstash" />} />
                   <Route path="/enterprise-search" element={<PlaceholderPage title="Enterprise Search" />} />
                   <Route path="/maps" element={<PlaceholderPage title="Elastic Maps" />} />
                   <Route path="/organizations" element={<PlaceholderPage title="Organizations" />} />

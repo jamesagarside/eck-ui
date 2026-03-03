@@ -359,9 +359,11 @@ export interface BeatStatus {
 
 // Logstash Types
 export interface Logstash {
+  apiVersion?: string;
+  kind?: string;
   metadata: ResourceMetadata;
   spec: LogstashSpec;
-  status: LogstashStatus;
+  status?: LogstashStatus;
 }
 
 export interface LogstashSpec {
