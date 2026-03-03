@@ -8,7 +8,6 @@ import {
   EuiSwitch,
   EuiSpacer,
   EuiPanel,
-  EuiTitle,
   EuiText,
   EuiFlexGroup,
   EuiFlexItem,
@@ -18,7 +17,7 @@ import {
   EuiCallOut,
 } from '@elastic/eui';
 import { useWizard } from './WizardContext';
-import type { BeatTypeConfig, BeatsConfig } from './types';
+import type { BeatTypeConfig } from './types';
 
 const BEAT_TYPE_INFO: Record<BeatTypeConfig['type'], { label: string; description: string }> = {
   filebeat: { label: 'Filebeat', description: 'Log file collection' },

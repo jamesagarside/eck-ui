@@ -256,8 +256,8 @@ export function ReviewStep() {
       });
     }
 
-    beatSpecs.forEach((spec, index) => {
-      const beatType = beats?.types.find((t) => t.enabled)?.[index]?.type || spec.spec.type;
+    beatSpecs.forEach((spec) => {
+      const beatType = spec.spec.type || 'beat';
       resources.push({
         name: `Beat (${beatType})`,
         deploy: () =>
