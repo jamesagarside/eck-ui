@@ -65,16 +65,16 @@
 
 ## 6. Frontend Shell
 
-- [ ] 6.1 Create EUI Provider wrapper with theme configuration
-- [ ] 6.2 Implement app shell layout with EuiPageTemplate
-- [ ] 6.3 Create sidebar navigation component with resource type links
-- [ ] 6.4 Implement organization switcher dropdown
-- [ ] 6.5 Create breadcrumb navigation component
-- [ ] 6.6 Implement toast notification system with EuiGlobalToastList
-- [ ] 6.7 Create loading skeleton components for lists and details
-- [ ] 6.8 Implement responsive layout breakpoints (desktop, tablet, mobile)
-- [ ] 6.9 Add dark mode toggle with local storage persistence
-- [ ] 6.10 Create user preferences context and persistence
+- [x] 6.1 Create EUI Provider wrapper with theme configuration
+- [x] 6.2 Implement app shell layout with EuiPageTemplate
+- [x] 6.3 Create sidebar navigation component with resource type links
+- [x] 6.4 Implement organization switcher dropdown
+- [x] 6.5 Create breadcrumb navigation component
+- [x] 6.6 Implement toast notification system with EuiGlobalToastList
+- [x] 6.7 Create loading skeleton components for lists and details
+- [x] 6.8 Implement responsive layout breakpoints (desktop, tablet, mobile)
+- [x] 6.9 Add dark mode toggle with local storage persistence
+- [x] 6.10 Create user preferences context and persistence
 
 ## 7. Frontend State Management
 

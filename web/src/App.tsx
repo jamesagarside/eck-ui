@@ -1,35 +1,81 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProvider } from './context/AppProvider';
+import { OrganizationProvider } from './context/OrganizationContext';
+import { UserPreferencesProvider } from './context/UserPreferencesContext';
+import { AppShell } from './components/layout/AppShell';
 
-function App() {
-  const [count, setCount] = useState(0)
+// Create React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30000, // 30 seconds
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
+// Placeholder pages (will be replaced with actual implementations)
+function DashboardPage() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div>
+      <h1>Dashboard</h1>
+      <p>Welcome to ECK UI</p>
+    </div>
+  );
 }
 
-export default App
+function ElasticsearchListPage() {
+  return (
+    <div>
+      <h1>Elasticsearch Clusters</h1>
+      <p>List of Elasticsearch clusters</p>
+    </div>
+  );
+}
+
+function PlaceholderPage({ title }: { title: string }) {
+  return (
+    <div>
+      <h1>{title}</h1>
+      <p>Coming soon...</p>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppProvider>
+        <OrganizationProvider>
+          <UserPreferencesProvider>
+            <BrowserRouter>
+              <AppShell>
+                <Routes>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/elasticsearch" element={<ElasticsearchListPage />} />
+                  <Route path="/elasticsearch/:name" element={<PlaceholderPage title="Elasticsearch Detail" />} />
+                  <Route path="/kibana" element={<PlaceholderPage title="Kibana" />} />
+                  <Route path="/apm" element={<PlaceholderPage title="APM Server" />} />
+                  <Route path="/fleet" element={<PlaceholderPage title="Fleet Server" />} />
+                  <Route path="/agent" element={<PlaceholderPage title="Elastic Agent" />} />
+                  <Route path="/beats" element={<PlaceholderPage title="Beats" />} />
+                  <Route path="/logstash" element={<PlaceholderPage title="Logstash" />} />
+                  <Route path="/enterprise-search" element={<PlaceholderPage title="Enterprise Search" />} />
+                  <Route path="/maps" element={<PlaceholderPage title="Elastic Maps" />} />
+                  <Route path="/organizations" element={<PlaceholderPage title="Organizations" />} />
+                  <Route path="/audit" element={<PlaceholderPage title="Audit Logs" />} />
+                  <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </AppShell>
+            </BrowserRouter>
+          </UserPreferencesProvider>
+        </OrganizationProvider>
+      </AppProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
