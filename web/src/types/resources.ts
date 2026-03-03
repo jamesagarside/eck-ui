@@ -332,9 +332,11 @@ export interface AgentStatus {
 
 // Beat Types
 export interface Beat {
+  apiVersion?: string;
+  kind?: string;
   metadata: ResourceMetadata;
   spec: BeatSpec;
-  status: BeatStatus;
+  status?: BeatStatus;
 }
 
 export interface BeatSpec {

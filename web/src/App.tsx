@@ -20,6 +20,9 @@ import { ApmListPage, ApmDetailPage, ApmCreatePage, ApmEditPage } from './pages/
 // Agent pages
 import { AgentListPage, AgentDetailPage, AgentCreatePage, AgentEditPage } from './pages/agent';
 
+// Beat pages
+import { BeatListPage, BeatDetailPage, BeatCreatePage, BeatEditPage } from './pages/beats';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,7 +85,12 @@ function App() {
                   <Route path="/agent/:namespace/:name/edit" element={<AgentEditPage />} />
                   {/* Other resource routes */}
                   <Route path="/fleet" element={<Navigate to="/agent?mode=fleet" replace />} />
-                  <Route path="/beats" element={<PlaceholderPage title="Beats" />} />
+                  {/* Beat routes */}
+                  <Route path="/beats" element={<BeatListPage />} />
+                  <Route path="/beats/create" element={<BeatCreatePage />} />
+                  <Route path="/beats/:namespace/:name" element={<BeatDetailPage />} />
+                  <Route path="/beats/:namespace/:name/edit" element={<BeatEditPage />} />
+                  {/* Placeholder routes */}
                   <Route path="/logstash" element={<PlaceholderPage title="Logstash" />} />
                   <Route path="/enterprise-search" element={<PlaceholderPage title="Enterprise Search" />} />
                   <Route path="/maps" element={<PlaceholderPage title="Elastic Maps" />} />
