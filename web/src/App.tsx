@@ -17,6 +17,9 @@ import { KibanaListPage, KibanaDetailPage, KibanaCreatePage, KibanaEditPage } fr
 // APM pages
 import { ApmListPage, ApmDetailPage, ApmCreatePage, ApmEditPage } from './pages/apm';
 
+// Agent pages
+import { AgentListPage, AgentDetailPage, AgentCreatePage, AgentEditPage } from './pages/agent';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,9 +75,13 @@ function App() {
                   <Route path="/apm/create" element={<ApmCreatePage />} />
                   <Route path="/apm/:namespace/:name" element={<ApmDetailPage />} />
                   <Route path="/apm/:namespace/:name/edit" element={<ApmEditPage />} />
+                  {/* Elastic Agent routes (includes Fleet Server as mode=fleet) */}
+                  <Route path="/agent" element={<AgentListPage />} />
+                  <Route path="/agent/create" element={<AgentCreatePage />} />
+                  <Route path="/agent/:namespace/:name" element={<AgentDetailPage />} />
+                  <Route path="/agent/:namespace/:name/edit" element={<AgentEditPage />} />
                   {/* Other resource routes */}
-                  <Route path="/fleet" element={<PlaceholderPage title="Fleet Server" />} />
-                  <Route path="/agent" element={<PlaceholderPage title="Elastic Agent" />} />
+                  <Route path="/fleet" element={<Navigate to="/agent?mode=fleet" replace />} />
                   <Route path="/beats" element={<PlaceholderPage title="Beats" />} />
                   <Route path="/logstash" element={<PlaceholderPage title="Logstash" />} />
                   <Route path="/enterprise-search" element={<PlaceholderPage title="Enterprise Search" />} />

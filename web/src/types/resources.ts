@@ -295,9 +295,11 @@ export interface ApmServerStatus {
 
 // Agent Types
 export interface ElasticAgent {
+  apiVersion?: string;
+  kind?: string;
   metadata: ResourceMetadata;
   spec: AgentSpec;
-  status: AgentStatus;
+  status?: AgentStatus;
 }
 
 export interface AgentSpec {
