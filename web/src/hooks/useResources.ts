@@ -5,9 +5,22 @@ import type { ListParams } from '../api/client';
 import { useOrganization } from '../context/OrganizationContext';
 import { useToast } from '../context/AppProvider';
 
+// Namespace type for K8s namespace objects
+interface KubernetesNamespace {
+  apiVersion: string;
+  kind: string;
+  metadata?: {
+    name?: string;
+    uid?: string;
+    labels?: Record<string, string>;
+  };
+}
+
 // Query key factory for consistent cache keys
 export const queryKeys = {
   all: ['resources'] as const,
+  namespaces: () => [...queryKeys.all, 'namespaces'] as const,
+  
   elasticsearch: (orgId: string, ns: string) => [...queryKeys.all, 'elasticsearch', orgId, ns] as const,
   elasticsearchList: (orgId: string, ns: string, params?: ListParams) => 
     [...queryKeys.elasticsearch(orgId, ns), 'list', params] as const,
@@ -45,6 +58,23 @@ export const queryKeys = {
     [...queryKeys.logstash(orgId, ns), 'detail', name] as const,
 };
 
+// Hook to fetch Kubernetes namespaces
+export function useNamespaces() {
+  return useQuery<KubernetesNamespace[]>({
+    queryKey: queryKeys.namespaces(),
+    queryFn: async () => {
+      // Fetch namespaces from API
+      const response = await fetch('/api/v1/namespaces');
+      if (!response.ok) {
+        throw new Error('Failed to fetch namespaces');
+      }
+      const data = await response.json();
+      return data.items || [];
+    },
+    staleTime: 60000, // 1 minute
+  });
+}
+
 // Generic hook factory for list queries
 function createListHook<T>(
   resourceType: keyof ReturnType<typeof apiClient.resources>,
@@ -69,28 +99,33 @@ function createListHook<T>(
 }
 
 // Generic hook factory for detail queries
+// If namespace is provided, use it; otherwise fall back to org context
 function createDetailHook<T>(
   resourceType: keyof ReturnType<typeof apiClient.resources>,
   queryKeyFn: (orgId: string, ns: string, name: string) => readonly unknown[]
 ) {
-  return function useResourceDetail(name: string) {
+  return function useResourceDetail(namespaceOrName: string, name?: string) {
     const { currentOrganization } = useOrganization();
     const orgId = currentOrganization?.id ?? '';
-    const namespace = currentOrganization?.namespace ?? '';
+    
+    // Support both (name) and (namespace, name) signatures
+    const actualNamespace = name ? namespaceOrName : (currentOrganization?.namespace ?? '');
+    const actualName = name ?? namespaceOrName;
 
     return useQuery({
-      queryKey: queryKeyFn(orgId, namespace, name),
+      queryKey: queryKeyFn(orgId, actualNamespace, actualName),
       queryFn: async () => {
-        const resources = apiClient.resources(orgId, namespace);
+        const resources = apiClient.resources(orgId, actualNamespace);
         const resourceApi = resources[resourceType] as { get: (n: string) => Promise<T> };
-        return resourceApi.get(name);
+        return resourceApi.get(actualName);
       },
-      enabled: !!orgId && !!namespace && !!name,
+      enabled: !!orgId && !!actualNamespace && !!actualName,
     });
   };
 }
 
 // Generic hook factory for create mutations
+// Accepts { namespace, data } to allow creating in any namespace
 function createCreateHook<T>(
   resourceType: keyof ReturnType<typeof apiClient.resources>,
   queryKeyPrefix: (orgId: string, ns: string) => readonly unknown[],
@@ -101,17 +136,19 @@ function createCreateHook<T>(
     const { currentOrganization } = useOrganization();
     const { addSuccessToast, addErrorToast } = useToast();
     const orgId = currentOrganization?.id ?? '';
-    const namespace = currentOrganization?.namespace ?? '';
+    const defaultNamespace = currentOrganization?.namespace ?? '';
 
     return useMutation({
-      mutationFn: async (data: T) => {
-        const resources = apiClient.resources(orgId, namespace);
+      mutationFn: async ({ namespace, data }: { namespace?: string; data: T }) => {
+        const ns = namespace || defaultNamespace;
+        const resources = apiClient.resources(orgId, ns);
         const resourceApi = resources[resourceType] as { create: (d: T) => Promise<T> };
         return resourceApi.create(data);
       },
-      onSuccess: () => {
+      onSuccess: (_, { namespace }) => {
+        const ns = namespace || defaultNamespace;
         // Invalidate list queries
-        queryClient.invalidateQueries({ queryKey: queryKeyPrefix(orgId, namespace) });
+        queryClient.invalidateQueries({ queryKey: queryKeyPrefix(orgId, ns) });
         addSuccessToast(`${resourceLabel} created`, 'Resource was created successfully');
       },
       onError: (error) => {
@@ -123,6 +160,7 @@ function createCreateHook<T>(
 }
 
 // Generic hook factory for update mutations with optimistic updates
+// Accepts { namespace, name, data } to allow updating in any namespace
 function createUpdateHook<T>(
   resourceType: keyof ReturnType<typeof apiClient.resources>,
   queryKeyFn: (orgId: string, ns: string, name: string) => readonly unknown[],
@@ -133,30 +171,33 @@ function createUpdateHook<T>(
     const { currentOrganization } = useOrganization();
     const { addSuccessToast, addErrorToast } = useToast();
     const orgId = currentOrganization?.id ?? '';
-    const namespace = currentOrganization?.namespace ?? '';
+    const defaultNamespace = currentOrganization?.namespace ?? '';
 
     return useMutation({
-      mutationFn: async ({ name, data }: { name: string; data: T }) => {
-        const resources = apiClient.resources(orgId, namespace);
+      mutationFn: async ({ namespace, name, data }: { namespace?: string; name: string; data: T }) => {
+        const ns = namespace || defaultNamespace;
+        const resources = apiClient.resources(orgId, ns);
         const resourceApi = resources[resourceType] as { update: (n: string, d: T) => Promise<T> };
         return resourceApi.update(name, data);
       },
-      onMutate: async ({ name, data }) => {
+      onMutate: async ({ namespace, name, data }) => {
+        const ns = namespace || defaultNamespace;
         // Cancel any outgoing refetches
-        await queryClient.cancelQueries({ queryKey: queryKeyFn(orgId, namespace, name) });
+        await queryClient.cancelQueries({ queryKey: queryKeyFn(orgId, ns, name) });
 
         // Snapshot the previous value
-        const previousData = queryClient.getQueryData(queryKeyFn(orgId, namespace, name));
+        const previousData = queryClient.getQueryData(queryKeyFn(orgId, ns, name));
 
         // Optimistically update the cache
-        queryClient.setQueryData(queryKeyFn(orgId, namespace, name), data);
+        queryClient.setQueryData(queryKeyFn(orgId, ns, name), data);
 
-        return { previousData };
+        return { previousData, ns };
       },
-      onError: (error, { name }, context) => {
+      onError: (error, { namespace, name }, context) => {
+        const ns = namespace || defaultNamespace;
         // Rollback on error
         if (context?.previousData) {
-          queryClient.setQueryData(queryKeyFn(orgId, namespace, name), context.previousData);
+          queryClient.setQueryData(queryKeyFn(orgId, ns, name), context.previousData);
         }
         const message = error instanceof Error ? error.message : 'Failed to update resource';
         addErrorToast(`Failed to update ${resourceLabel}`, message);
@@ -164,15 +205,17 @@ function createUpdateHook<T>(
       onSuccess: () => {
         addSuccessToast(`${resourceLabel} updated`, 'Resource was updated successfully');
       },
-      onSettled: (_, __, { name }) => {
+      onSettled: (_, __, { namespace, name }) => {
+        const ns = namespace || defaultNamespace;
         // Refetch after error or success
-        queryClient.invalidateQueries({ queryKey: queryKeyFn(orgId, namespace, name) });
+        queryClient.invalidateQueries({ queryKey: queryKeyFn(orgId, ns, name) });
       },
     });
   };
 }
 
 // Generic hook factory for delete mutations
+// Accepts { namespace, name } to allow deleting in any namespace
 function createDeleteHook(
   resourceType: keyof ReturnType<typeof apiClient.resources>,
   queryKeyPrefix: (orgId: string, ns: string) => readonly unknown[],
@@ -183,17 +226,19 @@ function createDeleteHook(
     const { currentOrganization } = useOrganization();
     const { addSuccessToast, addErrorToast } = useToast();
     const orgId = currentOrganization?.id ?? '';
-    const namespace = currentOrganization?.namespace ?? '';
+    const defaultNamespace = currentOrganization?.namespace ?? '';
 
     return useMutation({
-      mutationFn: async (name: string) => {
-        const resources = apiClient.resources(orgId, namespace);
+      mutationFn: async ({ namespace, name }: { namespace?: string; name: string }) => {
+        const ns = namespace || defaultNamespace;
+        const resources = apiClient.resources(orgId, ns);
         const resourceApi = resources[resourceType] as { delete: (n: string) => Promise<void> };
         return resourceApi.delete(name);
       },
-      onSuccess: () => {
+      onSuccess: (_, { namespace }) => {
+        const ns = namespace || defaultNamespace;
         // Invalidate list queries
-        queryClient.invalidateQueries({ queryKey: queryKeyPrefix(orgId, namespace) });
+        queryClient.invalidateQueries({ queryKey: queryKeyPrefix(orgId, ns) });
         addSuccessToast(`${resourceLabel} deleted`, 'Resource was deleted successfully');
       },
       onError: (error) => {

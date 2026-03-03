@@ -5,6 +5,12 @@ import { OrganizationProvider } from './context/OrganizationContext';
 import { UserPreferencesProvider } from './context/UserPreferencesContext';
 import { AppShell } from './components/layout/AppShell';
 
+// Elasticsearch pages
+import { ElasticsearchListPage } from './pages/elasticsearch/ElasticsearchListPage';
+import { ElasticsearchDetailPage } from './pages/elasticsearch/ElasticsearchDetailPage';
+import { ElasticsearchCreatePage } from './pages/elasticsearch/ElasticsearchCreatePage';
+import { ElasticsearchEditPage } from './pages/elasticsearch/ElasticsearchEditPage';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,15 +28,6 @@ function DashboardPage() {
     <div>
       <h1>Dashboard</h1>
       <p>Welcome to ECK UI</p>
-    </div>
-  );
-}
-
-function ElasticsearchListPage() {
-  return (
-    <div>
-      <h1>Elasticsearch Clusters</h1>
-      <p>List of Elasticsearch clusters</p>
     </div>
   );
 }
@@ -54,8 +51,12 @@ function App() {
               <AppShell>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
+                  {/* Elasticsearch routes */}
                   <Route path="/elasticsearch" element={<ElasticsearchListPage />} />
-                  <Route path="/elasticsearch/:name" element={<PlaceholderPage title="Elasticsearch Detail" />} />
+                  <Route path="/elasticsearch/create" element={<ElasticsearchCreatePage />} />
+                  <Route path="/elasticsearch/:namespace/:name" element={<ElasticsearchDetailPage />} />
+                  <Route path="/elasticsearch/:namespace/:name/edit" element={<ElasticsearchEditPage />} />
+                  {/* Other resource routes */}
                   <Route path="/kibana" element={<PlaceholderPage title="Kibana" />} />
                   <Route path="/apm" element={<PlaceholderPage title="APM Server" />} />
                   <Route path="/fleet" element={<PlaceholderPage title="Fleet Server" />} />
