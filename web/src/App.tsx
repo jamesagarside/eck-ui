@@ -14,6 +14,9 @@ import { ElasticsearchEditPage } from './pages/elasticsearch/ElasticsearchEditPa
 // Kibana pages
 import { KibanaListPage, KibanaDetailPage, KibanaCreatePage, KibanaEditPage } from './pages/kibana';
 
+// APM pages
+import { ApmListPage, ApmDetailPage, ApmCreatePage, ApmEditPage } from './pages/apm';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,8 +67,12 @@ function App() {
                   <Route path="/kibana/create" element={<KibanaCreatePage />} />
                   <Route path="/kibana/:namespace/:name" element={<KibanaDetailPage />} />
                   <Route path="/kibana/:namespace/:name/edit" element={<KibanaEditPage />} />
+                  {/* APM Server routes */}
+                  <Route path="/apm" element={<ApmListPage />} />
+                  <Route path="/apm/create" element={<ApmCreatePage />} />
+                  <Route path="/apm/:namespace/:name" element={<ApmDetailPage />} />
+                  <Route path="/apm/:namespace/:name/edit" element={<ApmEditPage />} />
                   {/* Other resource routes */}
-                  <Route path="/apm" element={<PlaceholderPage title="APM Server" />} />
                   <Route path="/fleet" element={<PlaceholderPage title="Fleet Server" />} />
                   <Route path="/agent" element={<PlaceholderPage title="Elastic Agent" />} />
                   <Route path="/beats" element={<PlaceholderPage title="Beats" />} />

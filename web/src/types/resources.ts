@@ -268,15 +268,17 @@ export type AssociationStatus = 'Pending' | 'Established' | 'Failed';
 
 // APM Server Types
 export interface ApmServer {
+  apiVersion?: string;
+  kind?: string;
   metadata: ResourceMetadata;
   spec: ApmServerSpec;
-  status: ApmServerStatus;
+  status?: ApmServerStatus;
 }
 
 export interface ApmServerSpec {
   version: string;
-  count: number;
-  elasticsearchRef: ElasticsearchRef;
+  count?: number;
+  elasticsearchRef?: ElasticsearchRef;
   kibanaRef?: ElasticsearchRef;
   http?: HttpSettings;
   podTemplate?: PodTemplate;
