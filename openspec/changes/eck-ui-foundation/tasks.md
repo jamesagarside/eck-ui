@@ -24,15 +24,15 @@
 
 ## 3. Organization and RBAC
 
-- [ ] 3.1 Define Organization ConfigMap schema and CRUD operations
-- [ ] 3.2 Implement organization listing endpoint (GET /api/v1/orgs)
-- [ ] 3.3 Implement organization detail endpoint (GET /api/v1/orgs/{org})
-- [ ] 3.4 Create organization membership validation middleware
-- [ ] 3.5 Implement role-based permission checking (viewer, editor, admin)
-- [ ] 3.6 Add namespace isolation enforcement in API handlers
-- [ ] 3.7 Create OIDC authentication flow handler
-- [ ] 3.8 Implement Kubernetes token fallback authentication
-- [ ] 3.9 Create session management with secure cookies
+- [x] 3.1 Define Organization ConfigMap schema and CRUD operations
+- [x] 3.2 Implement organization listing endpoint (GET /api/v1/orgs)
+- [x] 3.3 Implement organization detail endpoint (GET /api/v1/orgs/{org})
+- [x] 3.4 Create organization membership validation middleware
+- [x] 3.5 Implement role-based permission checking (viewer, editor, admin)
+- [x] 3.6 Add namespace isolation enforcement in API handlers
+- [x] 3.7 Create OIDC authentication flow handler
+- [x] 3.8 Implement Kubernetes token fallback authentication
+- [x] 3.9 Create session management with secure cookies
 
 ## 4. ECK Resource Types - Go Backend
 
