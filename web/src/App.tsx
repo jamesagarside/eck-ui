@@ -32,6 +32,10 @@ import { EnterpriseSearchListPage, EnterpriseSearchDetailPage, EnterpriseSearchC
 // Elastic Maps Server pages
 import { MapsListPage, MapsDetailPage, MapsCreatePage, MapsEditPage } from './pages/maps';
 
+// Dashboard and Wizard pages
+import { DashboardPage } from './pages/dashboard';
+import { WizardPage } from './pages/wizard';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,16 +46,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-// Placeholder pages (will be replaced with actual implementations)
-function DashboardPage() {
-  return (
-    <div>
-      <h1>Dashboard</h1>
-      <p>Welcome to ECK UI</p>
-    </div>
-  );
-}
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
@@ -114,6 +108,8 @@ function App() {
                   <Route path="/maps/create" element={<MapsCreatePage />} />
                   <Route path="/maps/:namespace/:name" element={<MapsDetailPage />} />
                   <Route path="/maps/:namespace/:name/edit" element={<MapsEditPage />} />
+                  {/* Wizard route */}
+                  <Route path="/wizard" element={<WizardPage />} />
                   {/* Placeholder routes */}
                   <Route path="/organizations" element={<PlaceholderPage title="Organizations" />} />
                   <Route path="/audit" element={<PlaceholderPage title="Audit Logs" />} />
