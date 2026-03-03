@@ -26,6 +26,12 @@ import { BeatListPage, BeatDetailPage, BeatCreatePage, BeatEditPage } from './pa
 // Logstash pages
 import { LogstashListPage, LogstashDetailPage, LogstashCreatePage, LogstashEditPage } from './pages/logstash';
 
+// Enterprise Search pages
+import { EnterpriseSearchListPage, EnterpriseSearchDetailPage, EnterpriseSearchCreatePage, EnterpriseSearchEditPage } from './pages/enterprise-search';
+
+// Elastic Maps Server pages
+import { MapsListPage, MapsDetailPage, MapsCreatePage, MapsEditPage } from './pages/maps';
+
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -98,9 +104,17 @@ function App() {
                   <Route path="/logstash/create" element={<LogstashCreatePage />} />
                   <Route path="/logstash/:namespace/:name" element={<LogstashDetailPage />} />
                   <Route path="/logstash/:namespace/:name/edit" element={<LogstashEditPage />} />
+                  {/* Enterprise Search routes */}
+                  <Route path="/enterprise-search" element={<EnterpriseSearchListPage />} />
+                  <Route path="/enterprise-search/create" element={<EnterpriseSearchCreatePage />} />
+                  <Route path="/enterprise-search/:namespace/:name" element={<EnterpriseSearchDetailPage />} />
+                  <Route path="/enterprise-search/:namespace/:name/edit" element={<EnterpriseSearchEditPage />} />
+                  {/* Elastic Maps Server routes */}
+                  <Route path="/maps" element={<MapsListPage />} />
+                  <Route path="/maps/create" element={<MapsCreatePage />} />
+                  <Route path="/maps/:namespace/:name" element={<MapsDetailPage />} />
+                  <Route path="/maps/:namespace/:name/edit" element={<MapsEditPage />} />
                   {/* Placeholder routes */}
-                  <Route path="/enterprise-search" element={<PlaceholderPage title="Enterprise Search" />} />
-                  <Route path="/maps" element={<PlaceholderPage title="Elastic Maps" />} />
                   <Route path="/organizations" element={<PlaceholderPage title="Organizations" />} />
                   <Route path="/audit" element={<PlaceholderPage title="Audit Logs" />} />
                   <Route path="/settings" element={<PlaceholderPage title="Settings" />} />

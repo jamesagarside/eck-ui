@@ -56,6 +56,18 @@ export const queryKeys = {
     [...queryKeys.logstash(orgId, ns), 'list', params] as const,
   logstashDetail: (orgId: string, ns: string, name: string) => 
     [...queryKeys.logstash(orgId, ns), 'detail', name] as const,
+
+  enterpriseSearch: (orgId: string, ns: string) => [...queryKeys.all, 'enterprisesearch', orgId, ns] as const,
+  enterpriseSearchList: (orgId: string, ns: string, params?: ListParams) => 
+    [...queryKeys.enterpriseSearch(orgId, ns), 'list', params] as const,
+  enterpriseSearchDetail: (orgId: string, ns: string, name: string) => 
+    [...queryKeys.enterpriseSearch(orgId, ns), 'detail', name] as const,
+
+  elasticMapsServer: (orgId: string, ns: string) => [...queryKeys.all, 'elasticmapsserver', orgId, ns] as const,
+  elasticMapsServerList: (orgId: string, ns: string, params?: ListParams) => 
+    [...queryKeys.elasticMapsServer(orgId, ns), 'list', params] as const,
+  elasticMapsServerDetail: (orgId: string, ns: string, name: string) => 
+    [...queryKeys.elasticMapsServer(orgId, ns), 'detail', name] as const,
 };
 
 // Hook to fetch Kubernetes namespaces
@@ -290,6 +302,20 @@ export const useLogstashDetail = createDetailHook('logstash', queryKeys.logstash
 export const useCreateLogstash = createCreateHook('logstash', queryKeys.logstash, 'Logstash');
 export const useUpdateLogstash = createUpdateHook('logstash', queryKeys.logstashDetail, 'Logstash');
 export const useDeleteLogstash = createDeleteHook('logstash', queryKeys.logstash, 'Logstash');
+
+// Enterprise Search hooks
+export const useEnterpriseSearchList = createListHook('enterpriseSearch', queryKeys.enterpriseSearchList);
+export const useEnterpriseSearchDetail = createDetailHook('enterpriseSearch', queryKeys.enterpriseSearchDetail);
+export const useCreateEnterpriseSearch = createCreateHook('enterpriseSearch', queryKeys.enterpriseSearch, 'EnterpriseSearch');
+export const useUpdateEnterpriseSearch = createUpdateHook('enterpriseSearch', queryKeys.enterpriseSearchDetail, 'EnterpriseSearch');
+export const useDeleteEnterpriseSearch = createDeleteHook('enterpriseSearch', queryKeys.enterpriseSearch, 'EnterpriseSearch');
+
+// Elastic Maps Server hooks
+export const useElasticMapsServerList = createListHook('maps', queryKeys.elasticMapsServerList);
+export const useElasticMapsServerDetail = createDetailHook('maps', queryKeys.elasticMapsServerDetail);
+export const useCreateElasticMapsServer = createCreateHook('maps', queryKeys.elasticMapsServer, 'ElasticMapsServer');
+export const useUpdateElasticMapsServer = createUpdateHook('maps', queryKeys.elasticMapsServerDetail, 'ElasticMapsServer');
+export const useDeleteElasticMapsServer = createDeleteHook('maps', queryKeys.elasticMapsServer, 'ElasticMapsServer');
 
 // Invalidate all resource caches (useful after org switch)
 export function useInvalidateAllResources() {

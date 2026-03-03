@@ -393,6 +393,58 @@ export interface LogstashStatus {
   expectedNodes?: number;
 }
 
+// Enterprise Search Types
+export interface EnterpriseSearch {
+  apiVersion?: string;
+  kind?: string;
+  metadata: ResourceMetadata;
+  spec: EnterpriseSearchSpec;
+  status?: EnterpriseSearchStatus;
+}
+
+export interface EnterpriseSearchSpec {
+  version: string;
+  count: number;
+  elasticsearchRef?: ElasticsearchRef;
+  config?: Record<string, unknown>;
+  podTemplate?: PodTemplate;
+}
+
+export interface EnterpriseSearchStatus {
+  health: HealthStatus;
+  phase: Phase;
+  version?: string;
+  availableNodes?: number;
+  expectedNodes?: number;
+  service?: string;
+}
+
+// Elastic Maps Server Types
+export interface ElasticMapsServer {
+  apiVersion?: string;
+  kind?: string;
+  metadata: ResourceMetadata;
+  spec: ElasticMapsServerSpec;
+  status?: ElasticMapsServerStatus;
+}
+
+export interface ElasticMapsServerSpec {
+  version: string;
+  count: number;
+  elasticsearchRef?: ElasticsearchRef;
+  config?: Record<string, unknown>;
+  podTemplate?: PodTemplate;
+}
+
+export interface ElasticMapsServerStatus {
+  health: HealthStatus;
+  phase: Phase;
+  version?: string;
+  availableNodes?: number;
+  expectedNodes?: number;
+  service?: string;
+}
+
 // Kubernetes Event Types
 export interface KubernetesEvent {
   type: 'Normal' | 'Warning';
