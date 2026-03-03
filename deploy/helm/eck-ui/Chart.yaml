@@ -1,0 +1,23 @@
+apiVersion: v2
+name: eck-ui
+description: A Helm chart for ECK UI - Web management interface for Elastic Cloud on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/jamesagarside/eck-ui
+sources:
+  - https://github.com/jamesagarside/eck-ui
+maintainers:
+  - name: jamesagarside
+    email: james@example.com
+keywords:
+  - elastic
+  - elasticsearch
+  - kibana
+  - eck
+  - kubernetes
+  - monitoring
+kubeVersion: ">=1.23.0-0"
+annotations:
+  category: Monitoring
+  licenses: Apache-2.0
