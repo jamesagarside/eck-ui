@@ -19,6 +19,7 @@ import (
 	"github.com/jamesagarside/eck-ui/pkg/handlers"
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
 	eckMiddleware "github.com/jamesagarside/eck-ui/pkg/middleware"
+	"github.com/jamesagarside/eck-ui/pkg/resources"
 )
 
 func main() {
@@ -95,59 +96,10 @@ func main() {
 				r.Route("/{org}", func(r chi.Router) {
 					r.Use(eckMiddleware.OrgAccess)
 
-					// Elasticsearch
-					r.Route("/elasticsearch", func(r chi.Router) {
-						r.Get("/", handlers.ListElasticsearch)
-						r.Post("/", handlers.CreateElasticsearch)
-						r.Get("/{name}", handlers.GetElasticsearch)
-						r.Put("/{name}", handlers.UpdateElasticsearch)
-						r.Delete("/{name}", handlers.DeleteElasticsearch)
-					})
-
-					// Kibana
-					r.Route("/kibana", func(r chi.Router) {
-						r.Get("/", handlers.ListKibana)
-						r.Post("/", handlers.CreateKibana)
-						r.Get("/{name}", handlers.GetKibana)
-						r.Put("/{name}", handlers.UpdateKibana)
-						r.Delete("/{name}", handlers.DeleteKibana)
-					})
-
-					// APM Server
-					r.Route("/apm", func(r chi.Router) {
-						r.Get("/", handlers.ListAPMServer)
-						r.Post("/", handlers.CreateAPMServer)
-						r.Get("/{name}", handlers.GetAPMServer)
-						r.Put("/{name}", handlers.UpdateAPMServer)
-						r.Delete("/{name}", handlers.DeleteAPMServer)
-					})
-
-					// Agent
-					r.Route("/agent", func(r chi.Router) {
-						r.Get("/", handlers.ListAgent)
-						r.Post("/", handlers.CreateAgent)
-						r.Get("/{name}", handlers.GetAgent)
-						r.Put("/{name}", handlers.UpdateAgent)
-						r.Delete("/{name}", handlers.DeleteAgent)
-					})
-
-					// Beat
-					r.Route("/beat", func(r chi.Router) {
-						r.Get("/", handlers.ListBeat)
-						r.Post("/", handlers.CreateBeat)
-						r.Get("/{name}", handlers.GetBeat)
-						r.Put("/{name}", handlers.UpdateBeat)
-						r.Delete("/{name}", handlers.DeleteBeat)
-					})
-
-					// Logstash
-					r.Route("/logstash", func(r chi.Router) {
-						r.Get("/", handlers.ListLogstash)
-						r.Post("/", handlers.CreateLogstash)
-						r.Get("/{name}", handlers.GetLogstash)
-						r.Put("/{name}", handlers.UpdateLogstash)
-						r.Delete("/{name}", handlers.DeleteLogstash)
-					})
+					// Register all ECK resource handlers dynamically
+					if err := resources.RegisterAllRoutes(r); err != nil {
+						slog.Error("failed to register resource routes", "error", err)
+					}
 				})
 			})
 		})

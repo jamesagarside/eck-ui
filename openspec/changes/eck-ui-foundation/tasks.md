@@ -36,21 +36,21 @@
 
 ## 4. ECK Resource Types - Go Backend
 
-- [ ] 4.1 Generate Go types from ECK CRD OpenAPI schemas
-- [ ] 4.2 Implement generic resource handler factory for CRUD operations
-- [ ] 4.3 Create Elasticsearch resource handlers (list, get, create, update, delete)
-- [ ] 4.4 Create Kibana resource handlers
-- [ ] 4.5 Create APM Server resource handlers
-- [ ] 4.6 Create Agent resource handlers
-- [ ] 4.7 Create Beat resource handlers
-- [ ] 4.8 Create Logstash resource handlers
-- [ ] 4.9 Create Enterprise Search resource handlers
-- [ ] 4.10 Create Elastic Maps Server resource handlers
-- [ ] 4.11 Create Stack Config Policy resource handlers
-- [ ] 4.12 Create Elasticsearch Autoscaler resource handlers
-- [ ] 4.13 Implement Kubernetes events fetching for resources
-- [ ] 4.14 Add pagination support to list endpoints
-- [ ] 4.15 Add filtering and sorting support to list endpoints
+- [x] 4.1 Generate Go types from ECK CRD OpenAPI schemas
+- [x] 4.2 Implement generic resource handler factory for CRUD operations
+- [x] 4.3 Create Elasticsearch resource handlers (list, get, create, update, delete)
+- [x] 4.4 Create Kibana resource handlers
+- [x] 4.5 Create APM Server resource handlers
+- [x] 4.6 Create Agent resource handlers
+- [x] 4.7 Create Beat resource handlers
+- [x] 4.8 Create Logstash resource handlers
+- [x] 4.9 Create Enterprise Search resource handlers
+- [x] 4.10 Create Elastic Maps Server resource handlers
+- [x] 4.11 Create Stack Config Policy resource handlers
+- [x] 4.12 Create Elasticsearch Autoscaler resource handlers
+- [x] 4.13 Implement Kubernetes events fetching for resources
+- [x] 4.14 Add pagination support to list endpoints
+- [x] 4.15 Add filtering and sorting support to list endpoints
 
 ## 5. Audit Logging
 
