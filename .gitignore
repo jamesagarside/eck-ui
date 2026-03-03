@@ -2,3 +2,35 @@
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Build artifacts
+bin/
+coverage.out
+coverage.html
+
+# Frontend build output
+web/dist/
+web/node_modules/
+
+# Embedded static files (generated from frontend build)
+pkg/handlers/static/*
+!pkg/handlers/static/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+*.test
+__snapshots__/

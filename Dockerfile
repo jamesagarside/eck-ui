@@ -33,7 +33,8 @@ RUN go mod download
 COPY cmd/ ./cmd/
 COPY pkg/ ./pkg/
 
-# Copy frontend build to static directory for embedding
+# Remove placeholder and copy frontend build to static directory for embedding
+RUN rm -f ./pkg/handlers/static/.gitkeep
 COPY --from=frontend-builder /app/web/dist ./pkg/handlers/static/
 
 # Build the binary

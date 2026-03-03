@@ -32,6 +32,14 @@ build-frontend: ## Build React frontend
 	@echo "==> Building frontend..."
 	cd web && npm ci && npm run build
 
+build-embedded: build-frontend embed-frontend build-backend ## Build with embedded frontend (single binary)
+
+embed-frontend: ## Copy frontend build to static directory for embedding
+	@echo "==> Embedding frontend assets..."
+	rm -rf pkg/handlers/static/*
+	cp -rf web/dist/* pkg/handlers/static/
+	@echo "Frontend assets copied to pkg/handlers/static/"
+
 #
 # Test targets
 #
