@@ -1,213 +1,102 @@
-// Elasticsearch List Page
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  EuiPageHeader,
-  EuiButton,
   EuiBasicTable,
-  EuiFieldSearch,
-  EuiFlexGroup,
-  EuiFlexItem,
-  EuiFilterGroup,
-  EuiFilterButton,
+  EuiButton,
   EuiHealth,
-  EuiBadge,
-  EuiLink,
-  EuiText,
-  EuiToolTip,
+  EuiPageHeader,
   EuiSpacer,
-  EuiEmptyPrompt,
+  EuiBadge,
+  type EuiBasicTableColumn,
 } from '@elastic/eui';
-import type { EuiBasicTableColumn, Criteria, Pagination } from '@elastic/eui';
-import { useElasticsearchList } from '../../hooks/useResources';
+import { useNavigate } from 'react-router-dom';
+import { useResourceList } from '../../hooks/useResources';
 import { ListSkeleton } from '../../components/common/Skeletons';
-import type { ElasticsearchCluster, HealthStatus, Phase } from '../../types/resources';
+import type { Elasticsearch, HealthStatus } from '../../types/resources';
 
-// Health color mapping
-const healthColors: Record<HealthStatus, string> = {
+const HEALTH_COLORS: Record<HealthStatus, string> = {
   green: 'success',
   yellow: 'warning',
   red: 'danger',
   unknown: 'subdued',
 };
 
-// Phase badge colors
-const phaseColors: Record<Phase, 'primary' | 'warning' | 'danger' | 'default' | 'success'> = {
-  Ready: 'success',
-  ApplyingChanges: 'primary',
-  MigratingData: 'warning',
-  Stalled: 'danger',
-  Invalid: 'danger',
-};
-
-// Filter options
-const healthFilters: HealthStatus[] = ['green', 'yellow', 'red'];
-const phaseFilters: Phase[] = ['Ready', 'ApplyingChanges', 'MigratingData', 'Stalled'];
-
-// Valid sort fields (matching column field paths)
-type SortableField = 'metadata.name' | 'metadata.namespace' | 'spec.version';
+function formatAge(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days > 0) return `${days}d`;
+  const hours = Math.floor(diff / 3600000);
+  if (hours > 0) return `${hours}h`;
+  const minutes = Math.floor(diff / 60000);
+  return `${minutes}m`;
+}
 
 export function ElasticsearchListPage() {
   const navigate = useNavigate();
+  const { data, isLoading, error } = useResourceList<Elasticsearch>('elasticsearch');
 
-  // State
-  const [searchValue, setSearchValue] = useState('');
-  const [selectedHealth, setSelectedHealth] = useState<HealthStatus[]>([]);
-  const [selectedPhase, setSelectedPhase] = useState<Phase[]>([]);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
-  const [sortField, setSortField] = useState<SortableField>('metadata.name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  if (isLoading) return <ListSkeleton />;
 
-  // Build query params
-  const queryParams = useMemo(
-    () => ({
-      page: pageIndex + 1,
-      pageSize,
-      sort: sortField.split('.').pop() || sortField,
-      order: sortDirection,
-      search: searchValue || undefined,
-      health: selectedHealth.length === 1 ? selectedHealth[0] : undefined,
-      phase: selectedPhase.length === 1 ? selectedPhase[0] : undefined,
-    }),
-    [pageIndex, pageSize, sortField, sortDirection, searchValue, selectedHealth, selectedPhase]
-  );
+  const items = data?.items || [];
 
-  // Fetch data
-  const { data, isLoading, error, refetch } = useElasticsearchList(queryParams);
-
-  const clusters = (data?.data ?? []) as ElasticsearchCluster[];
-  const totalItems = clusters.length;
-
-  // Table columns
-  const columns: EuiBasicTableColumn<ElasticsearchCluster>[] = [
+  const columns: EuiBasicTableColumn<Elasticsearch>[] = [
     {
       field: 'metadata.name',
       name: 'Name',
+      truncateText: true,
       sortable: true,
-      render: (name: string, item: ElasticsearchCluster) => (
-        <EuiLink onClick={() => navigate(`/elasticsearch/${item.metadata.namespace}/${name}`)}>
-          {name}
-        </EuiLink>
-      ),
     },
     {
       field: 'metadata.namespace',
       name: 'Namespace',
+      truncateText: true,
       sortable: true,
+    },
+    {
+      field: 'spec.version',
+      name: 'Version',
+      width: '100px',
     },
     {
       field: 'status.health',
       name: 'Health',
-      sortable: true,
+      width: '100px',
       render: (health: HealthStatus) => (
-        <EuiHealth color={healthColors[health] || 'subdued'}>{health}</EuiHealth>
+        <EuiHealth color={HEALTH_COLORS[health || 'unknown']}>
+          {health || 'unknown'}
+        </EuiHealth>
       ),
     },
     {
       field: 'status.phase',
       name: 'Phase',
-      sortable: true,
-      render: (phase: Phase) => (
-        <EuiBadge color={phaseColors[phase] || 'default'}>{phase}</EuiBadge>
-      ),
-    },
-    {
-      field: 'spec.version',
-      name: 'Version',
-      sortable: true,
-    },
-    {
-      field: 'status',
-      name: 'Nodes',
-      render: (status: ElasticsearchCluster['status']) => {
-        if (!status) return <span>-</span>;
-        return (
-          <EuiToolTip
-            content={`${status.availableNodes ?? 0} of ${status.expectedNodes ?? 0} nodes available`}
-          >
-            <span>
-              {status.availableNodes ?? 0}/{status.expectedNodes ?? 0}
-            </span>
-          </EuiToolTip>
-        );
+      width: '140px',
+      render: (phase: string) => {
+        const color =
+          phase === 'Ready'
+            ? 'success'
+            : phase === 'ApplyingChanges'
+              ? 'primary'
+              : phase === 'Stalled' || phase === 'Invalid'
+                ? 'danger'
+                : 'default';
+        return <EuiBadge color={color}>{phase || 'Unknown'}</EuiBadge>;
       },
     },
     {
-      field: 'spec.nodeSets',
-      name: 'Node Sets',
-      render: (nodeSets: ElasticsearchCluster['spec']['nodeSets']) => (
-        <span>{nodeSets?.length ?? 0}</span>
-      ),
+      name: 'Nodes',
+      width: '80px',
+      render: (item: Elasticsearch) => {
+        const available = item.status?.availableNodes ?? 0;
+        const expected = item.status?.expectedNodes ?? 0;
+        return `${available}/${expected}`;
+      },
     },
     {
       field: 'metadata.creationTimestamp',
-      name: 'Created',
-      sortable: true,
-      render: (timestamp: string) => {
-        if (!timestamp) return <span>-</span>;
-        const date = new Date(timestamp);
-        return (
-          <EuiToolTip content={date.toLocaleString()}>
-            <span>{formatRelativeTime(date)}</span>
-          </EuiToolTip>
-        );
-      },
+      name: 'Age',
+      width: '80px',
+      render: (ts: string) => formatAge(ts),
     },
   ];
-
-  // Pagination config
-  const pagination: Pagination = {
-    pageIndex,
-    pageSize,
-    totalItemCount: totalItems,
-    pageSizeOptions: [10, 20, 50],
-  };
-
-  // Table change handler
-  const onTableChange = ({ page, sort }: Criteria<ElasticsearchCluster>) => {
-    if (page) {
-      setPageIndex(page.index);
-      setPageSize(page.size);
-    }
-    if (sort) {
-      setSortField(sort.field as SortableField);
-      setSortDirection(sort.direction);
-    }
-  };
-
-  // Toggle filter
-  const toggleHealthFilter = (health: HealthStatus) => {
-    setSelectedHealth((prev) =>
-      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
-    );
-    setPageIndex(0);
-  };
-
-  const togglePhaseFilter = (phase: Phase) => {
-    setSelectedPhase((prev) =>
-      prev.includes(phase) ? prev.filter((p) => p !== phase) : [...prev, phase]
-    );
-    setPageIndex(0);
-  };
-
-  // Loading state
-  if (isLoading && !data) {
-    return <ListSkeleton />;
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <EuiEmptyPrompt
-        iconType="alert"
-        iconColor="danger"
-        title={<h2>Failed to load clusters</h2>}
-        body={<p>{error.message}</p>}
-        actions={<EuiButton onClick={() => refetch()}>Retry</EuiButton>}
-      />
-    );
-  }
 
   return (
     <>
@@ -217,110 +106,35 @@ export function ElasticsearchListPage() {
           <EuiButton
             key="create"
             fill
-            iconType="plus"
+            iconType="plusInCircle"
             onClick={() => navigate('/elasticsearch/create')}
           >
-            Create cluster
+            Create Cluster
           </EuiButton>,
         ]}
       />
-
       <EuiSpacer size="l" />
-
-      {/* Search and filters */}
-      <EuiFlexGroup gutterSize="m">
-        <EuiFlexItem grow={2}>
-          <EuiFieldSearch
-            placeholder="Search clusters..."
-            value={searchValue}
-            onChange={(e) => {
-              setSearchValue(e.target.value);
-              setPageIndex(0);
-            }}
-            isClearable
-          />
-        </EuiFlexItem>
-        <EuiFlexItem grow={false}>
-          <EuiFilterGroup>
-            {healthFilters.map((health) => (
-              <EuiFilterButton
-                key={health}
-                hasActiveFilters={selectedHealth.includes(health)}
-                onClick={() => toggleHealthFilter(health)}
-              >
-                <EuiHealth color={healthColors[health]}>{health}</EuiHealth>
-              </EuiFilterButton>
-            ))}
-          </EuiFilterGroup>
-        </EuiFlexItem>
-        <EuiFlexItem grow={false}>
-          <EuiFilterGroup>
-            {phaseFilters.map((phase) => (
-              <EuiFilterButton
-                key={phase}
-                hasActiveFilters={selectedPhase.includes(phase)}
-                onClick={() => togglePhaseFilter(phase)}
-              >
-                {phase}
-              </EuiFilterButton>
-            ))}
-          </EuiFilterGroup>
-        </EuiFlexItem>
-      </EuiFlexGroup>
-
-      <EuiSpacer size="m" />
-
-      {/* Table */}
-      {clusters.length === 0 ? (
-        <EuiEmptyPrompt
-          iconType="logoElasticsearch"
-          title={<h2>No Elasticsearch clusters</h2>}
-          body={
-            <EuiText>
-              <p>
-                {searchValue || selectedHealth.length || selectedPhase.length
-                  ? 'No clusters match your filters.'
-                  : 'Create your first Elasticsearch cluster to get started.'}
-              </p>
-            </EuiText>
-          }
-          actions={
-            <EuiButton fill onClick={() => navigate('/elasticsearch/create')}>
-              Create cluster
-            </EuiButton>
-          }
-        />
-      ) : (
-        <EuiBasicTable
-          items={clusters}
-          columns={columns}
-          pagination={pagination}
-          sorting={{
-            sort: {
-              // Cast needed for nested field paths
-              field: sortField as keyof ElasticsearchCluster,
-              direction: sortDirection,
-            },
-          }}
-          onChange={onTableChange}
-          loading={isLoading}
-        />
+      {error && (
+        <>
+          <EuiHealth color="danger">
+            Failed to load resources: {error.message}
+          </EuiHealth>
+          <EuiSpacer size="m" />
+        </>
       )}
+      <EuiBasicTable
+        items={items}
+        columns={columns}
+        rowProps={(item: Elasticsearch) => ({
+          onClick: () =>
+            navigate(
+              `/elasticsearch/${item.metadata.namespace}/${item.metadata.name}`,
+            ),
+          style: { cursor: 'pointer' },
+          'aria-label': `View ${item.metadata.name}`,
+        })}
+        noItemsMessage="No Elasticsearch clusters found"
+      />
     </>
   );
-}
-
-// Helper function for relative time
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffDays > 0) return `${diffDays}d ago`;
-  if (diffHours > 0) return `${diffHours}h ago`;
-  if (diffMins > 0) return `${diffMins}m ago`;
-  return 'Just now';
 }

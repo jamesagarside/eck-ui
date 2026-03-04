@@ -1,119 +1,167 @@
 ## ADDED Requirements
 
-### Requirement: Dashboard displays organization resource overview
+This specification defines the requirements for the ECK UI overview dashboard. The dashboard provides an aggregate health and status summary across all ECK-managed resources within the current organization scope.
 
-The system SHALL display a dashboard showing all resources in the current organization.
+---
 
-#### Scenario: View organization dashboard
+### Requirement: Resource Summary Cards
 
-- **WHEN** user navigates to organization dashboard
-- **THEN** system displays summary cards for each resource type
-- **AND** shows total count and health breakdown for each type
+The UI SHALL display a set of summary cards on the dashboard, one per ECK resource type, showing the total resource count and a breakdown of health states.
 
-#### Scenario: Dashboard with no resources
+Each card MUST show: resource type label, total count of resources of that type, and individual counts for each health state (green, yellow, red, unknown). Resource types covered MUST include at minimum: Elasticsearch clusters, Kibana instances, APM Servers, Beats, Elastic Agents, Logstash instances, Enterprise Search instances, and Maps Server instances.
 
-- **WHEN** organization has no resources
-- **THEN** system displays getting started guide
-- **AND** provides quick links to create common resources
+#### Scenario: Summary cards render health breakdown
 
-### Requirement: Dashboard displays resource health summary
+WHEN the user views the dashboard
+THEN the UI MUST render one summary card per supported resource type
+AND each card MUST display the total count of resources of that type
+AND MUST display individual counts for green, yellow, red, and unknown health states
+AND health state counts MUST use the same colour conventions as resource detail views
 
-The system SHALL aggregate health status across all resources.
+#### Scenario: Summary card with zero resources
 
-#### Scenario: All resources healthy
+WHEN no resources of a given type exist in the current organization scope
+THEN the summary card for that type MUST display a total count of zero
+AND MUST provide a call-to-action to create a resource of that type
 
-- **WHEN** all resources are healthy
-- **THEN** system displays green overall health indicator
-- **AND** shows "All systems operational" message
+#### Scenario: Summary card navigation
 
-#### Scenario: Some resources unhealthy
+WHEN the user clicks a summary card
+THEN the UI MUST navigate to the list view for that resource type
 
-- **WHEN** some resources are unhealthy
-- **THEN** system displays yellow/red health indicator
-- **AND** lists unhealthy resources with links
+---
 
-### Requirement: Dashboard displays recent events
+### Requirement: Phase Distribution
 
-The system SHALL display recent Kubernetes events across all organization resources.
+The UI SHALL display a visual breakdown of resource phases across all managed resource types to give operators a consolidated view of operational state.
 
-#### Scenario: View recent events
+The phase distribution MUST cover the standard ECK resource phases including at minimum: Ready, ApplyingChanges, MigratingData, Stalled, and Invalid. The visualisation MUST show the count of resources in each phase.
 
-- **WHEN** user views dashboard
-- **THEN** system displays last 20 events across all resources
-- **AND** events are sorted by timestamp (newest first)
+#### Scenario: Phase distribution renders all phases
 
-#### Scenario: Filter events by severity
+WHEN the user views the dashboard and resources exist across multiple phases
+THEN the phase distribution section MUST render a count for each phase
+AND phases with a count of zero MUST still be shown to confirm no resources are in that state
 
-- **WHEN** user filters by "Warning" or "Normal"
-- **THEN** system displays only matching events
-- **AND** count updates accordingly
+#### Scenario: Phase distribution click-through
 
-### Requirement: Dashboard displays resource utilization
+WHEN the user interacts with a phase segment
+THEN the UI MUST navigate to a filtered list view showing only resources in that phase
 
-The system SHALL display CPU and memory utilization for organization resources if metrics are available.
+---
 
-#### Scenario: Metrics available
+### Requirement: Namespace Overview
 
-- **WHEN** metrics-server is installed in cluster
-- **THEN** system displays CPU and memory usage graphs
-- **AND** shows current vs requested resources
+The UI SHALL display a namespace overview section listing all Kubernetes namespaces that contain at least one ECK-managed resource, along with per-namespace resource counts broken down by resource type.
 
-#### Scenario: Metrics unavailable
+#### Scenario: Namespace overview renders per-type counts
 
-- **WHEN** metrics-server is not available
-- **THEN** system displays "Metrics unavailable" message
-- **AND** does not show utilization graphs
+WHEN the user views the dashboard and ECK resources exist across one or more namespaces
+THEN the namespace overview MUST list each namespace that contains ECK resources
+AND MUST display the count of each resource type within that namespace
 
-### Requirement: Dashboard auto-refreshes data
+#### Scenario: Namespace overview navigation
 
-The system SHALL automatically refresh dashboard data at configurable intervals.
+WHEN the user clicks a namespace entry
+THEN the UI MUST navigate to a filtered view scoped to that namespace
 
-#### Scenario: Auto-refresh enabled
+---
 
-- **WHEN** dashboard is open
-- **THEN** system refreshes data every 30 seconds by default
-- **AND** shows "Last updated" timestamp
+### Requirement: Recent Events
 
-#### Scenario: Manual refresh
+The UI SHALL display a table of recent Kubernetes events related to ECK-managed resources.
 
-- **WHEN** user clicks refresh button
-- **THEN** system immediately fetches latest data
-- **AND** resets auto-refresh timer
+The events table MUST include the following columns: event time, resource type, resource name, namespace, event type (Normal or Warning), reason, and message. The table MUST be sortable by time. The table MUST support filtering by namespace and by event type.
 
-#### Scenario: Configure refresh interval
+#### Scenario: Events table renders recent ECK events
 
-- **WHEN** user changes refresh interval setting
-- **THEN** system uses new interval
-- **AND** persists preference
+WHEN the user views the dashboard
+THEN the events table MUST display recent Kubernetes events scoped to ECK-managed resources
+AND MUST render columns for time, resource type, resource name, namespace, event type, reason, and message
 
-### Requirement: Dashboard provides quick actions
+#### Scenario: Events table sorting
 
-The system SHALL provide quick action buttons for common operations.
+WHEN the user clicks the time column header
+THEN the events table MUST toggle between ascending and descending time order
 
-#### Scenario: Quick create actions
+#### Scenario: Events table filtering by namespace
 
-- **WHEN** user views dashboard
-- **THEN** system displays "Quick Actions" section
-- **AND** includes buttons for creating common resources
+WHEN the user selects a namespace filter
+THEN the events table MUST display only events from resources in the selected namespace
 
-#### Scenario: Quick navigation
+#### Scenario: Events table filtering by event type
 
-- **WHEN** user clicks on a summary card
-- **THEN** system navigates to that resource type's list view
-- **AND** preserves any active filters
+WHEN the user selects a Warning filter
+THEN the events table MUST display only events with type Warning
 
-### Requirement: Dashboard shows cluster-level alerts
+---
 
-The system SHALL display any active alerts or warnings from ECK operator.
+### Requirement: Problem Resources
 
-#### Scenario: License warning
+The UI SHALL display a dedicated section highlighting resources that are in a non-Ready phase or an unhealthy (yellow or red) health state, enabling operators to identify issues without scanning the full resource list.
 
-- **WHEN** ECK license is expiring within 30 days
-- **THEN** system displays license warning banner
-- **AND** provides link to license management
+Each entry in the problem resources section MUST include: resource name, resource type, namespace, current phase, current health, and a direct link to the resource detail page.
 
-#### Scenario: Operator health issues
+#### Scenario: Problem resources section renders unhealthy resources
 
-- **WHEN** ECK operator has health issues
-- **THEN** system displays operator warning banner
-- **AND** shows relevant error messages
+WHEN one or more ECK resources are in a non-Ready phase or have a yellow or red health status
+THEN the problem resources section MUST be visible and MUST list each affected resource
+AND each entry MUST include name, type, namespace, phase, health indicator, and a link to the detail page
+
+#### Scenario: Problem resources section when all resources are healthy
+
+WHEN all ECK resources are in a Ready phase and have a green health status
+THEN the problem resources section MUST display a message confirming all resources are healthy
+
+---
+
+### Requirement: Auto-Refresh
+
+The dashboard SHALL refresh its data automatically at a configurable interval to ensure operators view current resource state without manual page reloads.
+
+The default refresh interval MUST be 30 seconds. The UI MUST provide a control enabling the operator to adjust the refresh interval or pause auto-refresh. Data refresh MUST be implemented via Server-Sent Events (SSE) where the backend supports it, with polling as a fallback.
+
+#### Scenario: Dashboard auto-refresh at default interval
+
+WHEN the user views the dashboard
+THEN the dashboard data MUST refresh automatically every 30 seconds by default
+AND each refresh MUST update all dashboard sections: summary cards, phase distribution, namespace overview, recent events, and problem resources
+
+#### Scenario: Operator adjusts refresh interval
+
+WHEN the operator changes the refresh interval using the interval control
+THEN the dashboard MUST apply the new interval immediately
+AND MUST continue refreshing at the new interval until changed again or paused
+
+#### Scenario: Operator pauses auto-refresh
+
+WHEN the operator pauses auto-refresh
+THEN the dashboard MUST cease automatic data refresh
+AND MUST display a visual indicator that auto-refresh is paused
+AND MUST provide a manual refresh button allowing the operator to trigger a refresh on demand
+
+#### Scenario: SSE connection established
+
+WHEN the backend supports SSE and the dashboard establishes an SSE connection
+THEN the UI MUST use SSE to receive push updates
+AND MUST fall back to polling if the SSE connection cannot be established or is lost
+
+---
+
+### Requirement: Empty State
+
+The UI SHALL display a welcome empty state when no ECK resources of any type exist within the current organization scope.
+
+The empty state MUST include: a welcome message, a brief explanation of what ECK UI manages, and a prominent call-to-action link to the deployment wizard.
+
+#### Scenario: Empty state shown when no ECK resources exist
+
+WHEN the user views the dashboard and no ECK resources exist in the current organization scope
+THEN the UI MUST display the welcome empty state
+AND MUST render a call-to-action link that navigates the user to the deployment wizard
+
+#### Scenario: Empty state hidden when resources exist
+
+WHEN at least one ECK resource exists in the current organization scope
+THEN the welcome empty state MUST NOT be displayed
+AND the standard dashboard sections MUST be rendered instead

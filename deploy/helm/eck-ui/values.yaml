@@ -1,44 +1,33 @@
-# Default values for eck-ui
-# This is a YAML-formatted file.
-
-# Number of replicas
 replicaCount: 1
 
 image:
-  repository: ghcr.io/jamesagarside/eck-ui
+  repository: eck-ui
+  tag: latest
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 serviceAccount:
-  # Specifies whether a service account should be created
   create: true
-  # Annotations to add to the service account
   annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
   name: ""
 
-# RBAC configuration
-rbac:
-  # Create ClusterRole and ClusterRoleBinding
-  create: true
-
 podAnnotations: {}
+podLabels: {}
 
 podSecurityContext:
-  fsGroup: 1000
   runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
 
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
   runAsNonRoot: true
-  runAsUser: 1000
+  runAsUser: 65534
   capabilities:
     drop:
       - ALL
@@ -51,83 +40,25 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
   hosts:
     - host: eck-ui.local
       paths:
         - path: /
           pathType: Prefix
   tls: []
-  #  - secretName: eck-ui-tls
-  #    hosts:
-  #      - eck-ui.local
 
 resources:
   limits:
-    cpu: 500m
+    cpu: 200m
     memory: 256Mi
   requests:
     cpu: 100m
     memory: 128Mi
 
-# Liveness and readiness probes
-livenessProbe:
-  httpGet:
-    path: /healthz
-    port: http
-  initialDelaySeconds: 5
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /readyz
-    port: http
-  initialDelaySeconds: 5
-  periodSeconds: 10
-
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
-
 nodeSelector: {}
-
 tolerations: []
-
 affinity: {}
 
-# ECK UI configuration
 config:
-  # HTTP server port
-  port: 8080
-  
-  # CORS allowed origins (comma-separated)
-  allowedOrigins: "*"
-  
-  # Rate limit (requests per second)
-  rateLimit: 100
-  
-  # Session secret (generate a secure random string for production)
-  # sessionSecret: ""
-  
-  # System namespace where ECK operator is installed
-  systemNamespace: elastic-system
-
-# OIDC configuration (optional)
-oidc:
-  enabled: false
-  issuer: ""
-  clientId: ""
-  # Use existingSecret to reference a secret containing the client secret
-  existingSecret: ""
-  # Or specify the client secret directly (not recommended for production)
-  clientSecret: ""
-
-# Pod disruption budget
-podDisruptionBudget:
-  enabled: false
-  minAvailable: 1
-  # maxUnavailable: 1
+  logLevel: info
+  sessionSecret: ""

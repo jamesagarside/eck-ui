@@ -1,104 +1,110 @@
-// Package middleware contains HTTP middleware for the ECK UI.
 package middleware
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
+	"runtime/debug"
 	"time"
 
-	"github.com/go-chi/chi/v5/middleware"
-
-	"github.com/jamesagarside/eck-ui/pkg/config"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"github.com/jamesagarside/eck-ui/pkg/auth"
+	apierrors "github.com/jamesagarside/eck-ui/pkg/errors"
 )
 
-// SecurityHeaders adds security headers to all responses.
-func SecurityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Prevent MIME type sniffing
-		w.Header().Set("X-Content-Type-Options", "nosniff")
+// contextKey is an unexported type used for context value keys to avoid collisions.
+type contextKey string
 
-		// Enable XSS filtering (legacy browsers)
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
+const (
+	// userInfoKey is the context key for storing authenticated user information.
+	userInfoKey contextKey = "userInfo"
 
-		// Prevent clickjacking
-		w.Header().Set("X-Frame-Options", "DENY")
+	// requestIDKey is the context key for storing the request ID.
+	requestIDKey contextKey = "requestID"
+)
 
-		// Referrer policy
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-		// Permissions policy (disable potentially dangerous features)
-		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=()")
-
-		// Content Security Policy
-		// Allow same-origin resources, EUI styles, and inline styles for EUI
-		csp := strings.Join([]string{
-			"default-src 'self'",
-			"script-src 'self'",
-			"style-src 'self' 'unsafe-inline'",          // EUI requires inline styles
-			"img-src 'self' data: blob:",                 // EUI uses data URLs for icons
-			"font-src 'self' data:",                      // EUI fonts
-			"connect-src 'self'",                         // API calls
-			"frame-ancestors 'none'",                     // Prevent embedding
-			"form-action 'self'",                         // Form submissions
-			"base-uri 'self'",                            // Base URL
-			"object-src 'none'",                          // Disable plugins
-		}, "; ")
-		w.Header().Set("Content-Security-Policy", csp)
-
-		next.ServeHTTP(w, r)
-	})
+// ContextUserInfo holds user information stored in the request context.
+type ContextUserInfo struct {
+	Username string
+	UID      string
+	Groups   []string
 }
 
-// RequestLogger logs HTTP requests in JSON format.
-func RequestLogger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-
-		defer func() {
-			slog.Info("http request",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", ww.Status(),
-				"bytes", ww.BytesWritten(),
-				"duration_ms", time.Since(start).Milliseconds(),
-				"request_id", middleware.GetReqID(r.Context()),
-				"remote_addr", r.RemoteAddr,
-				"user_agent", r.UserAgent(),
-			)
-		}()
-
-		next.ServeHTTP(ww, r)
-	})
+// UserInfoFromContext extracts the authenticated user information from the context.
+// Returns nil if no user info is present.
+func UserInfoFromContext(ctx context.Context) *ContextUserInfo {
+	val := ctx.Value(userInfoKey)
+	if val == nil {
+		return nil
+	}
+	info, ok := val.(*ContextUserInfo)
+	if !ok {
+		return nil
+	}
+	return info
 }
 
-// CORS adds CORS headers to responses.
-func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
+// RequestIDFromContext extracts the request ID from the context.
+func RequestIDFromContext(ctx context.Context) string {
+	val := ctx.Value(requestIDKey)
+	if val == nil {
+		return ""
+	}
+	id, ok := val.(string)
+	if !ok {
+		return ""
+	}
+	return id
+}
+
+// Auth returns middleware that validates the session cookie and injects user
+// information into the request context. Requests without a valid session
+// receive a 401 Unauthorized response.
+func Auth(authService *auth.Service) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-
-			// Check if origin is allowed
-			allowed := false
-			for _, o := range allowedOrigins {
-				if o == "*" || o == origin {
-					allowed = true
-					break
-				}
+			session := authService.Sessions().GetFromRequest(r)
+			if session == nil {
+				apierrors.WriteError(w, apierrors.ErrUnauthorized)
+				return
 			}
 
-			if allowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-Request-ID")
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				w.Header().Set("Access-Control-Max-Age", "300")
+			// Inject user info into context.
+			userInfo := &ContextUserInfo{
+				Username: session.User.Username,
+				UID:      session.User.UID,
+				Groups:   session.User.Groups,
+			}
+			ctx := context.WithValue(r.Context(), userInfoKey, userInfo)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RBAC returns middleware that checks the user's role against the HTTP method.
+// GET/HEAD/OPTIONS require viewer, POST/PUT/PATCH require editor, and DELETE
+// requires admin. The role is determined from the user's group membership:
+// groups containing "admin" grant admin, "editor" grants editor, otherwise viewer.
+func RBAC() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userInfo := UserInfoFromContext(r.Context())
+			if userInfo == nil {
+				apierrors.WriteError(w, apierrors.ErrUnauthorized)
+				return
 			}
 
-			// Handle preflight
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusNoContent)
+			role := deriveRole(userInfo.Groups)
+			required := requiredRole(r.Method)
+
+			if !hasPermission(role, required) {
+				apierrors.WriteError(w, apierrors.New(
+					http.StatusForbidden,
+					"Forbidden",
+					fmt.Sprintf("role %q does not have permission for %s operations", role, r.Method),
+				))
 				return
 			}
 
@@ -107,119 +113,152 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	}
 }
 
-// RateLimit implements simple rate limiting.
-// TODO: Implement proper rate limiting with sliding window.
-func RateLimit(requestsPerSecond int) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// TODO: Implement rate limiting
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// Auth validates authentication tokens.
-func Auth(cfg *config.Config) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Get authorization header
-			authHeader := r.Header.Get("Authorization")
-
-			// TODO: Implement OIDC validation
-			// TODO: Implement Kubernetes token validation
-
-			if authHeader == "" {
-				// For now, allow unauthenticated requests in development
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// Extract bearer token
-			if !strings.HasPrefix(authHeader, "Bearer ") {
-				http.Error(w, "Invalid authorization header", http.StatusUnauthorized)
-				return
-			}
-
-			// token := strings.TrimPrefix(authHeader, "Bearer ")
-			// TODO: Validate token
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// OrgAccess validates the user has access to the requested organization.
-func OrgAccess(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Implement organization access validation
-		next.ServeHTTP(w, r)
-	})
-}
-
-// RequestSizeLimit limits the maximum request body size to prevent DoS attacks.
-func RequestSizeLimit(maxBytes int64) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Limit request body size
-			if r.ContentLength > maxBytes {
-				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
-				return
-			}
-
-			// Wrap body with a size-limited reader
-			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// InputSanitizer provides basic input sanitization.
-// Note: This is a defensive layer - primary validation should be in handlers.
-func InputSanitizer(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for suspicious patterns in URL parameters
-		for key, values := range r.URL.Query() {
-			for _, value := range values {
-				if containsSuspiciousContent(value) {
-					slog.Warn("suspicious query parameter detected",
-						"key", key,
-						"path", r.URL.Path,
-						"remote_addr", r.RemoteAddr,
-					)
-					http.Error(w, "Invalid request", http.StatusBadRequest)
-					return
-				}
-			}
+// deriveRole determines the highest role from the user's group membership.
+func deriveRole(groups []string) string {
+	role := "viewer"
+	for _, g := range groups {
+		switch {
+		case containsSubstring(g, "admin"):
+			return "admin"
+		case containsSubstring(g, "editor"):
+			role = "editor"
 		}
-
-		next.ServeHTTP(w, r)
-	})
+	}
+	return role
 }
 
-// containsSuspiciousContent checks for common attack patterns.
-func containsSuspiciousContent(s string) bool {
-	// Convert to lowercase for case-insensitive matching
-	lower := strings.ToLower(s)
+// requiredRole returns the minimum role required for the given HTTP method.
+func requiredRole(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return "viewer"
+	case http.MethodPost, http.MethodPut, http.MethodPatch:
+		return "editor"
+	case http.MethodDelete:
+		return "admin"
+	default:
+		return "admin"
+	}
+}
 
-	// Check for script injection attempts
-	suspicious := []string{
-		"<script",
-		"javascript:",
-		"onerror=",
-		"onload=",
-		"onclick=",
-		"onmouseover=",
-		"onfocus=",
-		"eval(",
-		"expression(",
+// hasPermission checks if the user's role meets or exceeds the required role.
+func hasPermission(userRole, requiredRole string) bool {
+	roleLevel := map[string]int{
+		"viewer": 1,
+		"editor": 2,
+		"admin":  3,
 	}
 
-	for _, pattern := range suspicious {
-		if strings.Contains(lower, pattern) {
+	userLevel, ok := roleLevel[userRole]
+	if !ok {
+		return false
+	}
+	requiredLevel, ok := roleLevel[requiredRole]
+	if !ok {
+		return false
+	}
+	return userLevel >= requiredLevel
+}
+
+// containsSubstring checks if s contains substr (case-sensitive).
+func containsSubstring(s, substr string) bool {
+	return len(s) >= len(substr) && searchSubstring(s, substr)
+}
+
+func searchSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
 			return true
 		}
 	}
-
 	return false
+}
+
+// CORS returns middleware that sets CORS headers. It handles preflight OPTIONS
+// requests and sets appropriate Access-Control headers.
+func CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequestID returns middleware that generates a UUID for each request and
+// stores it in both the request context and the X-Request-ID response header.
+func RequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = uuid.New().String()
+		}
+
+		w.Header().Set("X-Request-ID", id)
+		ctx := context.WithValue(r.Context(), requestIDKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// statusWriter wraps http.ResponseWriter to capture the response status code.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sw *statusWriter) WriteHeader(code int) {
+	sw.status = code
+	sw.ResponseWriter.WriteHeader(code)
+}
+
+// Logger returns middleware that logs each request's method, path, status code,
+// and duration using structured logging.
+func Logger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+
+		duration := time.Since(start)
+		slog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", sw.status,
+			"duration", duration.String(),
+			"requestId", RequestIDFromContext(r.Context()),
+		)
+	})
+}
+
+// Recovery returns middleware that catches panics in downstream handlers,
+// logs the stack trace, and returns a 500 Internal Server Error response.
+func Recovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error("panic recovered",
+					"error", fmt.Sprintf("%v", err),
+					"stack", string(debug.Stack()),
+					"path", r.URL.Path,
+					"method", r.Method,
+				)
+				apierrors.WriteError(w, apierrors.ErrInternal)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }

@@ -3,185 +3,210 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
-func TestLoad(t *testing.T) {
-	// Clear any existing env vars
-	envVars := []string{
-		"ECK_UI_PORT",
-		"ECK_UI_ALLOWED_ORIGINS",
-		"ECK_UI_RATE_LIMIT",
-		"ECK_UI_OIDC_ISSUER",
-		"ECK_UI_SESSION_SECRET",
-		"ECK_UI_SYSTEM_NAMESPACE",
+// clearConfigEnv unsets all environment variables used by config.Load.
+func clearConfigEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		"LISTEN_ADDR",
+		"KUBECONFIG",
+		"OTEL_ENDPOINT",
+		"LOG_LEVEL",
+		"SESSION_SECRET",
+		"TOKEN_CACHE_TTL",
+		"AUDIT_READ_REQUESTS",
+	} {
+		t.Setenv(key, "")
+		os.Unsetenv(key)
 	}
-	savedEnv := make(map[string]string)
-	for _, k := range envVars {
-		savedEnv[k] = os.Getenv(k)
-		os.Unsetenv(k)
+}
+
+func TestLoad_MissingSessionSecret(t *testing.T) {
+	clearConfigEnv(t)
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error when SESSION_SECRET is not set, got nil")
 	}
-	defer func() {
-		for k, v := range savedEnv {
-			if v != "" {
-				os.Setenv(k, v)
-			}
-		}
-	}()
 
-	t.Run("loads defaults when no env vars set", func(t *testing.T) {
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() returned unexpected error: %v", err)
-		}
-
-		if cfg.Port != 8080 {
-			t.Errorf("expected default port 8080, got %d", cfg.Port)
-		}
-
-		if cfg.RateLimit != 100 {
-			t.Errorf("expected default rate limit 100, got %d", cfg.RateLimit)
-		}
-
-		if cfg.SystemNamespace != "elastic-system" {
-			t.Errorf("expected default namespace 'elastic-system', got %q", cfg.SystemNamespace)
-		}
-
-		if len(cfg.AllowedOrigins) != 1 || cfg.AllowedOrigins[0] != "*" {
-			t.Errorf("expected default allowed origins ['*'], got %v", cfg.AllowedOrigins)
-		}
-	})
-
-	t.Run("loads values from env vars", func(t *testing.T) {
-		os.Setenv("ECK_UI_PORT", "9090")
-		os.Setenv("ECK_UI_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173")
-		os.Setenv("ECK_UI_RATE_LIMIT", "50")
-		os.Setenv("ECK_UI_SYSTEM_NAMESPACE", "my-namespace")
-		os.Setenv("ECK_UI_SESSION_SECRET", "my-secret")
-		defer func() {
-			os.Unsetenv("ECK_UI_PORT")
-			os.Unsetenv("ECK_UI_ALLOWED_ORIGINS")
-			os.Unsetenv("ECK_UI_RATE_LIMIT")
-			os.Unsetenv("ECK_UI_SYSTEM_NAMESPACE")
-			os.Unsetenv("ECK_UI_SESSION_SECRET")
-		}()
-
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() returned unexpected error: %v", err)
-		}
-
-		if cfg.Port != 9090 {
-			t.Errorf("expected port 9090, got %d", cfg.Port)
-		}
-
-		if cfg.RateLimit != 50 {
-			t.Errorf("expected rate limit 50, got %d", cfg.RateLimit)
-		}
-
-		if cfg.SystemNamespace != "my-namespace" {
-			t.Errorf("expected namespace 'my-namespace', got %q", cfg.SystemNamespace)
-		}
-
-		if cfg.SessionSecret != "my-secret" {
-			t.Errorf("expected session secret 'my-secret', got %q", cfg.SessionSecret)
-		}
-
-		if len(cfg.AllowedOrigins) != 2 {
-			t.Errorf("expected 2 allowed origins, got %d: %v", len(cfg.AllowedOrigins), cfg.AllowedOrigins)
-		}
-	})
-
-	t.Run("handles invalid int gracefully", func(t *testing.T) {
-		os.Setenv("ECK_UI_PORT", "not-a-number")
-		defer os.Unsetenv("ECK_UI_PORT")
-
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("Load() returned unexpected error: %v", err)
-		}
-
-		// Should fall back to default
-		if cfg.Port != 8080 {
-			t.Errorf("expected default port 8080 on invalid input, got %d", cfg.Port)
-		}
-	})
+	want := "SESSION_SECRET environment variable is required"
+	if err.Error() != want {
+		t.Errorf("unexpected error message:\n  got:  %q\n  want: %q", err.Error(), want)
+	}
 }
 
-func TestGetEnvDefault(t *testing.T) {
-	key := "TEST_GET_ENV_DEFAULT"
+func TestLoad_AllEnvVarsSet(t *testing.T) {
+	clearConfigEnv(t)
 
-	t.Run("returns default when not set", func(t *testing.T) {
-		os.Unsetenv(key)
-		result := getEnvDefault(key, "default-value")
-		if result != "default-value" {
-			t.Errorf("expected 'default-value', got %q", result)
-		}
-	})
+	t.Setenv("LISTEN_ADDR", ":9090")
+	t.Setenv("KUBECONFIG", "/home/user/.kube/config")
+	t.Setenv("OTEL_ENDPOINT", "localhost:4317")
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("SESSION_SECRET", "test-secret-value")
+	t.Setenv("TOKEN_CACHE_TTL", "10m")
 
-	t.Run("returns env value when set", func(t *testing.T) {
-		os.Setenv(key, "custom-value")
-		defer os.Unsetenv(key)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-		result := getEnvDefault(key, "default-value")
-		if result != "custom-value" {
-			t.Errorf("expected 'custom-value', got %q", result)
-		}
-	})
+	if cfg.ListenAddr != ":9090" {
+		t.Errorf("ListenAddr = %q, want %q", cfg.ListenAddr, ":9090")
+	}
+	if cfg.KubeConfig != "/home/user/.kube/config" {
+		t.Errorf("KubeConfig = %q, want %q", cfg.KubeConfig, "/home/user/.kube/config")
+	}
+	if cfg.OTelEndpoint != "localhost:4317" {
+		t.Errorf("OTelEndpoint = %q, want %q", cfg.OTelEndpoint, "localhost:4317")
+	}
+	if cfg.LogLevel != "debug" {
+		t.Errorf("LogLevel = %q, want %q", cfg.LogLevel, "debug")
+	}
+	if cfg.SessionSecret != "test-secret-value" {
+		t.Errorf("SessionSecret = %q, want %q", cfg.SessionSecret, "test-secret-value")
+	}
+	if cfg.TokenCacheTTL != 10*time.Minute {
+		t.Errorf("TokenCacheTTL = %v, want %v", cfg.TokenCacheTTL, 10*time.Minute)
+	}
 }
 
-func TestGetEnvInt(t *testing.T) {
-	key := "TEST_GET_ENV_INT"
+func TestLoad_InvalidTokenCacheTTL(t *testing.T) {
+	clearConfigEnv(t)
 
-	t.Run("returns default when not set", func(t *testing.T) {
-		os.Unsetenv(key)
-		result := getEnvInt(key, 42)
-		if result != 42 {
-			t.Errorf("expected 42, got %d", result)
-		}
-	})
+	t.Setenv("SESSION_SECRET", "test-secret")
+	t.Setenv("TOKEN_CACHE_TTL", "not-a-duration")
 
-	t.Run("returns parsed int when valid", func(t *testing.T) {
-		os.Setenv(key, "123")
-		defer os.Unsetenv(key)
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for invalid TOKEN_CACHE_TTL, got nil")
+	}
 
-		result := getEnvInt(key, 42)
-		if result != 123 {
-			t.Errorf("expected 123, got %d", result)
-		}
-	})
-
-	t.Run("returns default when invalid", func(t *testing.T) {
-		os.Setenv(key, "invalid")
-		defer os.Unsetenv(key)
-
-		result := getEnvInt(key, 42)
-		if result != 42 {
-			t.Errorf("expected default 42 on invalid input, got %d", result)
-		}
-	})
+	// Verify the error message contains the invalid value.
+	if got := err.Error(); !containsStr(got, "not-a-duration") {
+		t.Errorf("error should mention the invalid value, got: %q", got)
+	}
 }
 
-func TestGetEnvSlice(t *testing.T) {
-	key := "TEST_GET_ENV_SLICE"
+func TestLoad_DefaultListenAddress(t *testing.T) {
+	clearConfigEnv(t)
 
-	t.Run("returns default when not set", func(t *testing.T) {
-		os.Unsetenv(key)
-		result := getEnvSlice(key, []string{"a", "b"})
-		if len(result) != 2 || result[0] != "a" || result[1] != "b" {
-			t.Errorf("expected ['a', 'b'], got %v", result)
-		}
-	})
+	t.Setenv("SESSION_SECRET", "test-secret")
 
-	t.Run("splits comma-separated values", func(t *testing.T) {
-		os.Setenv(key, "x,y,z")
-		defer os.Unsetenv(key)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-		result := getEnvSlice(key, []string{"default"})
-		if len(result) != 3 {
-			t.Errorf("expected 3 items, got %d: %v", len(result), result)
+	if cfg.ListenAddr != ":8080" {
+		t.Errorf("default ListenAddr = %q, want %q", cfg.ListenAddr, ":8080")
+	}
+}
+
+func TestLoad_DefaultTokenCacheTTL(t *testing.T) {
+	clearConfigEnv(t)
+
+	t.Setenv("SESSION_SECRET", "test-secret")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.TokenCacheTTL != 5*time.Minute {
+		t.Errorf("default TokenCacheTTL = %v, want %v", cfg.TokenCacheTTL, 5*time.Minute)
+	}
+}
+
+func TestLoad_DefaultLogLevel(t *testing.T) {
+	clearConfigEnv(t)
+
+	t.Setenv("SESSION_SECRET", "test-secret")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.LogLevel != "info" {
+		t.Errorf("default LogLevel = %q, want %q", cfg.LogLevel, "info")
+	}
+}
+
+func TestLoad_AuditReadRequestsDefault(t *testing.T) {
+	clearConfigEnv(t)
+
+	t.Setenv("SESSION_SECRET", "test-secret")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.AuditReadRequests {
+		t.Error("AuditReadRequests should default to false")
+	}
+}
+
+func TestLoad_AuditReadRequestsEnabled(t *testing.T) {
+	clearConfigEnv(t)
+
+	t.Setenv("SESSION_SECRET", "test-secret")
+	t.Setenv("AUDIT_READ_REQUESTS", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !cfg.AuditReadRequests {
+		t.Error("AuditReadRequests should be true when AUDIT_READ_REQUESTS=true")
+	}
+}
+
+func TestLoad_AuditReadRequestsVariousValues(t *testing.T) {
+	trueValues := []string{"true", "1", "yes", "TRUE", "Yes", "  true  "}
+	falseValues := []string{"", "false", "0", "no", "anything"}
+
+	for _, val := range trueValues {
+		clearConfigEnv(t)
+		t.Setenv("SESSION_SECRET", "test-secret")
+		t.Setenv("AUDIT_READ_REQUESTS", val)
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("unexpected error for AUDIT_READ_REQUESTS=%q: %v", val, err)
 		}
-		if result[0] != "x" || result[1] != "y" || result[2] != "z" {
-			t.Errorf("expected ['x', 'y', 'z'], got %v", result)
+		if !cfg.AuditReadRequests {
+			t.Errorf("AuditReadRequests should be true for value %q", val)
 		}
-	})
+	}
+
+	for _, val := range falseValues {
+		clearConfigEnv(t)
+		t.Setenv("SESSION_SECRET", "test-secret")
+		if val != "" {
+			t.Setenv("AUDIT_READ_REQUESTS", val)
+		}
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("unexpected error for AUDIT_READ_REQUESTS=%q: %v", val, err)
+		}
+		if cfg.AuditReadRequests {
+			t.Errorf("AuditReadRequests should be false for value %q", val)
+		}
+	}
+}
+
+// containsStr is a simple helper to check substring presence without
+// importing strings in the test package (which shares the config package name).
+func containsStr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

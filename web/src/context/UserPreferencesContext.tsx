@@ -1,119 +1,110 @@
-import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import type { ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
-// User preferences types
-export interface UserPreferences {
-  // Display preferences
-  defaultPageSize: number;
-  showYamlInsteadOfForm: boolean;
-  expandedSidebar: boolean;
+type ColorMode = 'light' | 'dark';
 
-  // Table preferences
-  defaultSortField: string;
-  defaultSortDirection: 'asc' | 'desc';
-
-  // Dashboard preferences
-  dashboardLayout: 'cards' | 'table';
-  showHealthIndicators: boolean;
-
-  // Advanced preferences
-  enableKeyboardShortcuts: boolean;
-  confirmDestructiveActions: boolean;
+interface UserPreferences {
+  colorMode: ColorMode;
+  autoRefresh: boolean;
+  refreshInterval: number;
 }
 
-const defaultPreferences: UserPreferences = {
-  defaultPageSize: 20,
-  showYamlInsteadOfForm: false,
-  expandedSidebar: true,
-  defaultSortField: 'name',
-  defaultSortDirection: 'asc',
-  dashboardLayout: 'cards',
-  showHealthIndicators: true,
-  enableKeyboardShortcuts: true,
-  confirmDestructiveActions: true,
-};
-
-interface UserPreferencesContextValue {
-  preferences: UserPreferences;
-  updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => void;
-  resetPreferences: () => void;
+interface UserPreferencesContextValue extends UserPreferences {
+  setColorMode: (mode: ColorMode) => void;
+  toggleAutoRefresh: () => void;
+  setRefreshInterval: (ms: number) => void;
 }
 
-const UserPreferencesContext = createContext<UserPreferencesContextValue | undefined>(undefined);
+const STORAGE_KEY = 'eck-ui-preferences';
 
-// Local storage key
-const PREFERENCES_KEY = 'eck-ui-preferences';
-
-interface UserPreferencesProviderProps {
-  children: ReactNode;
-}
-
-export function UserPreferencesProvider({ children }: UserPreferencesProviderProps) {
-  const [preferences, setPreferences] = useState<UserPreferences>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(PREFERENCES_KEY);
-      if (stored) {
-        try {
-          return { ...defaultPreferences, ...JSON.parse(stored) };
-        } catch {
-          // Invalid JSON, use defaults
-        }
-      }
+function loadPreferences(): UserPreferences {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored) as UserPreferences;
     }
-    return defaultPreferences;
-  });
+  } catch {
+    // Fall through to defaults
+  }
+  return {
+    colorMode: 'light',
+    autoRefresh: true,
+    refreshInterval: 15000,
+  };
+}
 
-  // Persist to local storage when preferences change
-  useEffect(() => {
-    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
-  }, [preferences]);
+function savePreferences(prefs: UserPreferences): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // Storage unavailable
+  }
+}
 
-  const updatePreference = useCallback(
-    <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
-      setPreferences((prev) => ({
-        ...prev,
-        [key]: value,
-      }));
-    },
-    []
-  );
+const UserPreferencesContext = createContext<UserPreferencesContextValue | null>(
+  null,
+);
 
-  const resetPreferences = useCallback(() => {
-    setPreferences(defaultPreferences);
+export function UserPreferencesProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [prefs, setPrefs] = useState<UserPreferences>(loadPreferences);
+
+  const setColorMode = useCallback((mode: ColorMode) => {
+    setPrefs((prev) => {
+      const next = { ...prev, colorMode: mode };
+      savePreferences(next);
+      return next;
+    });
+  }, []);
+
+  const toggleAutoRefresh = useCallback(() => {
+    setPrefs((prev) => {
+      const next = { ...prev, autoRefresh: !prev.autoRefresh };
+      savePreferences(next);
+      return next;
+    });
+  }, []);
+
+  const setRefreshInterval = useCallback((ms: number) => {
+    setPrefs((prev) => {
+      const next = { ...prev, refreshInterval: ms };
+      savePreferences(next);
+      return next;
+    });
   }, []);
 
   const value = useMemo(
     () => ({
-      preferences,
-      updatePreference,
-      resetPreferences,
+      ...prefs,
+      setColorMode,
+      toggleAutoRefresh,
+      setRefreshInterval,
     }),
-    [preferences, updatePreference, resetPreferences]
+    [prefs, setColorMode, toggleAutoRefresh, setRefreshInterval],
   );
 
   return (
-    <UserPreferencesContext.Provider value={value}>{children}</UserPreferencesContext.Provider>
+    <UserPreferencesContext.Provider value={value}>
+      {children}
+    </UserPreferencesContext.Provider>
   );
 }
 
-export function useUserPreferences() {
+export function useUserPreferences(): UserPreferencesContextValue {
   const context = useContext(UserPreferencesContext);
   if (!context) {
-    throw new Error('useUserPreferences must be used within UserPreferencesProvider');
+    throw new Error(
+      'useUserPreferences must be used within a UserPreferencesProvider',
+    );
   }
   return context;
-}
-
-// Convenience hooks for specific preferences
-export function usePageSize() {
-  const { preferences } = useUserPreferences();
-  return preferences.defaultPageSize;
-}
-
-export function useSortPreferences() {
-  const { preferences } = useUserPreferences();
-  return {
-    field: preferences.defaultSortField,
-    direction: preferences.defaultSortDirection,
-  };
 }

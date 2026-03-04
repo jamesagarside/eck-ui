@@ -1,110 +1,206 @@
 import { useState } from 'react';
-import type { ReactNode } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   EuiPageTemplate,
-  EuiCollapsibleNav,
   EuiHeader,
-  EuiHeaderSection,
   EuiHeaderSectionItem,
   EuiHeaderLogo,
   EuiHeaderLinks,
   EuiHeaderLink,
-  EuiButtonIcon,
-  EuiToolTip,
-  EuiBreadcrumbs,
+  EuiAvatar,
+  EuiPopover,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiText,
+  EuiSpacer,
+  EuiButtonEmpty,
+  EuiHorizontalRule,
 } from '@elastic/eui';
-import type { EuiBreadcrumb } from '@elastic/eui';
-import { useTheme } from '../../context/AppProvider';
 import { Sidebar } from '../navigation/Sidebar';
 import { OrganizationSwitcher } from '../navigation/OrganizationSwitcher';
+import { useAuthStore } from '../../stores/authStore';
+import { useUserPreferences } from '../../context/UserPreferencesContext';
 
-interface AppShellProps {
-  children: ReactNode;
-  breadcrumbs?: EuiBreadcrumb[];
+function buildBreadcrumbs(pathname: string) {
+  const segments = pathname.split('/').filter(Boolean);
+  const crumbs = [{ text: 'ECK UI', href: '/' }];
+
+  const labelMap: Record<string, string> = {
+    elasticsearch: 'Elasticsearch',
+    kibana: 'Kibana',
+    apm: 'APM Server',
+    beats: 'Beats',
+    agent: 'Elastic Agent',
+    logstash: 'Logstash',
+    'enterprise-search': 'Enterprise Search',
+    maps: 'Elastic Maps',
+    wizard: 'Stack Wizard',
+    create: 'Create',
+    edit: 'Edit',
+  };
+
+  let path = '';
+  for (const segment of segments) {
+    path += `/${segment}`;
+    crumbs.push({
+      text: labelMap[segment] || decodeURIComponent(segment),
+      href: path,
+    });
+  }
+
+  return crumbs;
 }
 
-export function AppShell({ children, breadcrumbs = [] }: AppShellProps) {
-  const [navIsOpen, setNavIsOpen] = useState(true);
-  const { colorMode, toggleColorMode } = useTheme();
+export function AppShell() {
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const { colorMode, setColorMode } = useUserPreferences();
 
-  const defaultBreadcrumbs: EuiBreadcrumb[] = [{ text: 'ECK', href: '/' }, ...breadcrumbs];
+  const breadcrumbs = buildBreadcrumbs(location.pathname).map((crumb) => ({
+    ...crumb,
+    onClick: (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (crumb.href) {
+        navigate(crumb.href);
+      }
+    },
+  }));
 
-  return (
-    <>
-      {/* Header */}
-      <EuiHeader position="fixed">
-        <EuiHeaderSection grow={false}>
-          <EuiHeaderSectionItem>
-            <EuiButtonIcon
-              iconType={navIsOpen ? 'menuLeft' : 'menuRight'}
-              aria-label="Toggle navigation"
-              onClick={() => setNavIsOpen(!navIsOpen)}
-              color="text"
-            />
-          </EuiHeaderSectionItem>
-          <EuiHeaderSectionItem>
-            <EuiHeaderLogo iconType="logoElastic" href="/">
-              ECK UI
-            </EuiHeaderLogo>
-          </EuiHeaderSectionItem>
-        </EuiHeaderSection>
+  const handleLogout = async () => {
+    setIsUserMenuOpen(false);
+    await logout();
+    navigate('/');
+  };
 
-        <EuiHeaderSection>
-          <EuiHeaderSectionItem>
-            <OrganizationSwitcher />
-          </EuiHeaderSectionItem>
-        </EuiHeaderSection>
+  const toggleTheme = () => {
+    setColorMode(colorMode === 'light' ? 'dark' : 'light');
+  };
 
-        <EuiHeaderSection side="right">
-          <EuiHeaderLinks>
-            <EuiToolTip content={colorMode === 'light' ? 'Dark mode' : 'Light mode'}>
-              <EuiButtonIcon
-                iconType={colorMode === 'light' ? 'moon' : 'sun'}
-                aria-label="Toggle dark mode"
-                onClick={toggleColorMode}
-                color="text"
-              />
-            </EuiToolTip>
-            <EuiHeaderLink iconType="help" href="/docs">
-              Help
-            </EuiHeaderLink>
-            <EuiHeaderLink iconType="user" href="/profile">
-              Profile
-            </EuiHeaderLink>
-          </EuiHeaderLinks>
-        </EuiHeaderSection>
-      </EuiHeader>
-
-      {/* Collapsible Sidebar Navigation */}
-      <EuiCollapsibleNav
-        isOpen={navIsOpen}
-        isDocked={true}
-        size={navIsOpen ? 240 : 48}
-        button={<></>}
-        onClose={() => setNavIsOpen(false)}
-        style={{ top: 48 }} // Below header
-      >
-        <Sidebar collapsed={!navIsOpen} />
-      </EuiCollapsibleNav>
-
-      {/* Main Content */}
-      <EuiPageTemplate
-        paddingSize="l"
+  const userMenuButton = (
+    <EuiHeaderSectionItem>
+      <button
+        onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+        aria-label="User menu"
         style={{
-          marginTop: 48, // Header height
-          marginLeft: navIsOpen ? 240 : 48,
-          minHeight: 'calc(100vh - 48px)',
-          transition: 'margin-left 250ms ease-in-out',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '4px',
         }}
       >
-        {/* Breadcrumbs */}
-        <EuiPageTemplate.Section grow={false} paddingSize="s">
-          <EuiBreadcrumbs breadcrumbs={defaultBreadcrumbs} truncate={false} max={6} />
-        </EuiPageTemplate.Section>
+        <EuiAvatar
+          name={user?.username || 'User'}
+          size="s"
+        />
+      </button>
+    </EuiHeaderSectionItem>
+  );
 
-        {/* Page Content */}
-        <EuiPageTemplate.Section>{children}</EuiPageTemplate.Section>
+  return (
+    <div className="eck-app-shell">
+      <EuiHeader
+        position="fixed"
+        sections={[
+          {
+            items: [
+              <EuiHeaderLogo
+                key="logo"
+                iconType="logoElastic"
+                onClick={(e: React.MouseEvent) => {
+                  e.preventDefault();
+                  navigate('/');
+                }}
+                href="/"
+                aria-label="Go to home page"
+              >
+                ECK UI
+              </EuiHeaderLogo>,
+            ],
+            breadcrumbs,
+            breadcrumbProps: { max: 4 },
+          },
+          {
+            items: [
+              <EuiHeaderLinks key="links" aria-label="App navigation links">
+                <OrganizationSwitcher />
+                <EuiHeaderLink
+                  iconType={colorMode === 'light' ? 'moon' : 'sun'}
+                  onClick={toggleTheme}
+                  aria-label={`Switch to ${colorMode === 'light' ? 'dark' : 'light'} mode`}
+                />
+              </EuiHeaderLinks>,
+              <EuiPopover
+                key="user-menu"
+                button={userMenuButton}
+                isOpen={isUserMenuOpen}
+                closePopover={() => setIsUserMenuOpen(false)}
+                anchorPosition="downRight"
+                panelPaddingSize="m"
+              >
+                <div style={{ width: 240 }}>
+                  <EuiFlexGroup
+                    gutterSize="s"
+                    alignItems="center"
+                    responsive={false}
+                  >
+                    <EuiFlexItem grow={false}>
+                      <EuiAvatar
+                        name={user?.username || 'User'}
+                        size="m"
+                      />
+                    </EuiFlexItem>
+                    <EuiFlexItem>
+                      <EuiText size="s">
+                        <strong>{user?.username || 'Anonymous'}</strong>
+                      </EuiText>
+                      {user?.groups && user.groups.length > 0 && (
+                        <EuiText size="xs" color="subdued">
+                          {user.groups[0]}
+                        </EuiText>
+                      )}
+                    </EuiFlexItem>
+                  </EuiFlexGroup>
+                  <EuiHorizontalRule margin="s" />
+                  <EuiSpacer size="xs" />
+                  <EuiButtonEmpty
+                    iconType={colorMode === 'light' ? 'moon' : 'sun'}
+                    onClick={toggleTheme}
+                    size="s"
+                    flush="left"
+                  >
+                    {colorMode === 'light' ? 'Dark' : 'Light'} mode
+                  </EuiButtonEmpty>
+                  <EuiSpacer size="xs" />
+                  <EuiButtonEmpty
+                    iconType="exit"
+                    onClick={handleLogout}
+                    size="s"
+                    flush="left"
+                    color="danger"
+                  >
+                    Log out
+                  </EuiButtonEmpty>
+                </div>
+              </EuiPopover>,
+            ],
+          },
+        ]}
+      />
+      <EuiPageTemplate
+        paddingSize="l"
+        grow
+        style={{ minHeight: 'calc(100vh - 48px)', paddingTop: '48px' }}
+      >
+        <EuiPageTemplate.Sidebar sticky>
+          <Sidebar />
+        </EuiPageTemplate.Sidebar>
+        <EuiPageTemplate.Section grow>
+          <Outlet />
+        </EuiPageTemplate.Section>
       </EuiPageTemplate>
-    </>
+    </div>
   );
 }

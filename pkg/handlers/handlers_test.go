@@ -4,169 +4,148 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/jamesagarside/eck-ui/pkg/k8s"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 )
 
-// TestHealthz tests the liveness probe endpoint.
-func TestHealthz(t *testing.T) {
+func TestHealthzHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	w := httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 
-	Healthz(w, req)
+	HealthzHandler(rec, req)
 
-	resp := w.Result()
-	defer resp.Body.Close()
+	res := rec.Result()
+	defer res.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusOK)
+	}
+
+	ct := res.Header.Get("Content-Type")
+	want := "application/json; charset=utf-8"
+	if ct != want {
+		t.Errorf("Content-Type = %q, want %q", ct, want)
 	}
 
 	var body map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
 	if body["status"] != "ok" {
-		t.Errorf("expected status 'ok', got %q", body["status"])
+		t.Errorf("body[\"status\"] = %q, want %q", body["status"], "ok")
 	}
 }
 
-// TestReadyz tests the readiness probe endpoint.
-func TestReadyz(t *testing.T) {
+// newTestK8sClient creates a k8s.Client backed by an httptest.Server.
+// The handler argument determines the mock Kubernetes API behavior.
+func newTestK8sClient(t *testing.T, handler http.Handler) *k8s.Client {
+	t.Helper()
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	cfg := &rest.Config{
+		Host: server.URL,
+	}
+
+	disc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		t.Fatalf("failed to create discovery client: %v", err)
+	}
+
+	return &k8s.Client{
+		Discovery: disc,
+	}
+}
+
+func TestReadyzHandler_Healthy(t *testing.T) {
+	// Mock a healthy Kubernetes API server that responds 200 on /healthz.
+	mockK8s := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ok"))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	client := newTestK8sClient(t, mockK8s)
+	handler := ReadyzHandler(client)
+
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	w := httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 
-	Readyz(w, req)
+	handler(rec, req)
 
-	resp := w.Result()
-	defer resp.Body.Close()
+	res := rec.Result()
+	defer res.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusOK)
+	}
+
+	ct := res.Header.Get("Content-Type")
+	wantCT := "application/json; charset=utf-8"
+	if ct != wantCT {
+		t.Errorf("Content-Type = %q, want %q", ct, wantCT)
 	}
 
 	var body map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
 	if body["status"] != "ready" {
-		t.Errorf("expected status 'ready', got %q", body["status"])
+		t.Errorf("body[\"status\"] = %q, want %q", body["status"], "ready")
 	}
 }
 
-// TestListOrganizations tests the organization listing endpoint.
-func TestListOrganizations(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs", nil)
-	w := httptest.NewRecorder()
+func TestReadyzHandler_Unhealthy(t *testing.T) {
+	// Mock an unhealthy Kubernetes API server that responds 500 on /healthz.
+	mockK8s := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("internal server error"))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
 
-	ListOrganizations(w, req)
+	client := newTestK8sClient(t, mockK8s)
+	handler := ReadyzHandler(client)
 
-	resp := w.Result()
-	defer resp.Body.Close()
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	handler(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusServiceUnavailable)
 	}
 
-	ct := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "application/json") {
-		t.Errorf("expected Content-Type 'application/json', got %q", ct)
-	}
-}
-
-// TestGetOrganization tests the organization detail endpoint.
-func TestGetOrganization(t *testing.T) {
-	r := chi.NewRouter()
-	r.Get("/orgs/{org}", GetOrganization)
-
-	req := httptest.NewRequest(http.MethodGet, "/orgs/my-org", nil)
-	w := httptest.NewRecorder()
-
-	r.ServeHTTP(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
+	ct := res.Header.Get("Content-Type")
+	wantCT := "application/json; charset=utf-8"
+	if ct != wantCT {
+		t.Errorf("Content-Type = %q, want %q", ct, wantCT)
 	}
 
 	var body map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
-	if body["name"] != "my-org" {
-		t.Errorf("expected org name 'my-org', got %q", body["name"])
-	}
-}
-
-// TestRespondJSON tests the JSON response helper.
-func TestRespondJSON(t *testing.T) {
-	tests := []struct {
-		name   string
-		status int
-		data   interface{}
-	}{
-		{
-			name:   "success with data",
-			status: http.StatusOK,
-			data:   map[string]string{"key": "value"},
-		},
-		{
-			name:   "success with nil data",
-			status: http.StatusNoContent,
-			data:   nil,
-		},
-		{
-			name:   "error status",
-			status: http.StatusBadRequest,
-			data:   map[string]string{"error": "bad request"},
-		},
+	if body["status"] != "unavailable" {
+		t.Errorf("body[\"status\"] = %q, want %q", body["status"], "unavailable")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			respondJSON(w, tt.status, tt.data)
-
-			resp := w.Result()
-			defer resp.Body.Close()
-
-			if resp.StatusCode != tt.status {
-				t.Errorf("expected status %d, got %d", tt.status, resp.StatusCode)
-			}
-
-			ct := resp.Header.Get("Content-Type")
-			if !strings.HasPrefix(ct, "application/json") {
-				t.Errorf("expected Content-Type 'application/json', got %q", ct)
-			}
-		})
-	}
-}
-
-// TestRespondError tests the error response helper.
-func TestRespondError(t *testing.T) {
-	w := httptest.NewRecorder()
-	respondError(w, http.StatusNotFound, "resource not found")
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("expected status %d, got %d", http.StatusNotFound, resp.StatusCode)
-	}
-
-	var body map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode response body: %v", err)
-	}
-
-	if body["error"] != "resource not found" {
-		t.Errorf("expected error 'resource not found', got %q", body["error"])
+	if body["error"] == "" {
+		t.Error("expected non-empty error message in response body")
 	}
 }

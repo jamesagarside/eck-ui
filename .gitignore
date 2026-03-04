@@ -1,4 +1,38 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-# Dolt database files (added by bd init)
+# Go
+vendor/
+
+# Node
+web/node_modules
+web/dist
+
+# Build artifacts
+dist/
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
 .dolt/
 *.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

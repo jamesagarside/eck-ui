@@ -1,95 +1,50 @@
-// Stack Deployment Wizard Page
 import {
-  EuiPageTemplate,
   EuiPageHeader,
-  EuiStepsHorizontal,
-  EuiButton,
-  EuiButtonEmpty,
   EuiSpacer,
-  EuiFlexGroup,
-  EuiFlexItem,
+  EuiStepsHorizontal,
 } from '@elastic/eui';
-import { useNavigate } from 'react-router-dom';
+import type { EuiStepHorizontalProps } from '@elastic/eui/src/components/steps/step_horizontal';
 import { WizardProvider, useWizard } from './WizardContext';
 import { ElasticsearchStep } from './ElasticsearchStep';
 import { KibanaStep } from './KibanaStep';
 import { IntegrationsStep } from './IntegrationsStep';
 import { ReviewStep } from './ReviewStep';
-import { WIZARD_STEPS } from './types';
 
 function WizardContent() {
-  const navigate = useNavigate();
-  const { state, nextStep, prevStep, setStep, reset } = useWizard();
+  const { state, setStep } = useWizard();
   const { currentStep } = state;
 
-  const steps = WIZARD_STEPS.map((step, index) => ({
-    title: step.title,
+  const stepLabels = ['Elasticsearch', 'Kibana', 'Integrations', 'Review'];
+
+  const steps: EuiStepHorizontalProps[] = stepLabels.map((title, index) => ({
+    title,
     status:
       index < currentStep
-        ? ('complete' as const)
+        ? 'complete'
         : index === currentStep
-          ? ('current' as const)
-          : ('incomplete' as const),
+          ? 'current'
+          : 'incomplete',
     onClick: () => setStep(index),
   }));
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 0:
-        return <ElasticsearchStep />;
-      case 1:
-        return <KibanaStep />;
-      case 2:
-        return <IntegrationsStep />;
-      case 3:
-        return <ReviewStep />;
-      default:
-        return <ElasticsearchStep />;
-    }
-  };
-
-  const handleCancel = () => {
-    reset();
-    navigate('/');
-  };
+  const stepComponents = [
+    <ElasticsearchStep key="es" />,
+    <KibanaStep key="kb" />,
+    <IntegrationsStep key="int" />,
+    <ReviewStep key="review" />,
+  ];
 
   return (
-    <EuiPageTemplate>
+    <>
       <EuiPageHeader
-        pageTitle="Deploy Elastic Stack"
-        description="Configure and deploy a complete Elastic Stack with all components"
-        rightSideItems={[
-          <EuiButtonEmpty key="cancel" onClick={handleCancel}>
-            Cancel
-          </EuiButtonEmpty>,
-        ]}
+        pageTitle="Stack Deployment Wizard"
+        description="Deploy a complete Elastic Stack with guided configuration"
       />
-
-      <EuiPageTemplate.Section>
-        <EuiStepsHorizontal steps={steps} />
-
-        <EuiSpacer size="xl" />
-
-        {renderStep()}
-
-        <EuiSpacer size="xl" />
-
-        {currentStep < 3 && (
-          <EuiFlexGroup justifyContent="spaceBetween">
-            <EuiFlexItem grow={false}>
-              <EuiButtonEmpty onClick={prevStep} disabled={currentStep === 0} iconType="arrowLeft">
-                Previous
-              </EuiButtonEmpty>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiButton fill onClick={nextStep} iconType="arrowRight" iconSide="right">
-                {currentStep === 2 ? 'Review' : 'Next'}
-              </EuiButton>
-            </EuiFlexItem>
-          </EuiFlexGroup>
-        )}
-      </EuiPageTemplate.Section>
-    </EuiPageTemplate>
+      <EuiSpacer size="l" />
+      <EuiStepsHorizontal steps={steps} />
+      <EuiSpacer size="xl" />
+      {stepComponents[currentStep]}
+    </>
   );
 }
 

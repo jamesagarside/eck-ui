@@ -1,206 +1,354 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
 
-// TestSecurityHeaders tests that security headers are set correctly.
-func TestSecurityHeaders(t *testing.T) {
-	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestRequestID_GeneratesID(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify the request ID is available in the context.
+		id := RequestIDFromContext(r.Context())
+		if id == "" {
+			t.Error("expected non-empty request ID in context")
+		}
 		w.WriteHeader(http.StatusOK)
-	}))
+	})
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
+	handler := RequestID(inner)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	headerVal := res.Header.Get("X-Request-ID")
+	if headerVal == "" {
+		t.Error("expected X-Request-ID response header to be set")
+	}
+
+	// UUID format check: 8-4-4-4-12 = 36 characters.
+	if len(headerVal) != 36 {
+		t.Errorf("X-Request-ID length = %d, want 36 (UUID format)", len(headerVal))
+	}
+}
+
+func TestRequestID_PreservesExistingID(t *testing.T) {
+	existingID := "custom-request-id-12345"
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := RequestIDFromContext(r.Context())
+		if id != existingID {
+			t.Errorf("context request ID = %q, want %q", id, existingID)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := RequestID(inner)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-Request-ID", existingID)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	headerVal := res.Header.Get("X-Request-ID")
+	if headerVal != existingID {
+		t.Errorf("X-Request-ID = %q, want %q", headerVal, existingID)
+	}
+}
+
+func TestRecovery_CatchesPanics(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("test panic in handler")
+	})
+
+	handler := Recovery(inner)
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	rec := httptest.NewRecorder()
+
+	// The recovery middleware should catch the panic without propagating it.
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusInternalServerError)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
+
+	// The response should contain an error structure from apierrors.ErrInternal.
+	if reason, ok := body["reason"]; ok {
+		if reason != "InternalError" {
+			t.Errorf("body[\"reason\"] = %v, want \"InternalError\"", reason)
+		}
+	}
+}
+
+func TestRecovery_PassesThroughNormalRequests(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	handler := Recovery(inner)
+	req := httptest.NewRequest(http.MethodGet, "/normal", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+	if body != "ok" {
+		t.Errorf("body = %q, want %q", body, "ok")
+	}
+}
+
+func TestCORS_SetsHeaders(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := CORS(inner)
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	req.Header.Set("Origin", "https://example.com")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
 
 	tests := []struct {
-		header   string
-		expected string
+		header string
+		want   string
 	}{
-		{"X-Content-Type-Options", "nosniff"},
-		{"X-XSS-Protection", "1; mode=block"},
-		{"X-Frame-Options", "DENY"},
-		{"Referrer-Policy", "strict-origin-when-cross-origin"},
+		{"Access-Control-Allow-Origin", "https://example.com"},
+		{"Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS"},
+		{"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID"},
+		{"Access-Control-Allow-Credentials", "true"},
+		{"Access-Control-Max-Age", "86400"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.header, func(t *testing.T) {
-			got := w.Header().Get(tt.header)
-			if got != tt.expected {
-				t.Errorf("expected %s = %q, got %q", tt.header, tt.expected, got)
-			}
-		})
+		got := res.Header.Get(tt.header)
+		if got != tt.want {
+			t.Errorf("%s = %q, want %q", tt.header, got, tt.want)
+		}
 	}
 
-	// Check CSP is set
-	csp := w.Header().Get("Content-Security-Policy")
-	if csp == "" {
-		t.Error("expected Content-Security-Policy header to be set")
-	}
-	if !strings.Contains(csp, "default-src 'self'") {
-		t.Error("expected CSP to contain default-src 'self'")
-	}
-
-	// Check Permissions-Policy is set
-	pp := w.Header().Get("Permissions-Policy")
-	if pp == "" {
-		t.Error("expected Permissions-Policy header to be set")
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusOK)
 	}
 }
 
-// TestRequestSizeLimit tests request body size limiting.
-func TestRequestSizeLimit(t *testing.T) {
-	maxSize := int64(100)
-
-	handler := RequestSizeLimit(maxSize)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestCORS_DefaultOrigin(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
-
-	t.Run("allows small requests", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("small body"))
-		req.ContentLength = int64(len("small body"))
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
-		}
 	})
 
-	t.Run("rejects oversized requests", func(t *testing.T) {
-		largeBody := strings.Repeat("x", 200)
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(largeBody))
-		req.ContentLength = int64(len(largeBody))
-		w := httptest.NewRecorder()
+	handler := CORS(inner)
+	// Request without an Origin header.
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	rec := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+	handler.ServeHTTP(rec, req)
 
-		if w.Code != http.StatusRequestEntityTooLarge {
-			t.Errorf("expected status %d, got %d", http.StatusRequestEntityTooLarge, w.Code)
-		}
-	})
+	res := rec.Result()
+	defer res.Body.Close()
+
+	origin := res.Header.Get("Access-Control-Allow-Origin")
+	if origin != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q (default when no Origin)", origin, "*")
+	}
 }
 
-// TestInputSanitizer tests suspicious content detection.
-func TestInputSanitizer(t *testing.T) {
-	handler := InputSanitizer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestCORS_PreflightOptions(t *testing.T) {
+	innerCalled := false
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		innerCalled = true
 		w.WriteHeader(http.StatusOK)
-	}))
-
-	t.Run("allows normal requests", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/?name=test&value=123", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
-		}
 	})
 
-	suspiciousInputs := []string{
-		"<script>alert(1)</script>",
-		"javascript:alert(1)",
-		"onerror=alert(1)",
-		"onload=evil()",
-		"onclick=hack()",
+	handler := CORS(inner)
+	req := httptest.NewRequest(http.MethodOptions, "/api/test", nil)
+	req.Header.Set("Origin", "https://example.com")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		t.Errorf("preflight status = %d, want %d", res.StatusCode, http.StatusNoContent)
 	}
 
-	for _, input := range suspiciousInputs {
-		t.Run("blocks "+input, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/?param="+input, nil)
-			w := httptest.NewRecorder()
-
-			handler.ServeHTTP(w, req)
-
-			if w.Code != http.StatusBadRequest {
-				t.Errorf("expected status %d for suspicious input %q, got %d", http.StatusBadRequest, input, w.Code)
-			}
-		})
+	if innerCalled {
+		t.Error("inner handler should not be called for preflight OPTIONS request")
 	}
 }
 
-// TestContainsSuspiciousContent tests the pattern detection function.
-func TestContainsSuspiciousContent(t *testing.T) {
+func TestLogger_SetsStatus(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte("created"))
+	})
+
+	handler := Logger(inner)
+	req := httptest.NewRequest(http.MethodPost, "/api/resource", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	res := rec.Result()
+	defer res.Body.Close()
+
+	// Logger middleware should pass through the status code.
+	if res.StatusCode != http.StatusCreated {
+		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusCreated)
+	}
+}
+
+func TestUserInfoFromContext_NoValue(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	info := UserInfoFromContext(req.Context())
+	if info != nil {
+		t.Errorf("expected nil UserInfo from empty context, got %+v", info)
+	}
+}
+
+func TestRequestIDFromContext_NoValue(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	id := RequestIDFromContext(req.Context())
+	if id != "" {
+		t.Errorf("expected empty request ID from empty context, got %q", id)
+	}
+}
+
+func TestDeriveRole(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected bool
+		name   string
+		groups []string
+		want   string
 	}{
-		{"hello world", false},
-		{"<script>alert(1)</script>", true},
-		{"<SCRIPT>ALERT(1)</SCRIPT>", true}, // Case insensitive
-		{"javascript:void(0)", true},
-		{"normal text", false},
-		{"onerror=alert(1)", true},
-		{"onclick=doSomething()", true},
-		{"eval('code')", true},
-		{"my-click-event", false}, // Should not match "onclick"
-		{"expression('width')", true},
+		{"no groups defaults to viewer", nil, "viewer"},
+		{"empty groups defaults to viewer", []string{}, "viewer"},
+		{"admin group", []string{"cluster-admin"}, "admin"},
+		{"editor group", []string{"content-editor"}, "editor"},
+		{"viewer group", []string{"readers"}, "viewer"},
+		{"admin takes precedence", []string{"editor-team", "super-admin"}, "admin"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := containsSuspiciousContent(tt.input)
-			if got != tt.expected {
-				t.Errorf("containsSuspiciousContent(%q) = %v, want %v", tt.input, got, tt.expected)
+		t.Run(tt.name, func(t *testing.T) {
+			got := deriveRole(tt.groups)
+			if got != tt.want {
+				t.Errorf("deriveRole(%v) = %q, want %q", tt.groups, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestCORS tests CORS header handling.
-func TestCORS(t *testing.T) {
-	t.Run("allows configured origins", func(t *testing.T) {
-		handler := CORS([]string{"http://localhost:3000"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+func TestRequiredRole(t *testing.T) {
+	tests := []struct {
+		method string
+		want   string
+	}{
+		{http.MethodGet, "viewer"},
+		{http.MethodHead, "viewer"},
+		{http.MethodOptions, "viewer"},
+		{http.MethodPost, "editor"},
+		{http.MethodPut, "editor"},
+		{http.MethodPatch, "editor"},
+		{http.MethodDelete, "admin"},
+		{"UNKNOWN", "admin"},
+	}
 
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Origin", "http://localhost:3000")
-		w := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.method, func(t *testing.T) {
+			got := requiredRole(tt.method)
+			if got != tt.want {
+				t.Errorf("requiredRole(%q) = %q, want %q", tt.method, got, tt.want)
+			}
+		})
+	}
+}
 
-		handler.ServeHTTP(w, req)
+func TestHasPermission(t *testing.T) {
+	tests := []struct {
+		name     string
+		userRole string
+		required string
+		want     bool
+	}{
+		{"admin can do admin", "admin", "admin", true},
+		{"admin can do editor", "admin", "editor", true},
+		{"admin can do viewer", "admin", "viewer", true},
+		{"editor can do editor", "editor", "editor", true},
+		{"editor can do viewer", "editor", "viewer", true},
+		{"editor cannot do admin", "editor", "admin", false},
+		{"viewer can do viewer", "viewer", "viewer", true},
+		{"viewer cannot do editor", "viewer", "editor", false},
+		{"viewer cannot do admin", "viewer", "admin", false},
+		{"unknown role denied", "unknown", "viewer", false},
+	}
 
-		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-			t.Errorf("expected Access-Control-Allow-Origin = 'http://localhost:3000', got %q", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasPermission(tt.userRole, tt.required)
+			if got != tt.want {
+				t.Errorf("hasPermission(%q, %q) = %v, want %v", tt.userRole, tt.required, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestContainsSubstring(t *testing.T) {
+	tests := []struct {
+		s      string
+		substr string
+		want   bool
+	}{
+		{"cluster-admin", "admin", true},
+		{"content-editor", "editor", true},
+		{"readonly", "admin", false},
+		{"", "admin", false},
+		{"admin", "", true},
+	}
+
+	for _, tt := range tests {
+		name := tt.s + "_contains_" + tt.substr
+		if name == "_contains_" {
+			name = "empty_strings"
 		}
-	})
-
-	t.Run("handles wildcard origin", func(t *testing.T) {
-		handler := CORS([]string{"*"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Origin", "http://any-origin.com")
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://any-origin.com" {
-			t.Errorf("expected Access-Control-Allow-Origin = 'http://any-origin.com', got %q", got)
-		}
-	})
-
-	t.Run("handles OPTIONS preflight", func(t *testing.T) {
-		handler := CORS([]string{"*"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-
-		req := httptest.NewRequest(http.MethodOptions, "/", nil)
-		req.Header.Set("Origin", "http://localhost:3000")
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-
-		if w.Code != http.StatusNoContent {
-			t.Errorf("expected status %d for OPTIONS, got %d", http.StatusNoContent, w.Code)
-		}
-	})
+		// Replace any problematic characters in test name.
+		name = strings.ReplaceAll(name, "-", "_")
+		t.Run(name, func(t *testing.T) {
+			got := containsSubstring(tt.s, tt.substr)
+			if got != tt.want {
+				t.Errorf("containsSubstring(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
+			}
+		})
+	}
 }

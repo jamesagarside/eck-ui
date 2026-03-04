@@ -1,10 +1,8 @@
 {{- if .Values.ingress.enabled -}}
-{{- $fullName := include "eck-ui.fullname" . -}}
-{{- $svcPort := .Values.service.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ $fullName }}
+  name: {{ include "eck-ui.fullname" . }}
   labels:
     {{- include "eck-ui.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
@@ -35,9 +33,9 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ $fullName }}
+                name: {{ include "eck-ui.fullname" $ }}
                 port:
-                  number: {{ $svcPort }}
+                  name: http
           {{- end }}
     {{- end }}
 {{- end }}

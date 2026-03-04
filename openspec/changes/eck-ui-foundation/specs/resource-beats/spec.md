@@ -1,97 +1,245 @@
 ## ADDED Requirements
 
-### Requirement: Users can list Beat deployments
+### Requirement: Beat List View
 
-The system SHALL display a list of all Beat deployments (Filebeat, Metricbeat, etc.) in the current organization's namespace.
+The UI SHALL provide a list view for Beat resources scoped to the current organization namespace context.
 
-#### Scenario: List Beats
+The list view MUST render a table with the following columns:
 
-- **WHEN** user navigates to Beats list
-- **THEN** system displays table with name, type, version, health, and associated Elasticsearch
-- **AND** table supports filtering by Beat type
+- Name
+- Namespace
+- Type (e.g. Filebeat, Metricbeat, Heartbeat, Auditbeat, Journalbeat, Packetbeat)
+- Version
+- Health
+- Available Nodes
+- Expected Nodes
 
-#### Scenario: List Beats empty state
+#### Scenario: User views the Beat list
 
-- **WHEN** organization has no Beat deployments
-- **THEN** system displays empty state explaining Beat types
-- **AND** provides "Create Beat" call-to-action
+WHEN the user navigates to the Beats section
+THEN the UI MUST fetch all `beat.k8s.elastic.co/v1beta1` resources within the scoped namespaces
+AND render each resource as a row in the table with name, namespace, type, version, health, available nodes, and expected nodes populated from the resource status
 
-### Requirement: Users can view Beat deployment details
+#### Scenario: No Beat resources exist
 
-The system SHALL display comprehensive detail view for a Beat deployment.
+WHEN the API returns an empty list of Beat resources
+THEN the UI MUST display an empty state message indicating no Beat instances are deployed
+AND MUST render a prominent call-to-action to create a new Beat instance
 
-#### Scenario: View Beat overview
+#### Scenario: List data fails to load
 
-- **WHEN** user clicks on a Beat deployment
-- **THEN** system displays type, health status, version, deployment type (Deployment/DaemonSet)
-- **AND** shows associated Elasticsearch and Kibana references
+WHEN the API returns an error fetching Beat resources
+THEN the UI MUST display an inline error message describing the failure
+AND MUST NOT render a partial or broken table
 
-#### Scenario: View Beat pods
+---
 
-- **WHEN** user selects "Pods" tab
-- **THEN** system displays all Beat pods with status
-- **AND** shows logs snippet from each pod
+### Requirement: Beat Detail View
 
-### Requirement: Users can create Beat deployments
+The UI SHALL provide a detail view for an individual Beat resource.
 
-The system SHALL provide a form to create new Beat deployments.
+The detail view MUST display the following sections:
 
-#### Scenario: Create Filebeat
+- Status summary (health badge, available nodes, expected nodes, version)
+- Beat type badge (visually distinct label indicating the beat type from `spec.type`)
+- Association statuses (Elasticsearch reference name, namespace, and association status; Kibana reference name, namespace, and association status when configured)
+- Configuration (rendered `spec.config` values as syntax-highlighted YAML)
+- Pod list (name, status, restarts, age for each managed pod)
+- Events (Kubernetes events scoped to the Beat resource)
 
-- **WHEN** user selects Filebeat type
-- **THEN** system presents Filebeat-specific configuration options
-- **AND** includes common input types (container, log, syslog)
+#### Scenario: User opens a Beat detail page
 
-#### Scenario: Create Metricbeat
+WHEN the user selects a Beat instance from the list view
+THEN the UI MUST navigate to the detail page for that resource
+AND MUST display all defined sections populated with live data from the API
 
-- **WHEN** user selects Metricbeat type
-- **THEN** system presents Metricbeat-specific configuration options
-- **AND** includes common module configurations (system, kubernetes)
+#### Scenario: Beat has no Kibana reference configured
 
-#### Scenario: Create Beat with DaemonSet
+WHEN `spec.kibanaRef` is absent on the Beat resource
+THEN the Kibana association section MUST display a notice that no Kibana reference is configured
 
-- **WHEN** user selects DaemonSet deployment type
-- **THEN** system configures Beat CR for DaemonSet
-- **AND** Beat deploys to all nodes
+#### Scenario: Detail data fails to load
 
-#### Scenario: Create Beat with Deployment
+WHEN the API returns an error fetching the Beat resource
+THEN the UI MUST display a full-page error state with a retry action
 
-- **WHEN** user selects Deployment type
-- **THEN** system configures Beat CR for Deployment
-- **AND** allows specifying replica count
+---
 
-### Requirement: Users can update Beat deployments
+### Requirement: Beat Create Form
 
-The system SHALL allow modification of Beat configuration.
+The UI SHALL provide a create form for deploying a new Beat instance.
 
-#### Scenario: Update Beat configuration
+The form MUST include the following fields:
 
-- **WHEN** user modifies Beat settings
-- **THEN** system updates config section of Beat CR
-- **AND** ECK operator triggers rolling update
+- Name (text input, required, validated against Kubernetes name constraints)
+- Namespace (text input or selector, required)
+- Beat Type (selector with options: Filebeat, Metricbeat, Heartbeat, Auditbeat, Journalbeat, Packetbeat; required, maps to `spec.type`)
+- Version (text input, required, e.g. `8.13.0`)
+- Elasticsearch Reference (dropdown populated with Elasticsearch clusters available in the scoped namespaces, resolving to `spec.elasticsearchRef.name` and `spec.elasticsearchRef.namespace`, optional)
+- Kibana Reference (dropdown populated with Kibana instances available in the scoped namespaces, resolving to `spec.kibanaRef.name` and `spec.kibanaRef.namespace`, optional)
+- Deployment Mode (radio group: DaemonSet or Deployment; required, mutually exclusive)
+- Configuration Editor (YAML editor for `spec.config`, optional, pre-populated by config template when selected)
 
-#### Scenario: Update Beat associations
+#### Scenario: User opens the create form
 
-- **WHEN** user changes Elasticsearch reference
-- **THEN** system updates elasticsearchRef
-- **AND** warns about potential data routing changes
+WHEN the user clicks the create action on the Beat list view
+THEN the UI MUST render the create form with all required fields empty and the Deployment Mode defaulting to DaemonSet
 
-### Requirement: Users can delete Beat deployments
+#### Scenario: User selects a beat type
 
-The system SHALL allow deletion of Beat deployments with confirmation.
+WHEN the user selects a beat type from the Beat Type selector
+THEN the configuration editor MUST offer a starter configuration template appropriate for the selected type if one is available
+AND the user MUST be able to accept, modify, or clear the template content
 
-#### Scenario: Delete Beat
+#### Scenario: User submits a valid create form
 
-- **WHEN** user confirms deletion
-- **THEN** system deletes Beat CR
-- **AND** ECK operator cleans up resources
+WHEN the user completes all required fields and submits the form
+THEN the UI MUST issue a POST request to create the `beat.k8s.elastic.co/v1beta1` resource
+AND MUST redirect the user to the detail view of the newly created Beat instance on success
 
-### Requirement: Support all Beat types
+#### Scenario: User submits an invalid create form
 
-The system SHALL support all Beat types supported by ECK.
+WHEN the user submits the form with one or more required fields missing or invalid
+THEN the UI MUST display inline validation errors for each invalid field
+AND MUST NOT submit the request to the API
 
-#### Scenario: List available Beat types
+#### Scenario: Create request fails
 
-- **WHEN** user creates new Beat
-- **THEN** system offers: Filebeat, Metricbeat, Heartbeat, Auditbeat, Packetbeat, Journalbeat
-- **AND** provides description of each type's purpose
+WHEN the API returns an error on resource creation
+THEN the UI MUST display the error message returned by the API
+AND MUST retain the form state so the user can correct and resubmit
+
+---
+
+### Requirement: Beat Edit Form
+
+The UI SHALL provide an edit form for modifying an existing Beat instance.
+
+The edit form MUST:
+
+- Pre-populate all fields with the current values from the resource
+- Include the resource `metadata.resourceVersion` in the PUT request to enforce optimistic concurrency control
+- Allow modification of version, Elasticsearch reference, Kibana reference, and config
+
+The edit form MUST NOT allow modification of `metadata.name`, `metadata.namespace`, or `spec.type`.
+
+#### Scenario: User opens the edit form
+
+WHEN the user selects the edit action on a Beat resource
+THEN the UI MUST fetch the current resource state
+AND render the edit form with all fields pre-populated from the fetched resource
+
+#### Scenario: User submits a valid edit
+
+WHEN the user modifies one or more fields and submits the edit form
+THEN the UI MUST issue a PUT request including `metadata.resourceVersion`
+AND MUST redirect to the detail view on success
+
+#### Scenario: Concurrent modification conflict
+
+WHEN the API returns a 409 Conflict response due to a stale `resourceVersion`
+THEN the UI MUST display a conflict error message
+AND MUST offer the user the option to reload the latest resource state and reapply their changes
+
+#### Scenario: Edit request fails with a non-conflict error
+
+WHEN the API returns a non-409 error on the edit request
+THEN the UI MUST display the API error message
+AND MUST retain the form state so the user can correct and resubmit
+
+---
+
+### Requirement: Beat Delete Action
+
+The UI SHALL provide a delete action for removing a Beat instance.
+
+#### Scenario: User initiates delete
+
+WHEN the user selects the delete action on a Beat resource
+THEN the UI MUST display a confirmation dialog stating the resource name and the irreversible nature of the action
+AND MUST require explicit confirmation before issuing the delete request
+
+#### Scenario: User confirms delete
+
+WHEN the user confirms the delete action
+THEN the UI MUST issue a DELETE request for the Beat resource
+AND MUST navigate back to the Beat list view on success
+AND MUST display a success notification confirming the deletion
+
+#### Scenario: User cancels delete
+
+WHEN the user dismisses the confirmation dialog without confirming
+THEN the UI MUST take no action and return focus to the previous view
+
+#### Scenario: Delete request fails
+
+WHEN the API returns an error on the delete request
+THEN the UI MUST display the error message and close the confirmation dialog
+AND MUST NOT remove the resource from the list view
+
+---
+
+### Requirement: Deployment Mode Toggle
+
+The UI SHALL provide a deployment mode toggle that allows the user to choose between DaemonSet and Deployment when creating a Beat.
+
+The toggle MUST:
+
+- Present DaemonSet and Deployment as mutually exclusive options
+- Display an explanation of each mode adjacent to or below the toggle
+- Enforce the mutual exclusivity constraint by ensuring only one of `spec.daemonSet` or `spec.deployment` is included in the submitted resource manifest
+
+The explanatory text MUST convey the following:
+
+- DaemonSet: runs one Beat pod per eligible node, suitable for node-level data collection (e.g. host metrics, system logs)
+- Deployment: runs a fixed number of Beat pod replicas, suitable for centralised or non-node-scoped collection
+
+#### Scenario: User selects DaemonSet mode
+
+WHEN the user selects DaemonSet as the deployment mode
+THEN the UI MUST populate `spec.daemonSet` in the submitted manifest
+AND MUST omit `spec.deployment` from the submitted manifest
+AND MUST display the DaemonSet explanation text
+
+#### Scenario: User selects Deployment mode
+
+WHEN the user selects Deployment as the deployment mode
+THEN the UI MUST populate `spec.deployment` in the submitted manifest
+AND MUST omit `spec.daemonSet` from the submitted manifest
+AND MUST display the Deployment explanation text
+AND MUST reveal a replica count field if not already visible
+
+---
+
+### Requirement: Beat Configuration Templates
+
+The UI SHALL provide starter configuration templates for common Beat types to accelerate creation and reduce configuration errors.
+
+The following templates MUST be available:
+
+- Filebeat — container log collection: configures `filebeat.autodiscover` with a Docker/container provider to collect logs from all running containers
+- Metricbeat — system metrics collection: configures the `system` module to collect CPU, memory, filesystem, and network metrics at a standard interval
+
+Templates MUST be offered as selectable options within the configuration editor when a compatible beat type is selected. Templates MUST be presented as a starting point; the user MUST be able to edit or discard the template content freely.
+
+#### Scenario: User selects Filebeat and views template options
+
+WHEN the user selects Filebeat as the beat type
+THEN the configuration editor MUST offer the "Filebeat — container log collection" template as a selectable option
+
+#### Scenario: User selects Metricbeat and views template options
+
+WHEN the user selects Metricbeat as the beat type
+THEN the configuration editor MUST offer the "Metricbeat — system metrics collection" template as a selectable option
+
+#### Scenario: User applies a configuration template
+
+WHEN the user selects a template from the template options
+THEN the UI MUST populate the configuration editor with the template YAML content
+AND MUST display a notice that the content is a starting point and should be reviewed before submission
+
+#### Scenario: User selects a beat type with no available template
+
+WHEN the user selects Heartbeat, Auditbeat, Journalbeat, or Packetbeat
+THEN the configuration editor MUST render empty with no template pre-populated
+AND MUST NOT display template selection options for unsupported types

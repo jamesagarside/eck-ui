@@ -5,9 +5,7 @@ metadata:
   labels:
     {{- include "eck-ui.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
       {{- include "eck-ui.selectorLabels" . | nindent 6 }}
@@ -18,7 +16,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "eck-ui.selectorLabels" . | nindent 8 }}
+        {{- include "eck-ui.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -35,41 +36,31 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.config.port }}
+              containerPort: 8080
               protocol: TCP
           env:
-            - name: ECK_UI_PORT
-              value: {{ .Values.config.port | quote }}
-            - name: ECK_UI_ALLOWED_ORIGINS
-              value: {{ .Values.config.allowedOrigins | quote }}
-            - name: ECK_UI_RATE_LIMIT
-              value: {{ .Values.config.rateLimit | quote }}
-            - name: ECK_UI_SYSTEM_NAMESPACE
-              value: {{ .Values.config.systemNamespace | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
             {{- if .Values.config.sessionSecret }}
-            - name: ECK_UI_SESSION_SECRET
+            - name: SESSION_SECRET
               value: {{ .Values.config.sessionSecret | quote }}
             {{- end }}
-            {{- if .Values.oidc.enabled }}
-            - name: ECK_UI_OIDC_ISSUER
-              value: {{ .Values.oidc.issuer | quote }}
-            - name: ECK_UI_OIDC_CLIENT_ID
-              value: {{ .Values.oidc.clientId | quote }}
-            {{- if .Values.oidc.existingSecret }}
-            - name: ECK_UI_OIDC_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.oidc.existingSecret }}
-                  key: client-secret
-            {{- else if .Values.oidc.clientSecret }}
-            - name: ECK_UI_OIDC_CLIENT_SECRET
-              value: {{ .Values.oidc.clientSecret | quote }}
-            {{- end }}
-            {{- end }}
           livenessProbe:
-            {{- toYaml .Values.livenessProbe | nindent 12 }}
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
-            {{- toYaml .Values.readinessProbe | nindent 12 }}
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

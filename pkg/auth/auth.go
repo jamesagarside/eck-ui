@@ -1,310 +1,138 @@
-// Package auth provides authentication and session management.
 package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
-	"net/http"
-	"strings"
+	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/jamesagarside/eck-ui/pkg/k8s"
 )
 
-// User represents an authenticated user.
-type User struct {
-	// ID is the unique user identifier (OIDC sub claim or K8s username).
-	ID string `json:"id"`
-	// Email is the user's email address.
-	Email string `json:"email,omitempty"`
-	// Name is the user's display name.
-	Name string `json:"name,omitempty"`
-	// Groups are the user's group memberships.
-	Groups []string `json:"groups,omitempty"`
-	// AuthMethod is how the user authenticated.
-	AuthMethod string `json:"auth_method"`
+// UserInfo holds the identity information returned by token validation.
+type UserInfo struct {
+	Username string              `json:"username"`
+	UID      string              `json:"uid"`
+	Groups   []string            `json:"groups"`
+	Extra    map[string][]string `json:"extra,omitempty"`
 }
 
-// Session represents a user session.
-type Session struct {
-	// ID is the unique session identifier.
-	ID string `json:"id"`
-	// User is the authenticated user.
-	User User `json:"user"`
-	// CreatedAt is when the session was created.
-	CreatedAt time.Time `json:"created_at"`
-	// ExpiresAt is when the session expires.
-	ExpiresAt time.Time `json:"expires_at"`
-	// AccessToken is the OIDC access token (if OIDC auth).
-	AccessToken string `json:"access_token,omitempty"`
-	// RefreshToken is the OIDC refresh token (if OIDC auth).
-	RefreshToken string `json:"refresh_token,omitempty"`
+// Service provides authentication and session management functionality.
+type Service struct {
+	k8sClient     *k8s.Client
+	sessionStore  *SessionStore
+	tokenCache    *tokenCache
+	sessionSecret string
 }
 
-// IsExpired checks if the session has expired.
-func (s *Session) IsExpired() bool {
-	return time.Now().After(s.ExpiresAt)
+// tokenCacheEntry holds a cached token validation result with an expiry time.
+type tokenCacheEntry struct {
+	user   *UserInfo
+	expiry time.Time
 }
 
-// OIDCConfig holds OIDC provider configuration.
-type OIDCConfig struct {
-	// Issuer is the OIDC provider URL.
-	Issuer string
-	// ClientID is the OAuth2 client ID.
-	ClientID string
-	// ClientSecret is the OAuth2 client secret.
-	ClientSecret string
-	// RedirectURL is the OAuth2 callback URL.
-	RedirectURL string
-	// Scopes are the OAuth2 scopes to request.
-	Scopes []string
+// tokenCache provides TTL-based caching for validated bearer tokens.
+type tokenCache struct {
+	mu    sync.RWMutex
+	store sync.Map
+	ttl   time.Duration
 }
 
-// Provider handles authentication.
-type Provider struct {
-	oidcProvider  *oidc.Provider
-	oauth2Config  *oauth2.Config
-	verifier      *oidc.IDTokenVerifier
-	sessionSecret []byte
-	sessionTTL    time.Duration
+// newTokenCache creates a new token cache with the specified TTL.
+func newTokenCache(ttl time.Duration) *tokenCache {
+	return &tokenCache{ttl: ttl}
 }
 
-// NewProvider creates a new auth provider.
-func NewProvider(ctx context.Context, cfg OIDCConfig, sessionSecret string) (*Provider, error) {
-	if cfg.Issuer == "" {
-		slog.Info("OIDC not configured, using Kubernetes token auth only")
-		return &Provider{
-			sessionSecret: []byte(sessionSecret),
-			sessionTTL:    24 * time.Hour,
-		}, nil
-	}
-
-	provider, err := oidc.NewProvider(ctx, cfg.Issuer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OIDC provider: %w", err)
-	}
-
-	scopes := cfg.Scopes
-	if len(scopes) == 0 {
-		scopes = []string{oidc.ScopeOpenID, "profile", "email", "groups"}
-	}
-
-	oauth2Cfg := &oauth2.Config{
-		ClientID:     cfg.ClientID,
-		ClientSecret: cfg.ClientSecret,
-		RedirectURL:  cfg.RedirectURL,
-		Endpoint:     provider.Endpoint(),
-		Scopes:       scopes,
-	}
-
-	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.ClientID})
-
-	return &Provider{
-		oidcProvider:  provider,
-		oauth2Config:  oauth2Cfg,
-		verifier:      verifier,
-		sessionSecret: []byte(sessionSecret),
-		sessionTTL:    24 * time.Hour,
-	}, nil
-}
-
-// IsOIDCEnabled returns true if OIDC is configured.
-func (p *Provider) IsOIDCEnabled() bool {
-	return p.oidcProvider != nil
-}
-
-// GetAuthURL returns the OIDC authorization URL.
-func (p *Provider) GetAuthURL(state string) string {
-	if !p.IsOIDCEnabled() {
-		return ""
-	}
-	return p.oauth2Config.AuthCodeURL(state)
-}
-
-// ExchangeCode exchanges an authorization code for tokens.
-func (p *Provider) ExchangeCode(ctx context.Context, code string) (*Session, error) {
-	if !p.IsOIDCEnabled() {
-		return nil, errors.New("OIDC not configured")
-	}
-
-	token, err := p.oauth2Config.Exchange(ctx, code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to exchange code: %w", err)
-	}
-
-	rawIDToken, ok := token.Extra("id_token").(string)
+// get retrieves a cached user info for the given token, returning nil if
+// the entry is missing or expired.
+func (tc *tokenCache) get(token string) *UserInfo {
+	val, ok := tc.store.Load(token)
 	if !ok {
-		return nil, errors.New("no id_token in response")
+		return nil
 	}
 
-	idToken, err := p.verifier.Verify(ctx, rawIDToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify id_token: %w", err)
+	entry := val.(*tokenCacheEntry)
+	if time.Now().After(entry.expiry) {
+		tc.store.Delete(token)
+		return nil
 	}
 
-	var claims struct {
-		Sub    string   `json:"sub"`
-		Email  string   `json:"email"`
-		Name   string   `json:"name"`
-		Groups []string `json:"groups"`
-	}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, fmt.Errorf("failed to parse claims: %w", err)
-	}
-
-	sessionID, err := generateSessionID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate session ID: %w", err)
-	}
-
-	session := &Session{
-		ID: sessionID,
-		User: User{
-			ID:         claims.Sub,
-			Email:      claims.Email,
-			Name:       claims.Name,
-			Groups:     claims.Groups,
-			AuthMethod: "oidc",
-		},
-		CreatedAt:    time.Now().UTC(),
-		ExpiresAt:    time.Now().UTC().Add(p.sessionTTL),
-		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
-	}
-
-	return session, nil
+	return entry.user
 }
 
-// ValidateBearerToken validates a Bearer token (K8s service account or OIDC).
-func (p *Provider) ValidateBearerToken(ctx context.Context, token string) (*User, error) {
-	// Try OIDC token validation first
-	if p.IsOIDCEnabled() {
-		idToken, err := p.verifier.Verify(ctx, token)
-		if err == nil {
-			var claims struct {
-				Sub    string   `json:"sub"`
-				Email  string   `json:"email"`
-				Name   string   `json:"name"`
-				Groups []string `json:"groups"`
-			}
-			if err := idToken.Claims(&claims); err == nil {
-				return &User{
-					ID:         claims.Sub,
-					Email:      claims.Email,
-					Name:       claims.Name,
-					Groups:     claims.Groups,
-					AuthMethod: "oidc_token",
-				}, nil
-			}
-		}
+// set stores a validated user info for the given token with the configured TTL.
+func (tc *tokenCache) set(token string, user *UserInfo) {
+	tc.store.Store(token, &tokenCacheEntry{
+		user:   user,
+		expiry: time.Now().Add(tc.ttl),
+	})
+}
+
+// NewService creates a new auth Service with the given Kubernetes client,
+// session secret, and token cache TTL.
+func NewService(k8sClient *k8s.Client, sessionSecret string, tokenCacheTTL time.Duration) *Service {
+	return &Service{
+		k8sClient:     k8sClient,
+		sessionStore:  NewSessionStore(),
+		tokenCache:    newTokenCache(tokenCacheTTL),
+		sessionSecret: sessionSecret,
+	}
+}
+
+// ValidateToken validates a bearer token against the Kubernetes TokenReview API.
+// Results are cached for the configured TTL to reduce API server load.
+func (s *Service) ValidateToken(ctx context.Context, token string) (*UserInfo, error) {
+	// Check cache first.
+	if cached := s.tokenCache.get(token); cached != nil {
+		return cached, nil
 	}
 
-	// Fall back to treating as Kubernetes service account token
-	// In a real implementation, you'd validate this against the K8s TokenReview API
-	// For now, we'll trust the token and extract basic info
-	user := &User{
-		ID:         extractUserFromToken(token),
-		AuthMethod: "kubernetes_token",
+	// Submit a TokenReview to the Kubernetes API server.
+	review := &authv1.TokenReview{
+		Spec: authv1.TokenReviewSpec{
+			Token: token,
+		},
 	}
+
+	result, err := s.k8sClient.Clientset.AuthenticationV1().TokenReviews().Create(
+		ctx, review, metav1.CreateOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("token review request failed: %w", err)
+	}
+
+	if !result.Status.Authenticated {
+		return nil, fmt.Errorf("token is not valid")
+	}
+
+	// Convert Extra from map[string]ExtraValue to map[string][]string.
+	extra := make(map[string][]string, len(result.Status.User.Extra))
+	for k, v := range result.Status.User.Extra {
+		extra[k] = v
+	}
+
+	user := &UserInfo{
+		Username: result.Status.User.Username,
+		UID:      result.Status.User.UID,
+		Groups:   result.Status.User.Groups,
+		Extra:    extra,
+	}
+
+	// Cache the result.
+	s.tokenCache.set(token, user)
 
 	return user, nil
 }
 
-// extractUserFromToken extracts user info from a Kubernetes token.
-// This is a simplified implementation - in production, use TokenReview API.
-func extractUserFromToken(token string) string {
-	// JWT tokens have 3 parts separated by dots
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return "unknown"
-	}
-
-	// Decode the payload (middle part)
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "unknown"
-	}
-
-	var claims struct {
-		Sub string `json:"sub"`
-	}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "unknown"
-	}
-
-	if claims.Sub != "" {
-		return claims.Sub
-	}
-	return "unknown"
+// SessionStore returns the session store managed by this service.
+func (s *Service) Sessions() *SessionStore {
+	return s.sessionStore
 }
 
-// generateSessionID generates a cryptographically secure session ID.
-func generateSessionID() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
-}
-
-// GenerateState generates a cryptographically secure state parameter.
-func GenerateState() (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
-}
-
-// ContextKey is the type for context keys.
-type ContextKey string
-
-const (
-	// UserContextKey is the context key for the authenticated user.
-	UserContextKey ContextKey = "user"
-	// SessionContextKey is the context key for the session.
-	SessionContextKey ContextKey = "session"
-)
-
-// UserFromContext extracts the user from the request context.
-func UserFromContext(ctx context.Context) (*User, bool) {
-	user, ok := ctx.Value(UserContextKey).(*User)
-	return user, ok
-}
-
-// SessionFromContext extracts the session from the request context.
-func SessionFromContext(ctx context.Context) (*Session, bool) {
-	session, ok := ctx.Value(SessionContextKey).(*Session)
-	return session, ok
-}
-
-// WithUser adds a user to the context.
-func WithUser(ctx context.Context, user *User) context.Context {
-	return context.WithValue(ctx, UserContextKey, user)
-}
-
-// WithSession adds a session to the context.
-func WithSession(ctx context.Context, session *Session) context.Context {
-	return context.WithValue(ctx, SessionContextKey, session)
-}
-
-// GetBearerToken extracts the Bearer token from the Authorization header.
-func GetBearerToken(r *http.Request) string {
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return ""
-	}
-
-	parts := strings.SplitN(auth, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-		return ""
-	}
-
-	return parts[1]
+// Secret returns the session encryption secret.
+func (s *Service) Secret() string {
+	return s.sessionSecret
 }

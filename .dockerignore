@@ -1,43 +1,12 @@
-# Dependencies
-node_modules/
-web/node_modules/
-
-# Build outputs
-web/dist/
-pkg/handlers/static/
-
-# Development
-.git/
-.github/
-.vscode/
-*.md
-!README.md
-
-# Go
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-
-# IDE
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Test
-coverage/
-*.cover
-*.prof
-
-# Misc
+.git
+.github
+.vscode
+.claude
+.beads
+.dolt
+openspec
+node_modules
+web/node_modules
+web/dist
+*.db
 *.log
-.env
-.env.*
-!.env.example

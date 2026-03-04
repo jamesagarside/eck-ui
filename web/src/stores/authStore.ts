@@ -1,107 +1,121 @@
-// Authentication state management with Zustand
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { apiClient } from '../api/client';
+import apiClient from '../api/client';
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  roles: string[];
+interface User {
+  username: string;
+  uid: string;
+  groups: string[];
 }
 
-export interface AuthState {
+interface Organization {
+  name: string;
+  namespaces: string[];
+}
+
+interface AuthState {
   user: User | null;
+  activeOrg: Organization | null;
+  orgs: Organization[];
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-
-  // Actions
-  login: (redirectUrl?: string) => Promise<void>;
-  logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
-  clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      isAuthenticated: false,
-      isLoading: true,
-      error: null,
+interface AuthActions {
+  login: (token: string) => Promise<void>;
+  logout: () => Promise<void>;
+  switchOrg: (orgName: string) => void;
+  checkSession: () => Promise<void>;
+}
 
-      login: async (redirectUrl?: string) => {
-        const currentUrl = redirectUrl || window.location.href;
-        const returnUrl = encodeURIComponent(currentUrl);
+type AuthStore = AuthState & AuthActions;
 
-        // Redirect to OIDC login
-        window.location.href = `/api/v1/auth/login?return_url=${returnUrl}`;
-      },
+interface SessionResponse {
+  user: User;
+  organizations: Organization[];
+  activeOrganization: string;
+}
 
-      logout: async () => {
-        try {
-          set({ isLoading: true, error: null });
+export const useAuthStore = create<AuthStore>((set, get) => ({
+  user: null,
+  activeOrg: null,
+  orgs: [],
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
 
-          await apiClient.post('/auth/logout');
-
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-
-          // Redirect to home after logout
-          window.location.href = '/';
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Logout failed';
-          set({ error: message, isLoading: false });
-        }
-      },
-
-      refreshSession: async () => {
-        try {
-          set({ isLoading: true, error: null });
-
-          const response = await apiClient.get<{ user: User }>('/auth/me');
-
-          set({
-            user: response.user,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          // If unauthorized, clear user state
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-        }
-      },
-
-      clearError: () => set({ error: null }),
-    }),
-    {
-      name: 'eck-ui-auth',
-      storage: createJSONStorage(() => sessionStorage),
-      partialize: (state) => ({
-        // Only persist non-sensitive data
-        isAuthenticated: state.isAuthenticated,
-      }),
+  login: async (token: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const session = await apiClient.post<SessionResponse>('/auth/login', {
+        token,
+      });
+      const activeOrg =
+        session.organizations.find(
+          (o) => o.name === session.activeOrganization,
+        ) || session.organizations[0] || null;
+      set({
+        user: session.user,
+        orgs: session.organizations,
+        activeOrg,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Login failed',
+        isLoading: false,
+        isAuthenticated: false,
+      });
     }
-  )
-);
+  },
 
-// Set up API client to handle unauthorized responses
-apiClient.setOnUnauthorized(() => {
-  const { refreshSession } = useAuthStore.getState();
-  refreshSession();
-});
+  logout: async () => {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch {
+      // Proceed with local logout even if server call fails
+    }
+    set({
+      user: null,
+      activeOrg: null,
+      orgs: [],
+      isAuthenticated: false,
+      error: null,
+    });
+  },
 
-// Selector hooks for common use cases
-export const useUser = () => useAuthStore((state) => state.user);
-export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenticated);
-export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
-export const useAuthError = () => useAuthStore((state) => state.error);
+  switchOrg: (orgName: string) => {
+    const { orgs } = get();
+    const org = orgs.find((o) => o.name === orgName);
+    if (org) {
+      set({ activeOrg: org });
+    }
+  },
+
+  checkSession: async () => {
+    set({ isLoading: true });
+    try {
+      const session = await apiClient.get<SessionResponse>('/auth/session');
+      const activeOrg =
+        session.organizations.find(
+          (o) => o.name === session.activeOrganization,
+        ) || session.organizations[0] || null;
+      set({
+        user: session.user,
+        orgs: session.organizations,
+        activeOrg,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch {
+      set({
+        user: null,
+        activeOrg: null,
+        orgs: [],
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    }
+  },
+}));

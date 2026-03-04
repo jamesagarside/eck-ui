@@ -1,179 +1,95 @@
 package handlers
 
 import (
-	"embed"
 	"io/fs"
-	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
+	"path"
 	"strings"
-
-	"github.com/go-chi/chi/v5"
 )
 
-//go:embed all:static
-var staticFS embed.FS
-
-// hashPattern matches Vite's hashed asset filenames (e.g., index-a1b2c3d4.js)
-// Vite uses format: name-[hash].ext where hash is 8 lowercase hex chars
-var hashPattern = regexp.MustCompile(`-[a-f0-9]{8}\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$`)
-
-// cacheableExtensions for assets that should be cached long-term
-var cacheableExtensions = map[string]bool{
-	".js":    true,
-	".css":   true,
-	".woff":  true,
-	".woff2": true,
-	".ttf":   true,
-	".eot":   true,
-	".svg":   true,
-	".png":   true,
-	".jpg":   true,
-	".jpeg":  true,
-	".gif":   true,
-	".webp":  true,
-	".ico":   true,
+// SPAHandler serves static files from an embedded filesystem with SPA routing
+// support. If a requested file does not exist, it falls back to serving
+// index.html so that client-side routing can handle the path.
+type SPAHandler struct {
+	fileSystem http.FileSystem
+	fileServer http.Handler
 }
 
-// setCacheHeaders sets appropriate cache headers based on the file path.
-// Hashed assets get immutable caching, HTML gets no-cache for SPA routing.
-func setCacheHeaders(w http.ResponseWriter, path string) {
-	ext := strings.ToLower(filepath.Ext(path))
-
-	// HTML files: no cache (SPA routing needs fresh index.html)
-	if ext == ".html" || ext == "" {
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "0")
-		return
-	}
-
-	// Hashed assets (e.g., index-a1b2c3d4.js): immutable, 1 year
-	if hashPattern.MatchString(path) {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		return
-	}
-
-	// Other cacheable assets: 1 week with revalidation
-	if cacheableExtensions[ext] {
-		w.Header().Set("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400")
-		return
-	}
-
-	// Everything else: short cache
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-}
-
-// staticFileHandler wraps http.Handler to add cache headers
-type staticFileHandler struct {
-	handler  http.Handler
-	basePath string
-}
-
-func (h *staticFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	setCacheHeaders(w, r.URL.Path)
-	h.handler.ServeHTTP(w, r)
-}
-
-// SetupStaticServer configures the static file server for the frontend.
-// In development, serves from the web/dist directory.
-// In production, serves from the embedded filesystem.
-func SetupStaticServer(r chi.Router) {
-	// Check if we're in development mode (web/dist exists on filesystem)
-	if _, err := os.Stat("web/dist"); err == nil {
-		slog.Info("serving static files from filesystem", "path", "web/dist")
-		setupDevelopmentServer(r)
-		return
-	}
-
-	// Production: serve from embedded filesystem
-	slog.Info("serving static files from embedded filesystem")
-	setupProductionServer(r)
-}
-
-// setupDevelopmentServer serves files from web/dist for development.
-func setupDevelopmentServer(r chi.Router) {
-	fileServer := http.FileServer(http.Dir("web/dist"))
-	wrappedHandler := &staticFileHandler{handler: fileServer, basePath: "web/dist"}
-
-	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
-		path := req.URL.Path
-
-		// Try to serve the file directly
-		fullPath := filepath.Join("web/dist", path)
-		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
-			setCacheHeaders(w, path)
-			fileServer.ServeHTTP(w, req)
-			return
-		}
-
-		// SPA fallback: serve index.html for non-asset routes
-		if !hasFileExtension(path) {
-			setCacheHeaders(w, "/index.html")
-			http.ServeFile(w, req, "web/dist/index.html")
-			return
-		}
-
-		// File not found
-		http.NotFound(w, req)
-	})
-
-	_ = wrappedHandler // Used for type reference
-}
-
-// setupProductionServer serves files from the embedded filesystem.
-func setupProductionServer(r chi.Router) {
-	subFS, err := fs.Sub(staticFS, "static")
+// NewSPAHandler creates a new SPAHandler that serves files from the given
+// embed.FS rooted at the specified directory prefix.
+func NewSPAHandler(fsys fs.FS, root string) *SPAHandler {
+	sub, err := fs.Sub(fsys, root)
 	if err != nil {
-		slog.Warn("no embedded static files found", "error", err)
-		// No embedded files, just return 404 for static routes
-		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
-			http.NotFound(w, req)
-		})
-		return
+		// If the sub-filesystem cannot be created (e.g., during development
+		// without the web/dist directory), create a minimal handler.
+		sub = fsys
 	}
 
-	fileServer := http.FileServer(http.FS(subFS))
-
-	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
-		path := strings.TrimPrefix(req.URL.Path, "/")
-		if path == "" {
-			path = "index.html"
-		}
-
-		// Try to serve the file directly
-		if f, err := subFS.Open(path); err == nil {
-			f.Close()
-			setCacheHeaders(w, path)
-			fileServer.ServeHTTP(w, req)
-			return
-		}
-
-		// SPA fallback: serve index.html for non-asset routes
-		if !hasFileExtension(req.URL.Path) {
-			if indexFile, err := subFS.Open("index.html"); err == nil {
-				indexFile.Close()
-				setCacheHeaders(w, "/index.html")
-				req.URL.Path = "/index.html"
-				fileServer.ServeHTTP(w, req)
-				return
-			}
-		}
-
-		// File not found
-		http.NotFound(w, req)
-	})
+	httpFS := http.FS(sub)
+	return &SPAHandler{
+		fileSystem: httpFS,
+		fileServer: http.FileServer(httpFS),
+	}
 }
 
-// hasFileExtension checks if a path has a file extension (excluding query params).
-func hasFileExtension(path string) bool {
-	// Remove query string
-	if idx := strings.Index(path, "?"); idx != -1 {
-		path = path[:idx]
+// ServeHTTP attempts to serve the requested static file. If the file does not
+// exist and the path does not look like a file request (no extension or an
+// API-like path), it serves index.html instead for SPA client-side routing.
+func (h *SPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Clean the path.
+	upath := r.URL.Path
+	if !strings.HasPrefix(upath, "/") {
+		upath = "/" + upath
 	}
-	// Check for extension
-	ext := filepath.Ext(path)
-	return ext != "" && len(ext) > 1
+	upath = path.Clean(upath)
+
+	// Try to open the requested file.
+	f, err := h.fileSystem.Open(upath)
+	if err != nil {
+		// File does not exist; serve index.html for SPA routing.
+		h.serveIndex(w, r)
+		return
+	}
+	f.Close()
+
+	// Set proper content-type headers for known extensions.
+	setContentTypeHeader(w, upath)
+
+	// Serve the file.
+	h.fileServer.ServeHTTP(w, r)
+}
+
+// serveIndex serves the index.html file for SPA fallback routing.
+func (h *SPAHandler) serveIndex(w http.ResponseWriter, r *http.Request) {
+	r.URL.Path = "/index.html"
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	h.fileServer.ServeHTTP(w, r)
+}
+
+// setContentTypeHeader sets the Content-Type header based on file extension.
+// This supplements Go's built-in MIME type detection for common web assets.
+func setContentTypeHeader(w http.ResponseWriter, filePath string) {
+	ext := path.Ext(filePath)
+	switch ext {
+	case ".html":
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	case ".css":
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	case ".js", ".mjs":
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	case ".json":
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	case ".svg":
+		w.Header().Set("Content-Type", "image/svg+xml")
+	case ".png":
+		w.Header().Set("Content-Type", "image/png")
+	case ".ico":
+		w.Header().Set("Content-Type", "image/x-icon")
+	case ".woff":
+		w.Header().Set("Content-Type", "font/woff")
+	case ".woff2":
+		w.Header().Set("Content-Type", "font/woff2")
+	case ".map":
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	}
 }

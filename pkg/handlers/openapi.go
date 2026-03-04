@@ -1,8 +1,8 @@
-// Package handlers contains HTTP request handlers.
 package handlers
 
 import (
 	_ "embed"
+	"encoding/json"
 	"net/http"
 
 	"sigs.k8s.io/yaml"
@@ -11,27 +11,34 @@ import (
 //go:embed openapi.yaml
 var openapiYAML []byte
 
-var openapiJSON []byte
-
-func init() {
-	// Convert YAML to JSON at startup
-	var err error
-	openapiJSON, err = yaml.YAMLToJSON(openapiYAML)
-	if err != nil {
-		// Will be handled at runtime
-		return
-	}
-}
-
-// ServeOpenAPISpec serves the OpenAPI specification as JSON.
-func ServeOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	if openapiJSON == nil || len(openapiJSON) == 0 {
-		http.Error(w, "OpenAPI specification not available", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
+// OpenAPIYAMLHandler serves the embedded OpenAPI specification as YAML.
+func OpenAPIYAMLHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.WriteHeader(http.StatusOK)
-	w.Write(openapiJSON)
+	w.Write(openapiYAML)
+}
+
+// OpenAPIJSONHandler converts the embedded OpenAPI YAML specification to JSON
+// and serves it.
+func OpenAPIJSONHandler(w http.ResponseWriter, r *http.Request) {
+	jsonData, err := yamlToJSON(openapiYAML)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "failed to convert OpenAPI spec to JSON",
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
+
+// yamlToJSON converts YAML bytes to JSON bytes.
+func yamlToJSON(yamlBytes []byte) ([]byte, error) {
+	return yaml.YAMLToJSON(yamlBytes)
 }

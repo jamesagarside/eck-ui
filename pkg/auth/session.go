@@ -1,248 +1,143 @@
-// Package auth provides authentication and session management.
 package auth
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
+	"crypto/rand"
+	"encoding/hex"
+	"net/http"
 	"sync"
 	"time"
-
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-
-	"github.com/jamesagarside/eck-ui/pkg/k8s"
 )
 
 const (
-	// SessionSecretPrefix is the prefix for session secrets.
-	SessionSecretPrefix = "eck-ui-session-"
-	// SessionLabelManagedBy indicates management by ECK UI.
-	SessionLabelManagedBy = "app.kubernetes.io/managed-by"
-	// SessionLabelComponent indicates the component type.
-	SessionLabelComponent = "app.kubernetes.io/component"
+	// SessionCookieName is the name of the HTTP cookie that holds the session ID.
+	SessionCookieName = "eck-ui-session"
+
+	// SessionDuration is the default session lifetime.
+	SessionDuration = 8 * time.Hour
 )
 
-// SessionStore manages user sessions.
-type SessionStore interface {
-	// Get retrieves a session by ID.
-	Get(ctx context.Context, id string) (*Session, error)
-	// Save saves a session.
-	Save(ctx context.Context, session *Session) error
-	// Delete deletes a session.
-	Delete(ctx context.Context, id string) error
-	// Cleanup removes expired sessions.
-	Cleanup(ctx context.Context) error
+// Session holds the server-side session state for an authenticated user.
+type Session struct {
+	ID           string    `json:"id"`
+	User         *UserInfo `json:"user"`
+	Organization string    `json:"organization,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-// InMemorySessionStore stores sessions in memory.
-// Suitable for development and single-replica deployments.
-type InMemorySessionStore struct {
-	sessions map[string]*Session
+// IsExpired returns true if the session has passed its expiry time.
+func (s *Session) IsExpired() bool {
+	return time.Now().After(s.ExpiresAt)
+}
+
+// SessionStore provides thread-safe in-memory session storage.
+type SessionStore struct {
 	mu       sync.RWMutex
+	sessions sync.Map
 }
 
-// NewInMemorySessionStore creates a new in-memory session store.
-func NewInMemorySessionStore() *InMemorySessionStore {
-	return &InMemorySessionStore{
-		sessions: make(map[string]*Session),
-	}
+// NewSessionStore creates a new empty SessionStore.
+func NewSessionStore() *SessionStore {
+	return &SessionStore{}
 }
 
-// Get retrieves a session by ID.
-func (s *InMemorySessionStore) Get(ctx context.Context, id string) (*Session, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	session, ok := s.sessions[id]
-	if !ok {
-		return nil, fmt.Errorf("session not found: %s", id)
-	}
-
-	if session.IsExpired() {
-		return nil, fmt.Errorf("session expired: %s", id)
-	}
-
-	return session, nil
-}
-
-// Save saves a session.
-func (s *InMemorySessionStore) Save(ctx context.Context, session *Session) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.sessions[session.ID] = session
-	return nil
-}
-
-// Delete deletes a session.
-func (s *InMemorySessionStore) Delete(ctx context.Context, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.sessions, id)
-	return nil
-}
-
-// Cleanup removes expired sessions.
-func (s *InMemorySessionStore) Cleanup(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for id, session := range s.sessions {
-		if session.IsExpired() {
-			delete(s.sessions, id)
-		}
-	}
-	return nil
-}
-
-// KubernetesSessionStore stores sessions in Kubernetes Secrets.
-// Suitable for multi-replica deployments.
-type KubernetesSessionStore struct {
-	client    kubernetes.Interface
-	namespace string
-}
-
-// NewKubernetesSessionStore creates a new Kubernetes-backed session store.
-func NewKubernetesSessionStore(namespace string) (*KubernetesSessionStore, error) {
-	k8sClient, err := k8s.NewClient()
+// Create generates a new session for the given user and returns it.
+// The session is stored in memory and will expire after SessionDuration.
+func (ss *SessionStore) Create(user *UserInfo) (*Session, error) {
+	id, err := generateSessionID()
 	if err != nil {
 		return nil, err
 	}
-	return &KubernetesSessionStore{
-		client:    k8sClient.Clientset,
-		namespace: namespace,
-	}, nil
-}
 
-// secretName returns the Secret name for a session ID.
-func secretName(id string) string {
-	// Use a hash prefix to avoid secret name collisions
-	return SessionSecretPrefix + id[:16]
-}
-
-// Get retrieves a session by ID.
-func (s *KubernetesSessionStore) Get(ctx context.Context, id string) (*Session, error) {
-	secret, err := s.client.CoreV1().Secrets(s.namespace).Get(ctx, secretName(id), metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("session not found: %s", id)
-		}
-		return nil, fmt.Errorf("failed to get session: %w", err)
+	now := time.Now()
+	session := &Session{
+		ID:        id,
+		User:      user,
+		CreatedAt: now,
+		ExpiresAt: now.Add(SessionDuration),
 	}
 
-	sessionData, ok := secret.Data["session"]
+	ss.sessions.Store(id, session)
+	return session, nil
+}
+
+// Get retrieves a session by its ID. Returns nil if the session does not exist
+// or has expired. Expired sessions are automatically cleaned up.
+func (ss *SessionStore) Get(id string) *Session {
+	val, ok := ss.sessions.Load(id)
 	if !ok {
-		return nil, fmt.Errorf("invalid session secret: %s", id)
+		return nil
 	}
 
-	var session Session
-	if err := json.Unmarshal(sessionData, &session); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
-	}
-
+	session := val.(*Session)
 	if session.IsExpired() {
-		// Clean up expired session
-		_ = s.Delete(ctx, id)
-		return nil, fmt.Errorf("session expired: %s", id)
+		ss.sessions.Delete(id)
+		return nil
 	}
 
-	return &session, nil
+	return session
 }
 
-// Save saves a session.
-func (s *KubernetesSessionStore) Save(ctx context.Context, session *Session) error {
-	sessionData, err := json.Marshal(session)
+// Delete removes a session by its ID.
+func (ss *SessionStore) Delete(id string) {
+	ss.sessions.Delete(id)
+}
+
+// GetFromRequest extracts the session ID from the request cookie and returns
+// the corresponding session. Returns nil if the cookie is missing or the
+// session is invalid/expired.
+func (ss *SessionStore) GetFromRequest(r *http.Request) *Session {
+	cookie, err := r.Cookie(SessionCookieName)
 	if err != nil {
-		return fmt.Errorf("failed to marshal session: %w", err)
+		return nil
 	}
-
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName(session.ID),
-			Namespace: s.namespace,
-			Labels: map[string]string{
-				SessionLabelManagedBy: "eck-ui",
-				SessionLabelComponent: "session",
-			},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"session": sessionData,
-		},
-	}
-
-	_, err = s.client.CoreV1().Secrets(s.namespace).Create(ctx, secret, metav1.CreateOptions{})
-	if err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			// Update existing session
-			_, err = s.client.CoreV1().Secrets(s.namespace).Update(ctx, secret, metav1.UpdateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to update session: %w", err)
-			}
-			return nil
-		}
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-
-	return nil
+	return ss.Get(cookie.Value)
 }
 
-// Delete deletes a session.
-func (s *KubernetesSessionStore) Delete(ctx context.Context, id string) error {
-	err := s.client.CoreV1().Secrets(s.namespace).Delete(ctx, secretName(id), metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("failed to delete session: %w", err)
-	}
-	return nil
-}
-
-// Cleanup removes expired sessions.
-func (s *KubernetesSessionStore) Cleanup(ctx context.Context) error {
-	secrets, err := s.client.CoreV1().Secrets(s.namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=eck-ui,%s=session", SessionLabelManagedBy, SessionLabelComponent),
+// SetCookie writes the session cookie to the response. The cookie is configured
+// with HTTP-only, Secure, SameSite=Strict, and path=/ for security.
+func SetCookie(w http.ResponseWriter, session *Session) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    session.ID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  session.ExpiresAt,
 	})
-	if err != nil {
-		return fmt.Errorf("failed to list sessions: %w", err)
-	}
-
-	for _, secret := range secrets.Items {
-		sessionData, ok := secret.Data["session"]
-		if !ok {
-			continue
-		}
-
-		var session Session
-		if err := json.Unmarshal(sessionData, &session); err != nil {
-			continue
-		}
-
-		if session.IsExpired() {
-			_ = s.client.CoreV1().Secrets(s.namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{})
-		}
-	}
-
-	return nil
 }
 
-// StartSessionCleanup starts a background goroutine to clean up expired sessions.
-func StartSessionCleanup(ctx context.Context, store SessionStore, interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+// ClearCookie removes the session cookie from the response by setting it to
+// an expired value.
+func ClearCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1,
+	})
+}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := store.Cleanup(ctx); err != nil {
-					// Log error but continue
-				}
-			}
-		}
-	}()
+// SetOrganization updates the organization context for a session.
+func (ss *SessionStore) SetOrganization(id, org string) {
+	val, ok := ss.sessions.Load(id)
+	if !ok {
+		return
+	}
+	session := val.(*Session)
+	session.Organization = org
+	ss.sessions.Store(id, session)
+}
+
+// generateSessionID creates a cryptographically random 32-byte hex-encoded session ID.
+func generateSessionID() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

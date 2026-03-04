@@ -1,111 +1,87 @@
-// Package k8s provides Kubernetes client initialization and utilities.
 package k8s
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
-	"os"
-	"path/filepath"
-	"sync"
+	"time"
 
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// Client wraps Kubernetes client interfaces.
+// Client wraps the Kubernetes API clients needed by the application.
 type Client struct {
-	// Clientset provides typed access to Kubernetes resources.
+	// Clientset provides typed access to the Kubernetes API.
 	Clientset kubernetes.Interface
-	// Dynamic provides untyped access to arbitrary Kubernetes resources (CRDs).
+
+	// Dynamic provides unstructured access to any Kubernetes resource.
 	Dynamic dynamic.Interface
-	// Config is the underlying REST config.
-	Config *rest.Config
+
+	// Discovery provides API discovery and server version information.
+	Discovery discovery.DiscoveryInterface
 }
 
-var (
-	instance *Client
-	once     sync.Once
-	initErr  error
-)
-
-// NewClient creates a new Kubernetes client.
-// It tries in-cluster config first, then falls back to kubeconfig.
-func NewClient() (*Client, error) {
-	once.Do(func() {
-		instance, initErr = initClient()
-	})
-	return instance, initErr
-}
-
-// GetClient returns the singleton client instance.
-// Panics if client was not initialized.
-func GetClient() *Client {
-	if instance == nil {
-		panic("k8s client not initialized - call NewClient() first")
-	}
-	return instance
-}
-
-func initClient() (*Client, error) {
-	config, err := getConfig()
+// NewClient creates a new Client by first attempting in-cluster configuration
+// and falling back to the kubeconfig file path if provided.
+func NewClient(kubeconfigPath string) (*Client, error) {
+	cfg, err := buildConfig(kubeconfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kubernetes config: %w", err)
+		return nil, fmt.Errorf("building kubernetes config: %w", err)
 	}
 
-	// Create typed clientset
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
+		return nil, fmt.Errorf("creating kubernetes clientset: %w", err)
 	}
 
-	// Create dynamic client for CRDs
-	dynamicClient, err := dynamic.NewForConfig(config)
+	dynamicClient, err := dynamic.NewForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+		return nil, fmt.Errorf("creating dynamic client: %w", err)
 	}
-
-	slog.Info("initialized kubernetes client")
 
 	return &Client{
 		Clientset: clientset,
 		Dynamic:   dynamicClient,
-		Config:    config,
+		Discovery: clientset.Discovery(),
 	}, nil
 }
 
-func getConfig() (*rest.Config, error) {
-	// Try in-cluster config first
-	config, err := rest.InClusterConfig()
+// buildConfig attempts in-cluster config first, then falls back to kubeconfig.
+func buildConfig(kubeconfigPath string) (*rest.Config, error) {
+	// Try in-cluster config first.
+	cfg, err := rest.InClusterConfig()
 	if err == nil {
-		slog.Info("using in-cluster kubernetes config")
-		return config, nil
+		return cfg, nil
 	}
 
-	slog.Debug("in-cluster config failed, trying kubeconfig", "error", err)
-
-	// Fall back to kubeconfig
-	kubeconfig := os.Getenv("KUBECONFIG")
-	if kubeconfig == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
-		}
-		kubeconfig = filepath.Join(home, ".kube", "config")
+	// Fall back to kubeconfig.
+	if kubeconfigPath == "" {
+		return nil, fmt.Errorf(
+			"not running in cluster and no KUBECONFIG provided: %w", err,
+		)
 	}
 
-	config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
+		return nil, fmt.Errorf("building config from kubeconfig %q: %w", kubeconfigPath, err)
 	}
 
-	slog.Info("using kubeconfig", "path", kubeconfig)
-	return config, nil
+	return cfg, nil
 }
 
-// InCluster returns true if running inside a Kubernetes cluster.
-func InCluster() bool {
-	_, err := rest.InClusterConfig()
-	return err == nil
+// CheckHealth verifies connectivity to the Kubernetes API server by fetching
+// the server version. It returns an error if the API server is unreachable.
+func (c *Client) CheckHealth() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Use a simple REST request to verify connectivity.
+	_, err := c.Discovery.RESTClient().Get().AbsPath("/healthz").DoRaw(ctx)
+	if err != nil {
+		return fmt.Errorf("kubernetes API health check failed: %w", err)
+	}
+	return nil
 }

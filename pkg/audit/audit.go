@@ -1,306 +1,113 @@
-// Package audit provides OpenTelemetry-based audit logging for the ECK UI.
 package audit
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/log"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 )
 
-const (
-	// ServiceName is the name of the service for telemetry.
-	ServiceName = "eck-ui"
-	// ServiceVersion is the version of the service.
-	ServiceVersion = "0.1.0"
-)
-
-// EventType represents the type of audit event.
-type EventType string
-
-const (
-	EventTypeCreate EventType = "create"
-	EventTypeRead   EventType = "read"
-	EventTypeUpdate EventType = "update"
-	EventTypeDelete EventType = "delete"
-	EventTypeList   EventType = "list"
-	EventTypeLogin  EventType = "login"
-	EventTypeLogout EventType = "logout"
-)
-
-// Logger provides audit logging functionality.
-type Logger struct {
-	tracer   trace.Tracer
-	provider *sdktrace.TracerProvider
+// LogEntry represents a single audit log record capturing a user action.
+type LogEntry struct {
+	Timestamp    time.Time `json:"timestamp"`
+	User         string    `json:"user"`
+	UserGroups   []string  `json:"userGroups,omitempty"`
+	Action       string    `json:"action"`
+	ResourceType string    `json:"resourceType"`
+	Namespace    string    `json:"namespace"`
+	Name         string    `json:"name"`
+	StatusCode   int       `json:"statusCode"`
+	RequestID    string    `json:"requestId"`
+	SourceIP     string    `json:"sourceIp"`
+	UserAgent    string    `json:"userAgent"`
+	Changes      []byte    `json:"changes,omitempty"`
 }
 
-var defaultLogger *Logger
+// Logger sends audit log entries to an OpenTelemetry collector or stdout.
+type Logger struct {
+	provider *sdklog.LoggerProvider
+	logger   log.Logger
+	useStdout bool
+}
 
-// Initialize sets up OpenTelemetry tracing for audit logging.
-func Initialize(ctx context.Context) (*Logger, error) {
-	// Create resource with service information
-	res, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(ServiceName),
-			semconv.ServiceVersion(ServiceVersion),
-		),
+// NewLogger creates an audit Logger. If endpoint is non-empty, it configures
+// an OTLP gRPC exporter to send logs to the given collector. Otherwise, it
+// falls back to structured stdout logging via slog.
+func NewLogger(endpoint string) (*Logger, error) {
+	if endpoint == "" {
+		return &Logger{useStdout: true}, nil
+	}
+
+	ctx := context.Background()
+	exporter, err := otlploggrpc.New(ctx,
+		otlploggrpc.WithEndpoint(endpoint),
+		otlploggrpc.WithInsecure(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating OTLP log exporter: %w", err)
 	}
 
-	// Create exporter based on configuration
-	var exporter sdktrace.SpanExporter
-
-	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if otlpEndpoint != "" {
-		// Use OTLP gRPC exporter for production
-		exporter, err = otlptracegrpc.New(ctx,
-			otlptracegrpc.WithInsecure(),
-			otlptracegrpc.WithEndpoint(otlpEndpoint),
-		)
-		if err != nil {
-			slog.Warn("failed to create OTLP exporter, falling back to stdout", "error", err)
-		}
-	}
-
-	// Fall back to stdout exporter for development
-	if exporter == nil {
-		exporter, err = stdouttrace.New(
-			stdouttrace.WithPrettyPrint(),
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Create trace provider
-	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	provider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
 	)
 
-	// Set global trace provider
-	otel.SetTracerProvider(provider)
+	logger := provider.Logger("eck-ui-audit")
 
-	// Set up W3C Trace Context propagation (W3C standard format)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
-
-	logger := &Logger{
-		tracer:   provider.Tracer(ServiceName),
+	return &Logger{
 		provider: provider,
-	}
-
-	defaultLogger = logger
-	slog.Info("initialized audit logging with OpenTelemetry")
-
-	return logger, nil
+		logger:   logger,
+	}, nil
 }
 
-// Shutdown gracefully shuts down the audit logger.
-func (l *Logger) Shutdown(ctx context.Context) error {
-	return l.provider.Shutdown(ctx)
-}
-
-// Event represents an audit event.
-type Event struct {
-	// Type is the type of action performed.
-	Type EventType
-	// User is the identity of the user performing the action.
-	User string
-	// Organization is the organization context.
-	Organization string
-	// ResourceType is the type of resource being acted upon.
-	ResourceType string
-	// ResourceName is the name of the resource.
-	ResourceName string
-	// Namespace is the Kubernetes namespace.
-	Namespace string
-	// RequestID is the correlation ID for the request.
-	RequestID string
-	// Success indicates whether the operation succeeded.
-	Success bool
-	// ErrorMessage contains error details if the operation failed.
-	ErrorMessage string
-	// Metadata contains additional context.
-	Metadata map[string]string
-	// DiffSummary contains a summary of changes for UPDATE operations.
-	DiffSummary string
-}
-
-// Log records an audit event.
-func (l *Logger) Log(ctx context.Context, event Event) {
-	_, span := l.tracer.Start(ctx, "audit."+string(event.Type),
-		trace.WithAttributes(
-			attribute.String("audit.type", string(event.Type)),
-			attribute.String("audit.user", event.User),
-			attribute.String("audit.organization", event.Organization),
-			attribute.String("audit.resource_type", event.ResourceType),
-			attribute.String("audit.resource_name", event.ResourceName),
-			attribute.String("audit.namespace", event.Namespace),
-			attribute.String("audit.request_id", event.RequestID),
-			attribute.Bool("audit.success", event.Success),
-			attribute.String("audit.error", event.ErrorMessage),
-			attribute.String("audit.timestamp", time.Now().UTC().Format(time.RFC3339)),
-			attribute.String("audit.diff_summary", event.DiffSummary),
-		),
-	)
-	defer span.End()
-
-	// Add metadata as attributes
-	for k, v := range event.Metadata {
-		span.SetAttributes(attribute.String("audit.metadata."+k, v))
+// Emit sends an audit log entry. When using OTLP, the entry is serialized
+// as an OpenTelemetry log record. When using stdout, it is emitted via slog.
+func (l *Logger) Emit(entry LogEntry) {
+	if entry.Timestamp.IsZero() {
+		entry.Timestamp = time.Now()
 	}
 
-	// Also log to slog for local visibility
-	logAttrs := []any{
-		"type", event.Type,
-		"user", event.User,
-		"org", event.Organization,
-		"resource_type", event.ResourceType,
-		"resource_name", event.ResourceName,
-		"namespace", event.Namespace,
-		"request_id", event.RequestID,
-		"success", event.Success,
-	}
-	if event.ErrorMessage != "" {
-		logAttrs = append(logAttrs, "error", event.ErrorMessage)
-	}
-	if event.DiffSummary != "" {
-		logAttrs = append(logAttrs, "diff", event.DiffSummary)
-	}
-
-	slog.Info("audit", logAttrs...)
-}
-
-// Log records an audit event using the default logger.
-func Log(ctx context.Context, event Event) {
-	if defaultLogger == nil {
-		// Fall back to slog if not initialized
-		slog.Info("audit (otel not initialized)",
-			"type", event.Type,
-			"user", event.User,
-			"org", event.Organization,
-			"resource_type", event.ResourceType,
-			"resource_name", event.ResourceName,
+	if l.useStdout {
+		slog.Info("audit",
+			"user", entry.User,
+			"action", entry.Action,
+			"resourceType", entry.ResourceType,
+			"namespace", entry.Namespace,
+			"name", entry.Name,
+			"statusCode", entry.StatusCode,
+			"requestId", entry.RequestID,
+			"sourceIp", entry.SourceIP,
 		)
 		return
 	}
-	defaultLogger.Log(ctx, event)
+
+	record := log.Record{}
+	record.SetTimestamp(entry.Timestamp)
+	record.SetSeverity(log.SeverityInfo)
+	record.SetBody(log.StringValue(fmt.Sprintf("%s %s/%s/%s", entry.Action, entry.ResourceType, entry.Namespace, entry.Name)))
+	record.AddAttributes(
+		log.String("audit.user", entry.User),
+		log.String("audit.action", entry.Action),
+		log.String("audit.resourceType", entry.ResourceType),
+		log.String("audit.namespace", entry.Namespace),
+		log.String("audit.name", entry.Name),
+		log.Int("audit.statusCode", entry.StatusCode),
+		log.String("audit.requestId", entry.RequestID),
+		log.String("audit.sourceIp", entry.SourceIP),
+		log.String("audit.userAgent", entry.UserAgent),
+	)
+
+	l.logger.Emit(context.Background(), record)
 }
 
-// LogCreate records a resource creation audit event.
-func LogCreate(ctx context.Context, user, org, resourceType, resourceName, namespace, requestID string, success bool, errMsg string) {
-	Log(ctx, Event{
-		Type:         EventTypeCreate,
-		User:         user,
-		Organization: org,
-		ResourceType: resourceType,
-		ResourceName: resourceName,
-		Namespace:    namespace,
-		RequestID:    requestID,
-		Success:      success,
-		ErrorMessage: errMsg,
-	})
-}
-
-// LogRead records a resource read audit event.
-func LogRead(ctx context.Context, user, org, resourceType, resourceName, namespace, requestID string, success bool, errMsg string) {
-	Log(ctx, Event{
-		Type:         EventTypeRead,
-		User:         user,
-		Organization: org,
-		ResourceType: resourceType,
-		ResourceName: resourceName,
-		Namespace:    namespace,
-		RequestID:    requestID,
-		Success:      success,
-		ErrorMessage: errMsg,
-	})
-}
-
-// LogUpdate records a resource update audit event.
-func LogUpdate(ctx context.Context, user, org, resourceType, resourceName, namespace, requestID string, success bool, errMsg string) {
-	Log(ctx, Event{
-		Type:         EventTypeUpdate,
-		User:         user,
-		Organization: org,
-		ResourceType: resourceType,
-		ResourceName: resourceName,
-		Namespace:    namespace,
-		RequestID:    requestID,
-		Success:      success,
-		ErrorMessage: errMsg,
-	})
-}
-
-// LogDelete records a resource deletion audit event.
-func LogDelete(ctx context.Context, user, org, resourceType, resourceName, namespace, requestID string, success bool, errMsg string) {
-	Log(ctx, Event{
-		Type:         EventTypeDelete,
-		User:         user,
-		Organization: org,
-		ResourceType: resourceType,
-		ResourceName: resourceName,
-		Namespace:    namespace,
-		RequestID:    requestID,
-		Success:      success,
-		ErrorMessage: errMsg,
-	})
-}
-
-// LogList records a resource list audit event.
-func LogList(ctx context.Context, user, org, resourceType, namespace, requestID string, success bool, errMsg string) {
-	Log(ctx, Event{
-		Type:         EventTypeList,
-		User:         user,
-		Organization: org,
-		ResourceType: resourceType,
-		Namespace:    namespace,
-		RequestID:    requestID,
-		Success:      success,
-		ErrorMessage: errMsg,
-	})
-}
-
-// LogLogin records a login audit event.
-func LogLogin(ctx context.Context, user, requestID string, success bool, errMsg string) {
-	Log(ctx, Event{
-		Type:         EventTypeLogin,
-		User:         user,
-		RequestID:    requestID,
-		Success:      success,
-		ErrorMessage: errMsg,
-	})
-}
-
-// LogLogout records a logout audit event.
-func LogLogout(ctx context.Context, user, requestID string) {
-	Log(ctx, Event{
-		Type:      EventTypeLogout,
-		User:      user,
-		RequestID: requestID,
-		Success:   true,
-	})
-}
-
-// GetDefault returns the default audit logger.
-func GetDefault() *Logger {
-	return defaultLogger
+// Shutdown flushes pending log records and shuts down the logger provider.
+// It should be called during application shutdown.
+func (l *Logger) Shutdown(ctx context.Context) error {
+	if l.provider == nil {
+		return nil
+	}
+	return l.provider.Shutdown(ctx)
 }

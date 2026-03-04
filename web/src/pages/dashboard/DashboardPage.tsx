@@ -1,496 +1,534 @@
-// Dashboard Page - ECK Overview
-import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback } from 'react';
 import {
-  EuiPageTemplate,
-  EuiPageHeader,
-  EuiButton,
   EuiFlexGroup,
   EuiFlexItem,
   EuiPanel,
-  EuiTitle,
-  EuiText,
   EuiStat,
-  EuiHealth,
   EuiSpacer,
-  EuiCallOut,
-  EuiIcon,
-  EuiCard,
+  EuiTitle,
+  EuiHealth,
   EuiBasicTable,
-  EuiLink,
+  EuiIcon,
   EuiBadge,
-  EuiLoadingSpinner,
   EuiEmptyPrompt,
+  EuiButton,
+  EuiLink,
+  EuiSwitch,
+  type EuiBasicTableColumn,
+  type Criteria,
 } from '@elastic/eui';
-import type { EuiBasicTableColumn } from '@elastic/eui';
-import {
-  useElasticsearchList,
-  useKibanaList,
-  useApmList,
-  useAgentList,
-  useBeatList,
-  useLogstashList,
-} from '../../hooks/useResources';
+import { useNavigate } from 'react-router-dom';
+import { useResourceList } from '../../hooks/useResources';
+import { DashboardSkeleton } from '../../components/common/Skeletons';
+import type {
+  Elasticsearch,
+  Kibana,
+  ResourceType,
+  HealthStatus,
+  BaseResource,
+  ResourceStatus,
+} from '../../types/resources';
 
-type HealthStatus = 'green' | 'yellow' | 'red' | 'unknown';
+const HEALTH_COLORS: Record<HealthStatus, string> = {
+  green: 'success',
+  yellow: 'warning',
+  red: 'danger',
+  unknown: 'subdued',
+};
 
-function getHealthColor(health: HealthStatus): string {
-  const colors: Record<HealthStatus, string> = {
-    green: 'success',
-    yellow: 'warning',
-    red: 'danger',
-    unknown: 'subdued',
-  };
-  return colors[health];
+const PHASE_COLORS: Record<string, string> = {
+  Ready: 'success',
+  ApplyingChanges: 'primary',
+  MigratingData: 'warning',
+  Stalled: 'danger',
+  Invalid: 'danger',
+  Unknown: 'default',
+};
+
+interface ResourceSummaryRow {
+  type: ResourceType;
+  label: string;
+  icon: string;
+  total: number;
+  healthy: number;
+  warning: number;
+  critical: number;
 }
 
-interface ResourceSummary {
+interface RecentResource {
   name: string;
   namespace: string;
+  type: ResourceType;
   health: HealthStatus;
-  type: string;
-  path: string;
+  phase: string;
+  created: string;
+}
+
+interface ProblemResource {
+  name: string;
+  namespace: string;
+  type: ResourceType;
+  health: HealthStatus;
+  phase: string;
+  message: string;
+}
+
+function countByHealth(
+  items: { status?: ResourceStatus }[],
+): { healthy: number; warning: number; critical: number } {
+  let healthy = 0;
+  let warning = 0;
+  let critical = 0;
+  for (const item of items) {
+    const health = item.status?.health || 'unknown';
+    if (health === 'green') healthy++;
+    else if (health === 'yellow') warning++;
+    else if (health === 'red') critical++;
+  }
+  return { healthy, warning, critical };
+}
+
+function countByPhase(
+  items: { status?: ResourceStatus }[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const phase = item.status?.phase || 'Unknown';
+    counts[phase] = (counts[phase] || 0) + 1;
+  }
+  return counts;
+}
+
+function resourceTypeToPath(type: ResourceType): string {
+  return `/${type}`;
 }
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // Fetch all resources
-  const { data: esData, isLoading: esLoading } = useElasticsearchList();
-  const { data: kibanaData, isLoading: kibanaLoading } = useKibanaList();
-  const { data: apmData, isLoading: apmLoading } = useApmList();
-  const { data: agentData, isLoading: agentLoading } = useAgentList();
-  const { data: beatData, isLoading: beatLoading } = useBeatList();
-  const { data: logstashData, isLoading: logstashLoading } = useLogstashList();
+  const esQuery = useResourceList<Elasticsearch>('elasticsearch');
+  const kibanaQuery = useResourceList<Kibana>('kibana');
+  const apmQuery = useResourceList('apm');
+  const beatQuery = useResourceList('beat');
+  const agentQuery = useResourceList('agent');
+  const logstashQuery = useResourceList('logstash');
+  const entSearchQuery = useResourceList('enterprise-search');
+  const mapsQuery = useResourceList('maps');
+
+  const [recentSortField, setRecentSortField] = useState<keyof RecentResource>('created');
+  const [recentSortDirection, setRecentSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const isLoading =
-    esLoading || kibanaLoading || apmLoading || agentLoading || beatLoading || logstashLoading;
+    esQuery.isLoading ||
+    kibanaQuery.isLoading ||
+    apmQuery.isLoading ||
+    beatQuery.isLoading ||
+    agentQuery.isLoading ||
+    logstashQuery.isLoading ||
+    entSearchQuery.isLoading ||
+    mapsQuery.isLoading;
 
-  // Calculate health summaries
-  const healthSummary = useMemo(() => {
-    const summary = { green: 0, yellow: 0, red: 0, unknown: 0 };
-    const allResources: Array<{ status?: { health?: string } }> = [
-      ...((esData?.data as Array<{ status?: { health?: string } }>) || []),
-      ...((kibanaData?.data as Array<{ status?: { health?: string } }>) || []),
-      ...((apmData?.data as Array<{ status?: { health?: string } }>) || []),
-      ...((agentData?.data as Array<{ status?: { health?: string } }>) || []),
-      ...((beatData?.data as Array<{ status?: { health?: string } }>) || []),
-      ...((logstashData?.data as Array<{ status?: { health?: string } }>) || []),
-    ];
-
-    allResources.forEach((r) => {
-      const health = (r?.status?.health as HealthStatus) || 'unknown';
-      summary[health]++;
-    });
-
-    return summary;
-  }, [esData, kibanaData, apmData, agentData, beatData, logstashData]);
-
-  // Resource counts by type
-  const resourceCounts = useMemo(
-    () => ({
-      elasticsearch: (esData?.data || []).length,
-      kibana: (kibanaData?.data || []).length,
-      apm: (apmData?.data || []).length,
-      agent: (agentData?.data || []).length,
-      beat: (beatData?.data || []).length,
-      logstash: (logstashData?.data || []).length,
-    }),
-    [esData, kibanaData, apmData, agentData, beatData, logstashData]
-  );
-
-  const totalResources = Object.values(resourceCounts).reduce((a, b) => a + b, 0);
-
-  // Recent resources (last 5)
-  const recentResources = useMemo((): ResourceSummary[] => {
-    interface ResourceWithMeta {
-      metadata: { name: string; namespace: string; creationTimestamp?: string };
-      status?: { health?: string };
+  const onRecentTableChange = useCallback(({ sort }: Criteria<RecentResource>) => {
+    if (sort) {
+      setRecentSortField(sort.field);
+      setRecentSortDirection(sort.direction);
     }
-    const allResources: Array<{ resource: ResourceWithMeta; type: string; path: string }> = [
-      ...((esData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Elasticsearch',
-        path: '/elasticsearch',
-      })),
-      ...((kibanaData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Kibana',
-        path: '/kibana',
-      })),
-      ...((apmData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'APM',
-        path: '/apm',
-      })),
-      ...((agentData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Agent',
-        path: '/agent',
-      })),
-      ...((beatData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Beat',
-        path: '/beats',
-      })),
-      ...((logstashData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Logstash',
-        path: '/logstash',
-      })),
-    ];
+  }, []);
 
-    return allResources
-      .sort((a, b) => {
-        const dateA = new Date(a.resource.metadata.creationTimestamp || 0);
-        const dateB = new Date(b.resource.metadata.creationTimestamp || 0);
-        return dateB.getTime() - dateA.getTime();
-      })
-      .slice(0, 5)
-      .map((item) => ({
-        name: item.resource.metadata.name,
-        namespace: item.resource.metadata.namespace,
-        health: (item.resource.status?.health as HealthStatus) || 'unknown',
-        type: item.type,
-        path: item.path,
-      }));
-  }, [esData, kibanaData, apmData, agentData, beatData, logstashData]);
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
-  // Unhealthy resources
-  const unhealthyResources = useMemo((): ResourceSummary[] => {
-    interface ResourceWithMeta {
-      metadata: { name: string; namespace: string };
-      status?: { health?: string };
-    }
-    const allResources: Array<{ resource: ResourceWithMeta; type: string; path: string }> = [
-      ...((esData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Elasticsearch',
-        path: '/elasticsearch',
-      })),
-      ...((kibanaData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Kibana',
-        path: '/kibana',
-      })),
-      ...((apmData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'APM',
-        path: '/apm',
-      })),
-      ...((agentData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Agent',
-        path: '/agent',
-      })),
-      ...((beatData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Beat',
-        path: '/beats',
-      })),
-      ...((logstashData?.data || []) as ResourceWithMeta[]).map((r) => ({
-        resource: r,
-        type: 'Logstash',
-        path: '/logstash',
-      })),
-    ];
-
-    return allResources
-      .filter((item) => {
-        const health = item.resource.status?.health;
-        return health === 'red' || health === 'yellow';
-      })
-      .map((item) => ({
-        name: item.resource.metadata.name,
-        namespace: item.resource.metadata.namespace,
-        health: (item.resource.status?.health as HealthStatus) || 'unknown',
-        type: item.type,
-        path: item.path,
-      }));
-  }, [esData, kibanaData, apmData, agentData, beatData, logstashData]);
-
-  const recentColumns: EuiBasicTableColumn<ResourceSummary>[] = [
+  const resources: {
+    type: ResourceType;
+    label: string;
+    icon: string;
+    items: (BaseResource & { status?: ResourceStatus })[];
+  }[] = [
     {
-      field: 'name',
-      name: 'Name',
-      render: (name: string, item: ResourceSummary) => (
-        <EuiLink onClick={() => navigate(`${item.path}/${item.namespace}/${name}`)}>{name}</EuiLink>
+      type: 'elasticsearch',
+      label: 'Elasticsearch',
+      icon: 'logoElasticsearch',
+      items: (esQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'kibana',
+      label: 'Kibana',
+      icon: 'logoKibana',
+      items: (kibanaQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'apm',
+      label: 'APM Server',
+      icon: 'logoAPM',
+      items: (apmQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'beat',
+      label: 'Beats',
+      icon: 'logoBeats',
+      items: (beatQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'agent',
+      label: 'Elastic Agent',
+      icon: 'logoSecurity',
+      items: (agentQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'logstash',
+      label: 'Logstash',
+      icon: 'logoLogstash',
+      items: (logstashQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'enterprise-search',
+      label: 'Enterprise Search',
+      icon: 'logoEnterpriseSearch',
+      items: (entSearchQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+    {
+      type: 'maps',
+      label: 'Elastic Maps',
+      icon: 'logoMaps',
+      items: (mapsQuery.data?.items || []) as (BaseResource & { status?: ResourceStatus })[],
+    },
+  ];
+
+  const summaryRows: ResourceSummaryRow[] = resources.map((r) => {
+    const counts = countByHealth(r.items);
+    return {
+      type: r.type,
+      label: r.label,
+      icon: r.icon,
+      total: r.items.length,
+      ...counts,
+    };
+  });
+
+  const totalResources = summaryRows.reduce((sum, r) => sum + r.total, 0);
+  const totalHealthy = summaryRows.reduce((sum, r) => sum + r.healthy, 0);
+  const totalWarning = summaryRows.reduce((sum, r) => sum + r.warning, 0);
+  const totalCritical = summaryRows.reduce((sum, r) => sum + r.critical, 0);
+
+  // Empty state: no resources at all
+  if (totalResources === 0) {
+    return (
+      <>
+        <EuiTitle size="l">
+          <h1>Dashboard</h1>
+        </EuiTitle>
+        <EuiSpacer size="xl" />
+        <EuiEmptyPrompt
+          iconType="logoElastic"
+          title={<h2>No resources found</h2>}
+          body={
+            <p>
+              Get started by deploying your first Elastic Stack using the Stack Wizard,
+              or create individual resources from the sidebar navigation.
+            </p>
+          }
+          actions={
+            <EuiButton fill iconType="plusInCircle" onClick={() => navigate('/wizard')}>
+              Launch Stack Wizard
+            </EuiButton>
+          }
+        />
+      </>
+    );
+  }
+
+  // Phase distribution across all resources
+  const allItems = resources.flatMap((r) => r.items);
+  const phaseCounts = countByPhase(allItems);
+
+  // Recent resources with sorting
+  const recentResources: RecentResource[] = resources
+    .flatMap((r) =>
+      r.items.map((item) => ({
+        name: item.metadata.name,
+        namespace: item.metadata.namespace,
+        type: r.type,
+        health: (item.status?.health || 'unknown') as HealthStatus,
+        phase: item.status?.phase || 'Unknown',
+        created: item.metadata.creationTimestamp,
+      })),
+    )
+    .sort((a, b) => {
+      const aVal = a[recentSortField];
+      const bVal = b[recentSortField];
+      if (recentSortField === 'created') {
+        const diff = new Date(a.created).getTime() - new Date(b.created).getTime();
+        return recentSortDirection === 'asc' ? diff : -diff;
+      }
+      const comparison = String(aVal).localeCompare(String(bVal));
+      return recentSortDirection === 'asc' ? comparison : -comparison;
+    })
+    .slice(0, 10);
+
+  // Problem resources: non-Ready phase
+  const problemResources: ProblemResource[] = resources
+    .flatMap((r) =>
+      r.items
+        .filter((item) => {
+          const phase = item.status?.phase || 'Unknown';
+          return phase !== 'Ready';
+        })
+        .map((item) => ({
+          name: item.metadata.name,
+          namespace: item.metadata.namespace,
+          type: r.type,
+          health: (item.status?.health || 'unknown') as HealthStatus,
+          phase: item.status?.phase || 'Unknown',
+          message: `Resource is in ${item.status?.phase || 'Unknown'} phase`,
+        })),
+    );
+
+  const summaryColumns: EuiBasicTableColumn<ResourceSummaryRow>[] = [
+    {
+      field: 'label',
+      name: 'Resource Type',
+      render: (label: string, item: ResourceSummaryRow) => (
+        <EuiFlexGroup gutterSize="s" alignItems="center" responsive={false}>
+          <EuiFlexItem grow={false}>
+            <EuiIcon type={item.icon} size="m" />
+          </EuiFlexItem>
+          <EuiFlexItem>{label}</EuiFlexItem>
+        </EuiFlexGroup>
+      ),
+    },
+    { field: 'total', name: 'Total', width: '80px', align: 'right' as const },
+    {
+      field: 'healthy',
+      name: 'Healthy',
+      width: '80px',
+      align: 'right' as const,
+      render: (val: number) => (
+        <EuiHealth color="success">{val}</EuiHealth>
       ),
     },
     {
-      field: 'type',
-      name: 'Type',
-      render: (type: string) => <EuiBadge color="hollow">{type}</EuiBadge>,
+      field: 'warning',
+      name: 'Warning',
+      width: '80px',
+      align: 'right' as const,
+      render: (val: number) => (
+        <EuiHealth color="warning">{val}</EuiHealth>
+      ),
     },
     {
-      field: 'namespace',
-      name: 'Namespace',
-    },
-    {
-      field: 'health',
-      name: 'Health',
-      render: (health: HealthStatus) => (
-        <EuiHealth color={getHealthColor(health)}>{health}</EuiHealth>
+      field: 'critical',
+      name: 'Critical',
+      width: '80px',
+      align: 'right' as const,
+      render: (val: number) => (
+        <EuiHealth color="danger">{val}</EuiHealth>
       ),
     },
   ];
 
-  if (isLoading) {
-    return (
-      <EuiPageTemplate>
-        <EuiPageTemplate.Section>
-          <EuiFlexGroup justifyContent="center" alignItems="center" style={{ minHeight: 400 }}>
-            <EuiFlexItem grow={false}>
-              <EuiLoadingSpinner size="xl" />
-            </EuiFlexItem>
-          </EuiFlexGroup>
-        </EuiPageTemplate.Section>
-      </EuiPageTemplate>
-    );
-  }
+  const recentColumns: EuiBasicTableColumn<RecentResource>[] = [
+    { field: 'name', name: 'Name', truncateText: true, sortable: true },
+    { field: 'namespace', name: 'Namespace', truncateText: true, sortable: true },
+    { field: 'type', name: 'Type', sortable: true },
+    {
+      field: 'health',
+      name: 'Health',
+      sortable: true,
+      render: (health: HealthStatus) => (
+        <EuiHealth color={HEALTH_COLORS[health]}>{health}</EuiHealth>
+      ),
+    },
+    {
+      field: 'phase',
+      name: 'Phase',
+      sortable: true,
+      render: (phase: string) => (
+        <EuiBadge color={PHASE_COLORS[phase] || 'default'}>{phase}</EuiBadge>
+      ),
+    },
+    {
+      field: 'created',
+      name: 'Created',
+      sortable: true,
+      render: (ts: string) => new Date(ts).toLocaleString(),
+    },
+  ];
 
-  // Empty state
-  if (totalResources === 0) {
-    return (
-      <EuiPageTemplate>
-        <EuiPageHeader
-          pageTitle="ECK Dashboard"
-          description="Overview of your Elastic Cloud on Kubernetes deployments"
-        />
-        <EuiPageTemplate.Section>
-          <EuiEmptyPrompt
-            iconType="logoElastic"
-            title={<h2>Welcome to ECK UI</h2>}
-            body={
-              <p>
-                Get started by deploying your first Elastic Stack. Use the wizard to configure
-                Elasticsearch, Kibana, and optional integrations.
-              </p>
-            }
-            actions={[
-              <EuiButton key="wizard" fill iconType="plus" onClick={() => navigate('/wizard')}>
-                Deploy Stack
-              </EuiButton>,
-              <EuiButton key="es" onClick={() => navigate('/elasticsearch/create')}>
-                Create Elasticsearch
-              </EuiButton>,
-            ]}
-          />
-        </EuiPageTemplate.Section>
-      </EuiPageTemplate>
-    );
-  }
+  const problemColumns: EuiBasicTableColumn<ProblemResource>[] = [
+    {
+      field: 'name',
+      name: 'Name',
+      truncateText: true,
+      render: (name: string, item: ProblemResource) => (
+        <EuiLink
+          onClick={() =>
+            navigate(`${resourceTypeToPath(item.type)}/${item.namespace}/${name}`)
+          }
+        >
+          {name}
+        </EuiLink>
+      ),
+    },
+    { field: 'namespace', name: 'Namespace', truncateText: true },
+    { field: 'type', name: 'Type' },
+    {
+      field: 'health',
+      name: 'Health',
+      render: (health: HealthStatus) => (
+        <EuiHealth color={HEALTH_COLORS[health]}>{health}</EuiHealth>
+      ),
+    },
+    {
+      field: 'phase',
+      name: 'Phase',
+      render: (phase: string) => (
+        <EuiBadge color={PHASE_COLORS[phase] || 'default'}>{phase}</EuiBadge>
+      ),
+    },
+    { field: 'message', name: 'Details', truncateText: true },
+  ];
 
   return (
-    <EuiPageTemplate>
-      <EuiPageHeader
-        pageTitle="ECK Dashboard"
-        description="Overview of your Elastic Cloud on Kubernetes deployments"
-        rightSideItems={[
-          <EuiButton key="wizard" fill iconType="plus" onClick={() => navigate('/wizard')}>
-            Deploy Stack
-          </EuiButton>,
-        ]}
-      />
+    <>
+      <EuiFlexGroup justifyContent="spaceBetween" alignItems="center">
+        <EuiFlexItem grow={false}>
+          <EuiTitle size="l">
+            <h1>Dashboard</h1>
+          </EuiTitle>
+        </EuiFlexItem>
+        <EuiFlexItem grow={false}>
+          <EuiSwitch
+            label="Auto-refresh"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+            compressed
+          />
+        </EuiFlexItem>
+      </EuiFlexGroup>
+      <EuiSpacer size="l" />
 
-      <EuiPageTemplate.Section>
-        {/* Alerts */}
-        {unhealthyResources.length > 0 && (
-          <>
-            <EuiCallOut
-              title={`${unhealthyResources.length} resource(s) need attention`}
-              color="warning"
-              iconType="warning"
-            >
-              <p>Some resources are in a degraded state. Click below to view details.</p>
-            </EuiCallOut>
-            <EuiSpacer size="l" />
-          </>
-        )}
+      {/* Summary Stats */}
+      <EuiFlexGroup>
+        <EuiFlexItem>
+          <EuiPanel>
+            <EuiStat
+              title={totalResources}
+              description="Total Resources"
+              titleColor="primary"
+            />
+          </EuiPanel>
+        </EuiFlexItem>
+        <EuiFlexItem>
+          <EuiPanel>
+            <EuiStat
+              title={totalHealthy}
+              description="Healthy"
+              titleColor="success"
+            />
+          </EuiPanel>
+        </EuiFlexItem>
+        <EuiFlexItem>
+          <EuiPanel>
+            <EuiStat
+              title={totalWarning}
+              description="Warning"
+              titleColor="warning"
+            />
+          </EuiPanel>
+        </EuiFlexItem>
+        <EuiFlexItem>
+          <EuiPanel>
+            <EuiStat
+              title={totalCritical}
+              description="Critical"
+              titleColor="danger"
+            />
+          </EuiPanel>
+        </EuiFlexItem>
+      </EuiFlexGroup>
 
-        {/* Health Overview */}
-        <EuiFlexGroup>
-          <EuiFlexItem>
-            <EuiPanel hasBorder>
-              <EuiFlexGroup alignItems="center" gutterSize="m">
-                <EuiFlexItem grow={false}>
-                  <EuiIcon type="heart" size="xl" color="success" />
-                </EuiFlexItem>
-                <EuiFlexItem>
-                  <EuiTitle size="xs">
-                    <h3>Health Overview</h3>
-                  </EuiTitle>
-                </EuiFlexItem>
-              </EuiFlexGroup>
-              <EuiSpacer size="m" />
-              <EuiFlexGroup>
-                <EuiFlexItem>
-                  <EuiStat
-                    title={healthSummary.green}
-                    description="Healthy"
-                    titleColor="success"
-                    titleSize="m"
-                  />
-                </EuiFlexItem>
-                <EuiFlexItem>
-                  <EuiStat
-                    title={healthSummary.yellow}
-                    description="Degraded"
-                    titleColor="warning"
-                    titleSize="m"
-                  />
-                </EuiFlexItem>
-                <EuiFlexItem>
-                  <EuiStat
-                    title={healthSummary.red}
-                    description="Critical"
-                    titleColor="danger"
-                    titleSize="m"
-                  />
-                </EuiFlexItem>
-                <EuiFlexItem>
-                  <EuiStat
-                    title={healthSummary.unknown}
-                    description="Unknown"
-                    titleColor="subdued"
-                    titleSize="m"
-                  />
-                </EuiFlexItem>
-              </EuiFlexGroup>
-            </EuiPanel>
-          </EuiFlexItem>
-        </EuiFlexGroup>
+      <EuiSpacer size="l" />
 
-        <EuiSpacer size="l" />
-
-        {/* Resource Cards */}
-        <EuiTitle size="xs">
-          <h3>Resources by Type</h3>
+      {/* Phase Distribution */}
+      <EuiPanel>
+        <EuiTitle size="s">
+          <h3>Phase Distribution</h3>
         </EuiTitle>
         <EuiSpacer size="m" />
-        <EuiFlexGroup wrap gutterSize="m">
-          <EuiFlexItem grow={false} style={{ width: 180 }}>
-            <EuiCard
-              icon={<EuiIcon type="logoElasticsearch" size="xl" />}
-              title={String(resourceCounts.elasticsearch)}
-              description="Elasticsearch"
-              onClick={() => navigate('/elasticsearch')}
-              hasBorder
-            />
-          </EuiFlexItem>
-          <EuiFlexItem grow={false} style={{ width: 180 }}>
-            <EuiCard
-              icon={<EuiIcon type="logoKibana" size="xl" />}
-              title={String(resourceCounts.kibana)}
-              description="Kibana"
-              onClick={() => navigate('/kibana')}
-              hasBorder
-            />
-          </EuiFlexItem>
-          <EuiFlexItem grow={false} style={{ width: 180 }}>
-            <EuiCard
-              icon={<EuiIcon type="apmApp" size="xl" />}
-              title={String(resourceCounts.apm)}
-              description="APM Server"
-              onClick={() => navigate('/apm')}
-              hasBorder
-            />
-          </EuiFlexItem>
-          <EuiFlexItem grow={false} style={{ width: 180 }}>
-            <EuiCard
-              icon={<EuiIcon type="fleetApp" size="xl" />}
-              title={String(resourceCounts.agent)}
-              description="Elastic Agent"
-              onClick={() => navigate('/agent')}
-              hasBorder
-            />
-          </EuiFlexItem>
-          <EuiFlexItem grow={false} style={{ width: 180 }}>
-            <EuiCard
-              icon={<EuiIcon type="logoBeats" size="xl" />}
-              title={String(resourceCounts.beat)}
-              description="Beats"
-              onClick={() => navigate('/beats')}
-              hasBorder
-            />
-          </EuiFlexItem>
-          <EuiFlexItem grow={false} style={{ width: 180 }}>
-            <EuiCard
-              icon={<EuiIcon type="logoLogstash" size="xl" />}
-              title={String(resourceCounts.logstash)}
-              description="Logstash"
-              onClick={() => navigate('/logstash')}
-              hasBorder
-            />
-          </EuiFlexItem>
-        </EuiFlexGroup>
-
-        <EuiSpacer size="l" />
-
-        {/* Recent Resources */}
-        <EuiFlexGroup>
-          <EuiFlexItem>
-            <EuiPanel hasBorder>
-              <EuiTitle size="xs">
-                <h3>Recent Resources</h3>
-              </EuiTitle>
-              <EuiSpacer size="m" />
-              {recentResources.length > 0 ? (
-                <EuiBasicTable items={recentResources} columns={recentColumns} />
-              ) : (
-                <EuiText size="s" color="subdued">
-                  No recent resources
-                </EuiText>
-              )}
-            </EuiPanel>
-          </EuiFlexItem>
-
-          {/* Unhealthy Resources */}
-          {unhealthyResources.length > 0 && (
-            <EuiFlexItem>
-              <EuiPanel hasBorder color="warning">
-                <EuiTitle size="xs">
-                  <h3>Resources Needing Attention</h3>
-                </EuiTitle>
-                <EuiSpacer size="m" />
-                <EuiBasicTable items={unhealthyResources} columns={recentColumns} />
-              </EuiPanel>
+        <EuiFlexGroup gutterSize="s" wrap responsive={false}>
+          {Object.entries(phaseCounts).map(([phase, count]) => (
+            <EuiFlexItem grow={false} key={phase}>
+              <EuiBadge color={PHASE_COLORS[phase] || 'default'}>
+                {phase}: {count}
+              </EuiBadge>
             </EuiFlexItem>
-          )}
+          ))}
         </EuiFlexGroup>
+      </EuiPanel>
 
-        <EuiSpacer size="l" />
+      <EuiSpacer size="xl" />
 
-        {/* Quick Actions */}
-        <EuiPanel hasBorder color="subdued">
-          <EuiTitle size="xs">
-            <h3>Quick Actions</h3>
+      {/* Problem Resources */}
+      {problemResources.length > 0 && (
+        <>
+          <EuiTitle size="m">
+            <h2>Problem Resources</h2>
           </EuiTitle>
           <EuiSpacer size="m" />
-          <EuiFlexGroup wrap gutterSize="m">
-            <EuiFlexItem grow={false}>
-              <EuiButton iconType="plus" onClick={() => navigate('/elasticsearch/create')}>
-                Create Elasticsearch
-              </EuiButton>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiButton iconType="plus" onClick={() => navigate('/kibana/create')}>
-                Create Kibana
-              </EuiButton>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiButton iconType="plus" onClick={() => navigate('/apm/create')}>
-                Create APM Server
-              </EuiButton>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiButton iconType="plus" onClick={() => navigate('/agent/create')}>
-                Create Agent
-              </EuiButton>
-            </EuiFlexItem>
-          </EuiFlexGroup>
-        </EuiPanel>
-      </EuiPageTemplate.Section>
-    </EuiPageTemplate>
+          <EuiPanel color="danger" hasBorder>
+            <EuiBasicTable
+              items={problemResources}
+              columns={problemColumns}
+              noItemsMessage="All resources are healthy"
+            />
+          </EuiPanel>
+          <EuiSpacer size="xl" />
+        </>
+      )}
+
+      {/* Resource Summary */}
+      <EuiTitle size="m">
+        <h2>Resource Summary</h2>
+      </EuiTitle>
+      <EuiSpacer size="m" />
+      <EuiBasicTable
+        items={summaryRows.filter((r) => r.total > 0)}
+        columns={summaryColumns}
+        rowProps={(item: ResourceSummaryRow) => ({
+          onClick: () => navigate(`/${item.type}`),
+          style: { cursor: 'pointer' },
+        })}
+        noItemsMessage="No resources found"
+      />
+
+      <EuiSpacer size="xl" />
+
+      {/* Recent Resources */}
+      <EuiTitle size="m">
+        <h2>Recent Resources</h2>
+      </EuiTitle>
+      <EuiSpacer size="m" />
+      <EuiBasicTable
+        items={recentResources}
+        columns={recentColumns}
+        sorting={{
+          sort: {
+            field: recentSortField,
+            direction: recentSortDirection,
+          },
+        }}
+        onChange={onRecentTableChange}
+        rowProps={(item: RecentResource) => ({
+          onClick: () =>
+            navigate(
+              `/${item.type}/${item.namespace}/${item.name}`,
+            ),
+          style: { cursor: 'pointer' },
+        })}
+        noItemsMessage="No resources found"
+      />
+    </>
   );
 }

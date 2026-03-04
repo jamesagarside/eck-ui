@@ -2,767 +2,1645 @@ openapi: 3.0.3
 info:
   title: ECK UI API
   description: |
-    REST API for Elastic Cloud on Kubernetes (ECK) UI.
-    Provides management and monitoring capabilities for ECK deployments.
-  version: 0.1.0
-  contact:
-    name: ECK UI
-    url: https://github.com/jamesagarside/eck-ui
+    REST API for the ECK UI web console. Provides authentication, session management,
+    and CRUD operations for all Elastic Cloud on Kubernetes (ECK) custom resources.
+  version: "1.0.0"
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
   - url: /api/v1
-    description: API v1
-
-security:
-  - bearerAuth: []
-  - cookieAuth: []
+    description: API v1 (relative to application root)
 
 tags:
-  - name: organizations
-    description: Organization management
+  - name: auth
+    description: Authentication and session management
+  - name: health
+    description: Health and readiness probes
   - name: elasticsearch
     description: Elasticsearch cluster management
   - name: kibana
     description: Kibana instance management
-  - name: apm
+  - name: apmserver
     description: APM Server management
+  - name: beat
+    description: Beat management (Filebeat, Metricbeat, etc.)
   - name: agent
     description: Elastic Agent management
-  - name: beat
-    description: Beat management
   - name: logstash
     description: Logstash management
+  - name: enterprisesearch
+    description: Enterprise Search management
+  - name: elasticmapsserver
+    description: Elastic Maps Server management
+  - name: elasticsearchautoscaler
+    description: Elasticsearch Autoscaler management
+  - name: stackconfigpolicy
+    description: Stack Config Policy management
+  - name: events
+    description: Kubernetes event retrieval
+  - name: watch
+    description: Real-time resource watch via SSE
+
+security:
+  - cookieAuth: []
 
 paths:
-  /orgs:
+  # ── Health ───────────────────────────────────────────────────────────────────
+  /healthz:
     get:
-      summary: List organizations
-      description: Returns all organizations the user has access to
-      operationId: listOrganizations
-      tags:
-        - organizations
+      operationId: healthz
+      summary: Liveness probe
+      description: Returns 200 OK if the process is running.
+      tags: [health]
+      security: []
       responses:
-        '200':
-          description: List of organizations
+        "200":
+          description: Server is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /readyz:
+    get:
+      operationId: readyz
+      summary: Readiness probe
+      description: Returns 200 OK if the Kubernetes API server is reachable.
+      tags: [health]
+      security: []
+      responses:
+        "200":
+          description: Server is ready to accept requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Kubernetes API server is unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ── Auth ─────────────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      summary: Authenticate with a Kubernetes bearer token
+      description: |
+        Validates the provided token against the Kubernetes TokenReview API.
+        On success, creates a server-side session and sets the `eck-ui-session` cookie.
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authentication successful.
+          headers:
+            Set-Cookie:
+              description: Session cookie (`eck-ui-session`).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/session:
+    get:
+      operationId: getSession
+      summary: Get current session
+      description: Returns the authenticated user's session information.
+      tags: [auth]
+      responses:
+        "200":
+          description: Session is valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: logout
+      summary: Log out
+      description: Deletes the current session and clears the session cookie.
+      tags: [auth]
+      responses:
+        "200":
+          description: Logged out.
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Organization'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                  status:
+                    type: string
+                    example: logged_out
 
-  /orgs/{org}:
+  # ── Elasticsearch ────────────────────────────────────────────────────────────
+  /elasticsearch:
     get:
-      summary: Get organization
-      description: Returns details of a specific organization
-      operationId: getOrganization
-      tags:
-        - organizations
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      responses:
-        '200':
-          description: Organization details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /orgs/{org}/elasticsearch:
-    get:
-      summary: List Elasticsearch clusters
-      description: Returns all Elasticsearch clusters in the organization
       operationId: listElasticsearch
-      tags:
-        - elasticsearch
+      summary: List Elasticsearch clusters
+      tags: [elasticsearch]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
+        - $ref: "#/components/parameters/NamespaceQuery"
       responses:
-        '200':
-          description: List of Elasticsearch clusters
+        "200":
+          description: List of Elasticsearch resources.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Elasticsearch'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    post:
-      summary: Create Elasticsearch cluster
-      description: Creates a new Elasticsearch cluster
-      operationId: createElasticsearch
-      tags:
-        - elasticsearch
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ElasticsearchCreate'
-      responses:
-        '201':
-          description: Elasticsearch cluster created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Elasticsearch'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /orgs/{org}/elasticsearch/{name}:
+  /elasticsearch/{namespace}/{name}:
     get:
-      summary: Get Elasticsearch cluster
-      description: Returns details of a specific Elasticsearch cluster
       operationId: getElasticsearch
-      tags:
-        - elasticsearch
+      summary: Get an Elasticsearch cluster
+      tags: [elasticsearch]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '200':
-          description: Elasticsearch cluster details
+        "200":
+          description: Elasticsearch resource.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Elasticsearch'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
-      summary: Update Elasticsearch cluster
-      description: Updates an existing Elasticsearch cluster
       operationId: updateElasticsearch
-      tags:
-        - elasticsearch
+      summary: Update an Elasticsearch cluster
+      tags: [elasticsearch]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ElasticsearchUpdate'
+              $ref: "#/components/schemas/Resource"
       responses:
-        '200':
-          description: Elasticsearch cluster updated
+        "200":
+          description: Updated resource.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Elasticsearch'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
-      summary: Delete Elasticsearch cluster
-      description: Deletes an Elasticsearch cluster
       operationId: deleteElasticsearch
-      tags:
-        - elasticsearch
+      summary: Delete an Elasticsearch cluster
+      tags: [elasticsearch]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '204':
-          description: Elasticsearch cluster deleted
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /orgs/{org}/kibana:
-    get:
-      summary: List Kibana instances
-      operationId: listKibana
-      tags:
-        - kibana
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      responses:
-        '200':
-          description: List of Kibana instances
+        "200":
+          description: Resource deleted.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Kibana'
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /elasticsearch/{namespace}:
     post:
-      summary: Create Kibana instance
-      operationId: createKibana
-      tags:
-        - kibana
+      operationId: createElasticsearch
+      summary: Create an Elasticsearch cluster
+      tags: [elasticsearch]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
+        - $ref: "#/components/parameters/Namespace"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/KibanaCreate'
+              $ref: "#/components/schemas/Resource"
       responses:
-        '201':
-          description: Kibana instance created
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
-  /orgs/{org}/kibana/{name}:
+  # ── Kibana ───────────────────────────────────────────────────────────────────
+  /kibana:
     get:
-      summary: Get Kibana instance
+      operationId: listKibana
+      summary: List Kibana instances
+      tags: [kibana]
+      parameters:
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: List of Kibana resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /kibana/{namespace}/{name}:
+    get:
       operationId: getKibana
-      tags:
-        - kibana
+      summary: Get a Kibana instance
+      tags: [kibana]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '200':
-          description: Kibana instance details
+        "200":
+          description: Kibana resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
-      summary: Update Kibana instance
       operationId: updateKibana
-      tags:
-        - kibana
+      summary: Update a Kibana instance
+      tags: [kibana]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
       responses:
-        '200':
-          description: Kibana instance updated
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
-      summary: Delete Kibana instance
       operationId: deleteKibana
-      tags:
-        - kibana
+      summary: Delete a Kibana instance
+      tags: [kibana]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '204':
-          description: Kibana instance deleted
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /orgs/{org}/apm:
+  /kibana/{namespace}:
+    post:
+      operationId: createKibana
+      summary: Create a Kibana instance
+      tags: [kibana]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── APM Server ───────────────────────────────────────────────────────────────
+  /apmserver:
     get:
+      operationId: listApmServer
       summary: List APM Servers
-      operationId: listAPMServer
-      tags:
-        - apm
+      tags: [apmserver]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
+        - $ref: "#/components/parameters/NamespaceQuery"
       responses:
-        '200':
-          description: List of APM Servers
-    post:
-      summary: Create APM Server
-      operationId: createAPMServer
-      tags:
-        - apm
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      responses:
-        '201':
-          description: APM Server created
+        "200":
+          description: List of APM Server resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /orgs/{org}/apm/{name}:
+  /apmserver/{namespace}/{name}:
     get:
-      summary: Get APM Server
-      operationId: getAPMServer
-      tags:
-        - apm
+      operationId: getApmServer
+      summary: Get an APM Server
+      tags: [apmserver]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '200':
-          description: APM Server details
+        "200":
+          description: APM Server resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
-      summary: Update APM Server
-      operationId: updateAPMServer
-      tags:
-        - apm
+      operationId: updateApmServer
+      summary: Update an APM Server
+      tags: [apmserver]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
       responses:
-        '200':
-          description: APM Server updated
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
-      summary: Delete APM Server
-      operationId: deleteAPMServer
-      tags:
-        - apm
+      operationId: deleteApmServer
+      summary: Delete an APM Server
+      tags: [apmserver]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '204':
-          description: APM Server deleted
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /orgs/{org}/agent:
-    get:
-      summary: List Elastic Agents
-      operationId: listAgent
-      tags:
-        - agent
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      responses:
-        '200':
-          description: List of Elastic Agents
+  /apmserver/{namespace}:
     post:
-      summary: Create Elastic Agent
-      operationId: createAgent
-      tags:
-        - agent
+      operationId: createApmServer
+      summary: Create an APM Server
+      tags: [apmserver]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
       responses:
-        '201':
-          description: Elastic Agent created
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
-  /orgs/{org}/agent/{name}:
+  # ── Beat ─────────────────────────────────────────────────────────────────────
+  /beat:
     get:
-      summary: Get Elastic Agent
-      operationId: getAgent
-      tags:
-        - agent
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
-      responses:
-        '200':
-          description: Elastic Agent details
-    put:
-      summary: Update Elastic Agent
-      operationId: updateAgent
-      tags:
-        - agent
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
-      responses:
-        '200':
-          description: Elastic Agent updated
-    delete:
-      summary: Delete Elastic Agent
-      operationId: deleteAgent
-      tags:
-        - agent
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
-      responses:
-        '204':
-          description: Elastic Agent deleted
-
-  /orgs/{org}/beat:
-    get:
-      summary: List Beats
       operationId: listBeat
-      tags:
-        - beat
+      summary: List Beats
+      tags: [beat]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
+        - $ref: "#/components/parameters/NamespaceQuery"
       responses:
-        '200':
-          description: List of Beats
-    post:
-      summary: Create Beat
-      operationId: createBeat
-      tags:
-        - beat
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      responses:
-        '201':
-          description: Beat created
+        "200":
+          description: List of Beat resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /orgs/{org}/beat/{name}:
+  /beat/{namespace}/{name}:
     get:
-      summary: Get Beat
       operationId: getBeat
-      tags:
-        - beat
+      summary: Get a Beat
+      tags: [beat]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '200':
-          description: Beat details
+        "200":
+          description: Beat resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
-      summary: Update Beat
       operationId: updateBeat
-      tags:
-        - beat
+      summary: Update a Beat
+      tags: [beat]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
       responses:
-        '200':
-          description: Beat updated
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
-      summary: Delete Beat
       operationId: deleteBeat
-      tags:
-        - beat
+      summary: Delete a Beat
+      tags: [beat]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '204':
-          description: Beat deleted
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /orgs/{org}/logstash:
-    get:
-      summary: List Logstash instances
-      operationId: listLogstash
-      tags:
-        - logstash
-      parameters:
-        - $ref: '#/components/parameters/OrgParam'
-      responses:
-        '200':
-          description: List of Logstash instances
+  /beat/{namespace}:
     post:
-      summary: Create Logstash instance
-      operationId: createLogstash
-      tags:
-        - logstash
+      operationId: createBeat
+      summary: Create a Beat
+      tags: [beat]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
       responses:
-        '201':
-          description: Logstash instance created
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
-  /orgs/{org}/logstash/{name}:
+  # ── Agent ────────────────────────────────────────────────────────────────────
+  /agent:
     get:
-      summary: Get Logstash instance
-      operationId: getLogstash
-      tags:
-        - logstash
+      operationId: listAgent
+      summary: List Elastic Agents
+      tags: [agent]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/NamespaceQuery"
       responses:
-        '200':
-          description: Logstash instance details
+        "200":
+          description: List of Agent resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /agent/{namespace}/{name}:
+    get:
+      operationId: getAgent
+      summary: Get an Elastic Agent
+      tags: [agent]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Agent resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
-      summary: Update Logstash instance
-      operationId: updateLogstash
-      tags:
-        - logstash
+      operationId: updateAgent
+      summary: Update an Elastic Agent
+      tags: [agent]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
       responses:
-        '200':
-          description: Logstash instance updated
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
-      summary: Delete Logstash instance
-      operationId: deleteLogstash
-      tags:
-        - logstash
+      operationId: deleteAgent
+      summary: Delete an Elastic Agent
+      tags: [agent]
       parameters:
-        - $ref: '#/components/parameters/OrgParam'
-        - $ref: '#/components/parameters/ResourceName'
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
       responses:
-        '204':
-          description: Logstash instance deleted
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /agent/{namespace}:
+    post:
+      operationId: createAgent
+      summary: Create an Elastic Agent
+      tags: [agent]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Logstash ─────────────────────────────────────────────────────────────────
+  /logstash:
+    get:
+      operationId: listLogstash
+      summary: List Logstash instances
+      tags: [logstash]
+      parameters:
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: List of Logstash resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /logstash/{namespace}/{name}:
+    get:
+      operationId: getLogstash
+      summary: Get a Logstash instance
+      tags: [logstash]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Logstash resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateLogstash
+      summary: Update a Logstash instance
+      tags: [logstash]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteLogstash
+      summary: Delete a Logstash instance
+      tags: [logstash]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /logstash/{namespace}:
+    post:
+      operationId: createLogstash
+      summary: Create a Logstash instance
+      tags: [logstash]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Enterprise Search ────────────────────────────────────────────────────────
+  /enterprisesearch:
+    get:
+      operationId: listEnterpriseSearch
+      summary: List Enterprise Search instances
+      tags: [enterprisesearch]
+      parameters:
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: List of Enterprise Search resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /enterprisesearch/{namespace}/{name}:
+    get:
+      operationId: getEnterpriseSearch
+      summary: Get an Enterprise Search instance
+      tags: [enterprisesearch]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Enterprise Search resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateEnterpriseSearch
+      summary: Update an Enterprise Search instance
+      tags: [enterprisesearch]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteEnterpriseSearch
+      summary: Delete an Enterprise Search instance
+      tags: [enterprisesearch]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /enterprisesearch/{namespace}:
+    post:
+      operationId: createEnterpriseSearch
+      summary: Create an Enterprise Search instance
+      tags: [enterprisesearch]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Elastic Maps Server ──────────────────────────────────────────────────────
+  /elasticmapsserver:
+    get:
+      operationId: listElasticMapsServer
+      summary: List Elastic Maps Servers
+      tags: [elasticmapsserver]
+      parameters:
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: List of Elastic Maps Server resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /elasticmapsserver/{namespace}/{name}:
+    get:
+      operationId: getElasticMapsServer
+      summary: Get an Elastic Maps Server
+      tags: [elasticmapsserver]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Elastic Maps Server resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateElasticMapsServer
+      summary: Update an Elastic Maps Server
+      tags: [elasticmapsserver]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteElasticMapsServer
+      summary: Delete an Elastic Maps Server
+      tags: [elasticmapsserver]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /elasticmapsserver/{namespace}:
+    post:
+      operationId: createElasticMapsServer
+      summary: Create an Elastic Maps Server
+      tags: [elasticmapsserver]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Elasticsearch Autoscaler ─────────────────────────────────────────────────
+  /elasticsearchautoscaler:
+    get:
+      operationId: listElasticsearchAutoscaler
+      summary: List Elasticsearch Autoscalers
+      tags: [elasticsearchautoscaler]
+      parameters:
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: List of Elasticsearch Autoscaler resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /elasticsearchautoscaler/{namespace}/{name}:
+    get:
+      operationId: getElasticsearchAutoscaler
+      summary: Get an Elasticsearch Autoscaler
+      tags: [elasticsearchautoscaler]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Elasticsearch Autoscaler resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateElasticsearchAutoscaler
+      summary: Update an Elasticsearch Autoscaler
+      tags: [elasticsearchautoscaler]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteElasticsearchAutoscaler
+      summary: Delete an Elasticsearch Autoscaler
+      tags: [elasticsearchautoscaler]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /elasticsearchautoscaler/{namespace}:
+    post:
+      operationId: createElasticsearchAutoscaler
+      summary: Create an Elasticsearch Autoscaler
+      tags: [elasticsearchautoscaler]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Stack Config Policy ──────────────────────────────────────────────────────
+  /stackconfigpolicy:
+    get:
+      operationId: listStackConfigPolicy
+      summary: List Stack Config Policies
+      tags: [stackconfigpolicy]
+      parameters:
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: List of Stack Config Policy resources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /stackconfigpolicy/{namespace}/{name}:
+    get:
+      operationId: getStackConfigPolicy
+      summary: Get a Stack Config Policy
+      tags: [stackconfigpolicy]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Stack Config Policy resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateStackConfigPolicy
+      summary: Update a Stack Config Policy
+      tags: [stackconfigpolicy]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "200":
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteStackConfigPolicy
+      summary: Delete a Stack Config Policy
+      tags: [stackconfigpolicy]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Name"
+      responses:
+        "200":
+          description: Resource deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /stackconfigpolicy/{namespace}:
+    post:
+      operationId: createStackConfigPolicy
+      summary: Create a Stack Config Policy
+      tags: [stackconfigpolicy]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resource"
+      responses:
+        "201":
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Events ───────────────────────────────────────────────────────────────────
+  /events/{namespace}:
+    get:
+      operationId: listEvents
+      summary: List ECK events in a namespace
+      description: |
+        Returns Kubernetes events filtered to those involving ECK-managed resource kinds
+        (Elasticsearch, Kibana, etc.), sorted by last timestamp descending.
+      tags: [events]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+      responses:
+        "200":
+          description: List of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Watch ────────────────────────────────────────────────────────────────────
+  /watch/{type}:
+    get:
+      operationId: watchResources
+      summary: Watch resource changes via SSE
+      description: |
+        Opens a Server-Sent Events stream that emits real-time watch events
+        (ADDED, MODIFIED, DELETED) for the specified resource type.
+        Each event is a JSON object with `type` and `object` fields.
+      tags: [watch]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          description: |
+            Resource type to watch. One of: elasticsearch, kibana, apmserver, beat,
+            agent, logstash, enterprisesearch, elasticmapsserver,
+            elasticsearchautoscaler, stackconfigpolicy.
+          schema:
+            type: string
+            enum:
+              - elasticsearch
+              - kibana
+              - apmserver
+              - beat
+              - agent
+              - logstash
+              - enterprisesearch
+              - elasticmapsserver
+              - elasticsearchautoscaler
+              - stackconfigpolicy
+        - $ref: "#/components/parameters/NamespaceQuery"
+      responses:
+        "200":
+          description: SSE stream of watch events.
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/WatchEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
 components:
+  # ── Security Schemes ──────────────────────────────────────────────────────────
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Kubernetes service account token or OIDC JWT
     cookieAuth:
       type: apiKey
       in: cookie
-      name: eck_session
-      description: Session cookie from OIDC login
+      name: eck-ui-session
+      description: |
+        Session cookie set after successful login via `POST /auth/login`.
+        The cookie is HTTP-only, Secure, and SameSite=Strict.
 
+  # ── Parameters ────────────────────────────────────────────────────────────────
   parameters:
-    OrgParam:
-      name: org
+    Namespace:
+      name: namespace
       in: path
       required: true
-      description: Organization identifier (maps to Kubernetes namespace)
+      description: Kubernetes namespace.
       schema:
         type: string
-        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-        maxLength: 63
-    ResourceName:
+        example: elastic-system
+
+    Name:
       name: name
       in: path
       required: true
-      description: Resource name
+      description: Resource name.
       schema:
         type: string
-        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-        maxLength: 253
+        example: my-elasticsearch
 
+    NamespaceQuery:
+      name: namespace
+      in: query
+      required: false
+      description: Filter results to a specific namespace. Omit to list across all namespaces.
+      schema:
+        type: string
+        example: elastic-system
+
+  # ── Responses ─────────────────────────────────────────────────────────────────
   responses:
     BadRequest:
-      description: Invalid request
+      description: Invalid request.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
-    Unauthorized:
-      description: Authentication required
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Forbidden:
-      description: Access denied
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Conflict:
-      description: Resource already exists or conflict
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            statusCode: 400
+            reason: BadRequest
+            message: "Invalid request body: expected JSON with 'token' field."
 
+    Unauthorized:
+      description: Authentication required.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            statusCode: 401
+            reason: Unauthorized
+            message: "Authentication is required to access this resource."
+
+    Forbidden:
+      description: Insufficient permissions.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            statusCode: 403
+            reason: Forbidden
+            message: "You do not have permission to perform this action."
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            statusCode: 404
+            reason: NotFound
+            message: "The requested resource was not found."
+
+    Conflict:
+      description: Resource already exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            statusCode: 409
+            reason: Conflict
+            message: "The resource already exists or has been modified."
+
+  # ── Schemas ───────────────────────────────────────────────────────────────────
   schemas:
-    Error:
+    LoginRequest:
       type: object
-      required:
-        - code
-        - message
+      required: [token]
       properties:
-        code:
+        token:
+          type: string
+          description: Kubernetes bearer token to validate.
+          example: "eyJhbGciOiJSUzI1NiIsImtpZCI6..."
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserInfo"
+        session:
+          type: string
+          description: Session identifier.
+          example: "a1b2c3d4e5f6..."
+
+    SessionResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserInfo"
+        organization:
+          type: string
+          description: Active organization name, if set.
+          example: "team-platform"
+        expiresAt:
+          type: string
+          format: date-time
+          description: Session expiry time (UTC).
+          example: "2026-03-04T22:00:00Z"
+
+    UserInfo:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Kubernetes username from TokenReview.
+          example: "system:serviceaccount:default:my-sa"
+        uid:
+          type: string
+          description: Kubernetes user UID.
+          example: "12345678-abcd-efgh-ijkl-123456789012"
+        groups:
+          type: array
+          items:
+            type: string
+          description: Kubernetes group memberships.
+          example: ["system:serviceaccounts", "system:authenticated"]
+        extra:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Additional user attributes from TokenReview.
+
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
           type: integer
-          description: HTTP status code
+          description: HTTP status code.
+          example: 400
+        reason:
+          type: string
+          description: Machine-readable error code.
+          example: BadRequest
         message:
           type: string
-          description: Human-readable error message
-        details:
-          type: string
-          description: Additional error context
-        request_id:
-          type: string
-          description: Correlation ID for the request
+          description: Human-readable error description.
+          example: "Invalid request body."
 
-    Organization:
+    HealthResponse:
       type: object
-      required:
-        - name
-        - namespace
+      properties:
+        status:
+          type: string
+          description: Health status.
+          enum: [ok, ready, unavailable]
+          example: ok
+        error:
+          type: string
+          description: Error message (only present when unhealthy).
+
+    Resource:
+      type: object
+      description: |
+        A Kubernetes resource in unstructured format. The exact schema depends on the
+        resource type (Elasticsearch, Kibana, etc.). All resources share the standard
+        Kubernetes metadata structure.
+      properties:
+        apiVersion:
+          type: string
+          description: API group and version.
+          example: "elasticsearch.k8s.elastic.co/v1"
+        kind:
+          type: string
+          description: Resource kind.
+          example: "Elasticsearch"
+        metadata:
+          $ref: "#/components/schemas/ResourceMetadata"
+        spec:
+          type: object
+          description: Resource specification (varies by kind).
+        status:
+          type: object
+          description: Resource status (varies by kind, read-only).
+
+    ResourceMetadata:
+      type: object
       properties:
         name:
           type: string
-          description: Organization display name
+          example: "my-elasticsearch"
         namespace:
           type: string
-          description: Kubernetes namespace for the organization
-        description:
+          example: "elastic-system"
+        resourceVersion:
           type: string
-          description: Organization description
-        created_at:
-          type: string
-          format: date-time
-          description: Creation timestamp
-
-    Elasticsearch:
-      type: object
-      required:
-        - name
-        - version
-      properties:
-        name:
-          type: string
-          description: Cluster name
-        version:
-          type: string
-          description: Elasticsearch version
-        health:
-          type: string
-          enum: [green, yellow, red, unknown]
-          description: Cluster health status
-        phase:
-          type: string
-          enum: [Ready, ApplyingChanges, MigratingData, Stalled, Invalid]
-          description: Current deployment phase
-        node_sets:
-          type: array
-          items:
-            $ref: '#/components/schemas/NodeSet'
-        http:
-          $ref: '#/components/schemas/HTTPConfig'
-        created_at:
+          description: Kubernetes resource version for optimistic concurrency.
+          example: "12345"
+        creationTimestamp:
           type: string
           format: date-time
-        updated_at:
+          example: "2026-01-15T10:30:00Z"
+        uid:
           type: string
-          format: date-time
-
-    ElasticsearchCreate:
-      type: object
-      required:
-        - name
-        - version
-      properties:
-        name:
-          type: string
-          maxLength: 253
-        version:
-          type: string
-          pattern: '^\d+\.\d+\.\d+$'
-        node_sets:
-          type: array
-          items:
-            $ref: '#/components/schemas/NodeSetCreate'
-
-    ElasticsearchUpdate:
-      type: object
-      properties:
-        version:
-          type: string
-          pattern: '^\d+\.\d+\.\d+$'
-        node_sets:
-          type: array
-          items:
-            $ref: '#/components/schemas/NodeSetCreate'
-
-    NodeSet:
-      type: object
-      properties:
-        name:
-          type: string
-        count:
-          type: integer
-        roles:
-          type: array
-          items:
-            type: string
-        config:
+          example: "abcdef12-3456-7890-abcd-ef1234567890"
+        labels:
           type: object
-          additionalProperties: true
-        volume_claim_templates:
-          type: array
-          items:
-            type: object
-
-    NodeSetCreate:
-      type: object
-      required:
-        - name
-        - count
-      properties:
-        name:
-          type: string
-        count:
-          type: integer
-          minimum: 1
-        roles:
-          type: array
-          items:
+          additionalProperties:
             type: string
-            enum: [master, data, data_content, data_hot, data_warm, data_cold, data_frozen, ingest, ml, remote_cluster_client, transform, voting_only]
-        config:
+        annotations:
           type: object
-          additionalProperties: true
+          additionalProperties:
+            type: string
 
-    HTTPConfig:
+    ResourceList:
       type: object
+      description: Kubernetes-style list of resources.
       properties:
-        tls:
+        apiVersion:
+          type: string
+          example: "v1"
+        kind:
+          type: string
+          example: "List"
+        metadata:
           type: object
           properties:
-            self_signed_certificate:
-              type: object
-              properties:
-                disabled:
-                  type: boolean
+            resourceVersion:
+              type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Resource"
 
-    Kibana:
+    DeleteResponse:
       type: object
-      required:
-        - name
-        - version
       properties:
+        status:
+          type: string
+          example: deleted
+        namespace:
+          type: string
+          example: elastic-system
         name:
           type: string
-        version:
-          type: string
-        health:
-          type: string
-          enum: [green, yellow, red, unknown]
-        elasticsearch_ref:
-          type: string
-          description: Reference to associated Elasticsearch cluster
-        count:
-          type: integer
-          description: Number of Kibana pods
-        created_at:
-          type: string
-          format: date-time
+          example: my-elasticsearch
 
-    KibanaCreate:
+    WatchEvent:
       type: object
-      required:
-        - name
-        - version
-        - elasticsearch_ref
+      description: A single watch event delivered via SSE.
       properties:
-        name:
+        type:
           type: string
-        version:
-          type: string
-        elasticsearch_ref:
-          type: string
-        count:
-          type: integer
-          minimum: 1
-          default: 1
+          enum: [ADDED, MODIFIED, DELETED]
+          description: The type of watch event.
+        object:
+          $ref: "#/components/schemas/Resource"

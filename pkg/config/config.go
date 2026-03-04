@@ -1,74 +1,77 @@
-// Package config handles application configuration.
 package config
 
 import (
+	"fmt"
 	"os"
-	"strconv"
 	"strings"
+	"time"
 )
 
-// Config holds the application configuration.
+// Config holds all server configuration loaded from environment variables.
 type Config struct {
-	// Port is the HTTP server port
-	Port int
+	// ListenAddr is the address the HTTP server binds to.
+	ListenAddr string
 
-	// AllowedOrigins for CORS
-	AllowedOrigins []string
+	// KubeConfig is the optional path to a kubeconfig file for out-of-cluster access.
+	KubeConfig string
 
-	// RateLimit requests per second
-	RateLimit int
+	// OTelEndpoint is the optional OTLP gRPC endpoint for audit log export.
+	OTelEndpoint string
 
-	// OIDCIssuer URL for OIDC authentication
-	OIDCIssuer string
+	// LogLevel controls the structured logging verbosity (debug, info, warn, error).
+	LogLevel string
 
-	// OIDCClientID for OIDC authentication
-	OIDCClientID string
-
-	// OIDCClientSecret for OIDC authentication
-	OIDCClientSecret string
-
-	// SessionSecret for cookie encryption
+	// SessionSecret is the key used for session cookie encryption. Required.
 	SessionSecret string
 
-	// SystemNamespace where ECK UI is deployed
-	SystemNamespace string
+	// TokenCacheTTL controls how long validated bearer tokens are cached.
+	TokenCacheTTL time.Duration
+
+	// AuditReadRequests controls whether GET requests are included in audit logs.
+	// When false (the default), only mutating operations (POST, PUT, PATCH, DELETE) are audited.
+	AuditReadRequests bool
 }
 
-// Load reads configuration from environment variables.
+// Load reads configuration from environment variables and returns a validated Config.
+// It returns an error if required values are missing or invalid.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:            getEnvInt("ECK_UI_PORT", 8080),
-		AllowedOrigins:  getEnvSlice("ECK_UI_ALLOWED_ORIGINS", []string{"*"}),
-		RateLimit:       getEnvInt("ECK_UI_RATE_LIMIT", 100),
-		OIDCIssuer:      os.Getenv("ECK_UI_OIDC_ISSUER"),
-		OIDCClientID:    os.Getenv("ECK_UI_OIDC_CLIENT_ID"),
-		OIDCClientSecret: os.Getenv("ECK_UI_OIDC_CLIENT_SECRET"),
-		SessionSecret:   getEnvDefault("ECK_UI_SESSION_SECRET", "change-me-in-production"),
-		SystemNamespace: getEnvDefault("ECK_UI_SYSTEM_NAMESPACE", "elastic-system"),
+		ListenAddr:   envOrDefault("LISTEN_ADDR", ":8080"),
+		KubeConfig:   os.Getenv("KUBECONFIG"),
+		OTelEndpoint: os.Getenv("OTEL_ENDPOINT"),
+		LogLevel:     envOrDefault("LOG_LEVEL", "info"),
+		SessionSecret: os.Getenv("SESSION_SECRET"),
 	}
+
+	if cfg.SessionSecret == "" {
+		return nil, fmt.Errorf("SESSION_SECRET environment variable is required")
+	}
+
+	ttlStr := envOrDefault("TOKEN_CACHE_TTL", "5m")
+	ttl, err := time.ParseDuration(ttlStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid TOKEN_CACHE_TTL %q: %w", ttlStr, err)
+	}
+	cfg.TokenCacheTTL = ttl
+
+	cfg.AuditReadRequests = parseBool(os.Getenv("AUDIT_READ_REQUESTS"))
 
 	return cfg, nil
 }
 
-func getEnvDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+// parseBool returns true if the value is "true", "1", or "yes" (case-insensitive).
+func parseBool(val string) bool {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "true", "1", "yes":
+		return true
+	default:
+		return false
 	}
-	return defaultValue
 }
 
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if i, err := strconv.Atoi(value); err == nil {
-			return i
-		}
+func envOrDefault(key, defaultVal string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-	return defaultValue
-}
-
-func getEnvSlice(key string, defaultValue []string) []string {
-	if value := os.Getenv(key); value != "" {
-		return strings.Split(value, ",")
-	}
-	return defaultValue
+	return defaultVal
 }

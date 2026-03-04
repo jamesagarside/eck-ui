@@ -1,204 +1,185 @@
-# ECK UI
+# ECK UI - Web Console for Elastic Cloud on Kubernetes
 
-A web-based management interface for Elastic Cloud on Kubernetes (ECK). ECK UI provides a cloud-like experience for managing Elasticsearch, Kibana, and other Elastic Stack components deployed via the ECK operator.
+A web-based management console for [Elastic Cloud on Kubernetes (ECK)](https://www.elastic.co/guide/en/cloud-on-k8s/current/index.html) resources. ECK UI provides a visual interface similar to the Elastic Cloud console, allowing you to create, monitor, and manage your entire Elastic Stack running on Kubernetes.
+
+## Architecture
+
+ECK UI ships as a single container with two components:
+
+- **Go backend** -- an HTTP server that proxies Kubernetes API requests, handles authentication via `TokenReview`, manages sessions, and serves the frontend assets. Built with `gorilla/mux` and `client-go`.
+- **React frontend** -- a single-page application built with [Elastic EUI](https://eui.elastic.co/) for a native Elastic look and feel. The compiled frontend is embedded into the Go binary at build time using `go:embed`.
+
+```
+Browser  -->  Go HTTP Server (:8080)  -->  Kubernetes API Server
+                |                              |
+                |-- /api/v1/*  (REST API)      |-- ECK CRDs (Elasticsearch, Kibana, ...)
+                |-- /healthz, /readyz          |-- TokenReview (auth)
+                |-- /*  (SPA static files)     |-- Events, ConfigMaps
+```
 
 ## Features
 
-- **Full ECK Resource Management**: Create, view, edit, and delete all ECK resources
-  - Elasticsearch clusters
-  - Kibana instances
+- **Dashboard** -- overview of all ECK resources across namespaces with health status indicators
+- **Resource management** -- full CRUD for all ECK resource types:
+  - Elasticsearch
+  - Kibana
   - APM Server
-  - Elastic Agent (Fleet & standalone)
-  - Beats (Filebeat, Metricbeat, etc.)
+  - Beats
+  - Elastic Agent
   - Logstash
   - Enterprise Search
   - Elastic Maps Server
-
-- **Stack Wizard**: Deploy complete Elastic Stack with one-click
-  - Pre-configured topologies (dev, production, hot-warm)
-  - Integrated APM, Fleet, and Beats configuration
-
-- **Dashboard Overview**: Health monitoring across all deployments
-  - Cluster health status
-  - Resource counts by type
-  - Unhealthy resource alerts
-
-- **Organization & RBAC**: Multi-tenant access control
-  - Organization-based resource isolation
-  - Role-based permissions per organization
-
-- **Audit Logging**: OpenTelemetry-based audit trail for compliance
+  - Elasticsearch Autoscaler
+  - Stack Config Policy
+- **Deployment wizard** -- guided workflow for deploying a complete Elastic Stack (Elasticsearch + Kibana + integrations)
+- **Real-time updates** -- Server-Sent Events (SSE) for live resource status changes
+- **RBAC** -- role-based access control derived from Kubernetes group membership (admin, editor, viewer)
+- **Audit logging** -- OpenTelemetry-based audit trail for all mutating operations, exportable to any OTLP-compatible collector
+- **Organization model** -- multi-tenant namespace scoping via ConfigMap-based organizations
+- **Security hardened** -- runs as non-root, read-only filesystem, no privilege escalation, HTTP-only secure cookies
 
 ## Quick Start
 
 ### Prerequisites
 
-- Kubernetes cluster with ECK operator installed
-- `kubectl` configured for your cluster
-- Go 1.23+ (for development)
-- Node.js 20+ (for development)
+- A Kubernetes cluster with [ECK operator](https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-install-all-in-one.html) installed
+- `kubectl` configured to access the cluster
+- `helm` v3 (for Helm installation)
 
-### Using Docker (Recommended)
-
-```bash
-# Build the image
-docker build -t eck-ui:latest .
-
-# Run with kubeconfig mounted
-docker run -p 8080:8080 \
-  -v ~/.kube/config:/home/eck-ui/.kube/config:ro \
-  eck-ui:latest
-```
-
-### Using Helm
+### Install with Helm
 
 ```bash
-# Add the Helm repository
-helm repo add eck-ui https://jamesagarside.github.io/eck-ui
-
-# Install
-helm install eck-ui eck-ui/eck-ui \
-  --namespace elastic-system \
-  --set serviceAccount.create=true
+helm install eck-ui deploy/helm/eck-ui \
+  --namespace eck-ui \
+  --create-namespace \
+  --set config.sessionSecret="$(openssl rand -hex 32)"
 ```
 
-### Manual Installation
-
-See [deploy/kubernetes/](deploy/kubernetes/) for Kubernetes manifests.
-
-## Development
+### Install with kubectl
 
 ```bash
-# Clone the repository
-git clone https://github.com/jamesagarside/eck-ui.git
-cd eck-ui
-
-# Install dependencies
-make deps
-
-# Start development servers (backend + frontend)
-make dev
+kubectl apply -f deploy/kubernetes/all-in-one.yaml
 ```
 
-The frontend dev server runs at http://localhost:3000 and proxies API requests to the backend at http://localhost:8080.
-
-### Building
+Set the required `SESSION_SECRET` environment variable on the deployment:
 
 ```bash
-# Build everything
-make build
-
-# Build with embedded frontend (single binary)
-make build-embedded
-
-# Build Docker image
-make docker-build
+kubectl -n eck-ui set env deployment/eck-ui \
+  SESSION_SECRET="$(openssl rand -hex 32)"
 ```
 
-### Testing
+### Access the UI
 
 ```bash
-# Run all tests
-make test
-
-# Run Go tests only
-make test-backend
-
-# Run frontend tests only
-make test-frontend
-
-# Run with coverage
-make coverage
+kubectl port-forward -n eck-ui svc/eck-ui 8080:8080
 ```
+
+Open [http://localhost:8080](http://localhost:8080) in your browser and log in with a Kubernetes bearer token (for example, a ServiceAccount token).
 
 ## Configuration
 
-ECK UI is configured via environment variables:
+All configuration is via environment variables:
 
-| Variable                    | Description                            | Default                   |
-| --------------------------- | -------------------------------------- | ------------------------- |
-| `ECK_UI_PORT`               | HTTP server port                       | `8080`                    |
-| `ECK_UI_ALLOWED_ORIGINS`    | CORS allowed origins (comma-separated) | `*`                       |
-| `ECK_UI_RATE_LIMIT`         | Requests per second limit              | `100`                     |
-| `ECK_UI_SESSION_SECRET`     | Cookie encryption secret               | `change-me-in-production` |
-| `ECK_UI_SYSTEM_NAMESPACE`   | Namespace for system resources         | `elastic-system`          |
-| `ECK_UI_OIDC_ISSUER`        | OIDC provider URL (optional)           | -                         |
-| `ECK_UI_OIDC_CLIENT_ID`     | OIDC client ID                         | -                         |
-| `ECK_UI_OIDC_CLIENT_SECRET` | OIDC client secret                     | -                         |
+| Variable | Default | Description |
+|---|---|---|
+| `LISTEN_ADDR` | `:8080` | Address the HTTP server binds to |
+| `SESSION_SECRET` | *(required)* | Key for session cookie encryption |
+| `KUBECONFIG` | *(in-cluster)* | Path to kubeconfig for out-of-cluster access |
+| `LOG_LEVEL` | `info` | Logging verbosity: `debug`, `info`, `warn`, `error` |
+| `OTEL_ENDPOINT` | *(disabled)* | OTLP gRPC endpoint for audit log export |
+| `TOKEN_CACHE_TTL` | `5m` | How long validated bearer tokens are cached |
 
-## Architecture
+## Development
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        ECK UI                                │
-├─────────────────────────────────────────────────────────────┤
-│  ┌───────────────────┐    ┌───────────────────────────────┐ │
-│  │   React Frontend  │    │        Go Backend             │ │
-│  │                   │    │                               │ │
-│  │  • EUI Components │    │  • REST API                   │ │
-│  │  • TanStack Query │    │  • K8s Client                 │ │
-│  │  • React Router   │    │  • Audit Logging (OTel)       │ │
-│  │  • Zustand Store  │    │  • RBAC/Auth                  │ │
-│  └─────────┬─────────┘    └───────────────┬───────────────┘ │
-│            │                              │                  │
-│            └──────────────┬───────────────┘                  │
-│                           │                                  │
-│            ┌──────────────▼───────────────┐                  │
-│            │     Kubernetes API Server     │                  │
-│            │                               │                  │
-│            │  • ECK CRDs                   │                  │
-│            │  • ServiceAccount Auth        │                  │
-│            └───────────────────────────────┘                  │
-└─────────────────────────────────────────────────────────────┘
+### Prerequisites
+
+- Go 1.23+
+- Node.js 20+
+- Docker Desktop with Kubernetes enabled, or a remote cluster with ECK installed
+
+### Running locally
+
+```bash
+# Install frontend dependencies
+cd web && npm install && cd ..
+
+# Start the frontend dev server (with hot reload)
+cd web && npm run dev
+
+# In a separate terminal, run the Go backend
+# Requires KUBECONFIG pointing to a cluster with ECK
+export SESSION_SECRET="dev-secret-change-me"
+export KUBECONFIG="$HOME/.kube/config"
+go run ./cmd/server
 ```
 
-## RBAC Setup
+### Build
 
-ECK UI requires a ServiceAccount with appropriate RBAC permissions. See [docs/RBAC.md](docs/RBAC.md) for detailed configuration.
+```bash
+# Build the frontend
+cd web && npm run build && cd ..
 
-Minimum required permissions:
-
-```yaml
-rules:
-  - apiGroups: ["elasticsearch.k8s.elastic.co"]
-    resources: ["elasticsearches"]
-    verbs: ["get", "list", "watch", "create", "update", "delete"]
-  - apiGroups: ["kibana.k8s.elastic.co"]
-    resources: ["kibanas"]
-    verbs: ["get", "list", "watch", "create", "update", "delete"]
-  # ... similar for other ECK CRDs
+# Build the Go binary (embeds frontend assets)
+go build -o bin/eck-ui ./cmd/server
 ```
 
-## API Documentation
+### Test
 
-The API follows REST conventions and returns JSON responses.
+```bash
+# Frontend tests
+cd web && npx vitest run
 
-### Base URL
+# Backend tests
+go test ./...
+
+# Lint
+cd web && npx eslint .
+```
+
+## Project Structure
 
 ```
-/api/v1/orgs/{org}/namespaces/{namespace}
+eck-ui/
+  cmd/
+    server/           # Application entry point
+      main.go
+  pkg/
+    audit/            # OpenTelemetry audit logging
+    auth/             # Kubernetes TokenReview auth + session management
+    config/           # Environment-based configuration
+    errors/           # Structured API error types
+    handlers/         # HTTP handlers (auth, health, OpenAPI, SPA)
+    k8s/              # Kubernetes client wrapper (dynamic + typed)
+    middleware/        # Auth, RBAC, CORS, logging, recovery middleware
+    organization/     # Multi-tenant organization model
+    resources/        # ECK resource CRUD handlers + event listing
+  web/
+    src/
+      api/            # API client (fetch wrapper)
+      components/     # Reusable EUI components (layout, navigation, forms)
+      context/        # React context providers (app, org, preferences)
+      hooks/          # Custom hooks (useResources)
+      pages/          # Page components per resource type + dashboard + wizard
+      stores/         # Zustand state management (auth)
+      test/           # Test utilities and MSW mocks
+      types/          # TypeScript type definitions
+  deploy/
+    helm/eck-ui/      # Helm chart
+    kubernetes/       # Plain Kubernetes manifests
+  api/
+    openapi.yaml      # OpenAPI 3.0 specification
+  docs/               # Additional documentation
 ```
 
-### Endpoints
+## API
 
-| Method | Path                    | Description                  |
-| ------ | ----------------------- | ---------------------------- |
-| GET    | `/elasticsearch`        | List Elasticsearch clusters  |
-| POST   | `/elasticsearch`        | Create Elasticsearch cluster |
-| GET    | `/elasticsearch/{name}` | Get Elasticsearch cluster    |
-| PUT    | `/elasticsearch/{name}` | Update Elasticsearch cluster |
-| DELETE | `/elasticsearch/{name}` | Delete Elasticsearch cluster |
+The backend serves a REST API at `/api/v1/`. The OpenAPI specification is available at runtime:
 
-Similar patterns for `/kibana`, `/apmserver`, `/agent`, `/beat`, `/logstash`, `/enterprisesearch`, `/elasticmapsserver`.
+- YAML: `GET /api/v1/openapi.yaml`
+- JSON: `GET /api/v1/openapi.json`
 
-### OpenAPI Spec
-
-Full OpenAPI specification available at `/api/openapi.json`.
-
-## Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [`api/openapi.yaml`](api/openapi.yaml) for the full specification.
 
 ## License
 
-[Apache License 2.0](LICENSE)
+Apache License 2.0. See [LICENSE](LICENSE) for details.

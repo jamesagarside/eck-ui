@@ -1,272 +1,210 @@
-// Elasticsearch Detail Page
-
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader,
-  EuiButton,
-  EuiButtonEmpty,
+  EuiSpacer,
   EuiTabbedContent,
+  EuiDescriptionList,
   EuiHealth,
   EuiBadge,
-  EuiFlexGroup,
-  EuiFlexItem,
-  EuiSpacer,
-  EuiDescriptionList,
   EuiPanel,
-  EuiTitle,
-  EuiBasicTable,
+  EuiButton,
+  EuiButtonEmpty,
   EuiConfirmModal,
+  EuiBasicTable,
   EuiCallOut,
-  EuiCodeBlock,
+  EuiFlyout,
+  EuiFlyoutBody,
+  EuiFlyoutHeader,
+  EuiText,
+  EuiTitle,
+  type EuiTabbedContentTab,
+  type EuiBasicTableColumn,
 } from '@elastic/eui';
-import type { EuiBasicTableColumn } from '@elastic/eui';
-import { useState } from 'react';
-import { useElasticsearchDetail, useDeleteElasticsearch } from '../../hooks/useResources';
+import { useResource, useDeleteResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
-import { NotFoundError } from '../../components/common/ErrorBoundary';
-import type { ElasticsearchCluster, NodeSet, HealthStatus, Phase } from '../../types/resources';
+import { VersionUpgrade } from '../../components/elasticsearch/VersionUpgrade';
+import { CredentialsDisplay } from '../../components/elasticsearch/CredentialsDisplay';
+import { MonitoringConfig } from '../../components/elasticsearch/MonitoringConfig';
+import { RemoteClusters } from '../../components/elasticsearch/RemoteClusters';
+import type { Elasticsearch, HealthStatus, NodeSet, ResourceEvent } from '../../types/resources';
 
-// Health color mapping
-const healthColors: Record<HealthStatus, string> = {
+const HEALTH_COLORS: Record<HealthStatus, string> = {
   green: 'success',
   yellow: 'warning',
   red: 'danger',
   unknown: 'subdued',
 };
 
-// Phase badge colors
-const phaseColors: Record<Phase, 'primary' | 'warning' | 'danger' | 'default' | 'success'> = {
-  Ready: 'success',
-  ApplyingChanges: 'primary',
-  MigratingData: 'warning',
-  Stalled: 'danger',
-  Invalid: 'danger',
-};
-
 export function ElasticsearchDetailPage() {
-  const { namespace = '', name = '' } = useParams<{ namespace: string; name: string }>();
+  const { namespace, name } = useParams<{
+    namespace: string;
+    name: string;
+  }>();
   const navigate = useNavigate();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUpgradeFlyout, setShowUpgradeFlyout] = useState(false);
 
-  const { data: cluster, isLoading, error } = useElasticsearchDetail(namespace, name);
-  const deleteMutation = useDeleteElasticsearch();
+  const { data: resource, isLoading, error } = useResource<Elasticsearch>(
+    'elasticsearch',
+    namespace || '',
+    name || '',
+  );
 
-  // Convert to typed cluster
-  const typedCluster = cluster as ElasticsearchCluster | undefined;
+  const deleteMutation = useDeleteResource('elasticsearch');
 
-  // Loading state
-  if (isLoading) {
-    return <DetailSkeleton />;
-  }
+  if (isLoading) return <DetailSkeleton />;
 
-  // Error or not found
-  if (error || !typedCluster) {
+  if (error || !resource) {
     return (
-      <NotFoundError
-        title="Cluster not found"
-        message={`The Elasticsearch cluster "${name}" was not found.`}
-        backUrl="/elasticsearch"
-        backLabel="Back to clusters"
-      />
+      <EuiCallOut
+        title="Failed to load Elasticsearch cluster"
+        color="danger"
+        iconType="error"
+      >
+        {error?.message || 'Resource not found'}
+      </EuiCallOut>
     );
   }
 
+  const health = resource.status?.health || 'unknown';
+  const phase = resource.status?.phase || 'Unknown';
+
   const handleDelete = async () => {
-    if (!name || !namespace) return;
+    if (!namespace || !name) return;
     await deleteMutation.mutateAsync({ namespace, name });
     navigate('/elasticsearch');
   };
 
-  // Overview tab content
-  const OverviewTab = () => (
-    <EuiFlexGroup>
-      <EuiFlexItem grow={2}>
-        <EuiPanel>
-          <EuiTitle size="xs">
-            <h3>Cluster Information</h3>
-          </EuiTitle>
-          <EuiSpacer size="m" />
-          <EuiDescriptionList
-            type="column"
-            listItems={[
-              { title: 'Name', description: typedCluster.metadata.name },
-              { title: 'Namespace', description: typedCluster.metadata.namespace },
-              { title: 'Version', description: typedCluster.spec.version },
-              { title: 'UID', description: typedCluster.metadata.uid || '-' },
-              {
-                title: 'Created',
-                description: typedCluster.metadata.creationTimestamp
-                  ? new Date(typedCluster.metadata.creationTimestamp).toLocaleString()
-                  : '-',
-              },
-            ]}
-          />
-        </EuiPanel>
+  const overviewItems = [
+    { title: 'Name', description: resource.metadata.name },
+    { title: 'Namespace', description: resource.metadata.namespace },
+    { title: 'Version', description: resource.spec.version },
+    {
+      title: 'Health',
+      description: (
+        <EuiHealth color={HEALTH_COLORS[health]}>{health}</EuiHealth>
+      ),
+    },
+    {
+      title: 'Phase',
+      description: <EuiBadge color={phase === 'Ready' ? 'success' : 'default'}>{phase}</EuiBadge>,
+    },
+    {
+      title: 'Nodes',
+      description: `${resource.status?.availableNodes ?? 0} / ${resource.status?.expectedNodes ?? 0}`,
+    },
+    {
+      title: 'Created',
+      description: new Date(resource.metadata.creationTimestamp).toLocaleString(),
+    },
+    {
+      title: 'Resource Version',
+      description: resource.metadata.resourceVersion,
+    },
+  ];
 
-        <EuiSpacer size="m" />
-
-        <EuiPanel>
-          <EuiTitle size="xs">
-            <h3>HTTP Configuration</h3>
-          </EuiTitle>
-          <EuiSpacer size="m" />
-          <EuiDescriptionList
-            type="column"
-            listItems={[
-              {
-                title: 'TLS',
-                description: typedCluster.spec.http?.tls?.selfSignedCertificate?.disabled
-                  ? 'Disabled'
-                  : 'Enabled (self-signed)',
-              },
-              {
-                title: 'Service Type',
-                description: typedCluster.spec.http?.service?.spec?.type || 'ClusterIP',
-              },
-            ]}
-          />
-        </EuiPanel>
-      </EuiFlexItem>
-
-      <EuiFlexItem grow={1}>
-        <EuiPanel>
-          <EuiTitle size="xs">
-            <h3>Status</h3>
-          </EuiTitle>
-          <EuiSpacer size="m" />
-          <EuiDescriptionList
-            listItems={[
-              {
-                title: 'Health',
-                description: (
-                  <EuiHealth color={healthColors[typedCluster.status?.health || 'unknown']}>
-                    {typedCluster.status?.health || 'unknown'}
-                  </EuiHealth>
-                ),
-              },
-              {
-                title: 'Phase',
-                description: (
-                  <EuiBadge color={phaseColors[typedCluster.status?.phase || 'Ready']}>
-                    {typedCluster.status?.phase || 'Unknown'}
-                  </EuiBadge>
-                ),
-              },
-              {
-                title: 'Available Nodes',
-                description: `${typedCluster.status?.availableNodes ?? 0} / ${
-                  typedCluster.status?.expectedNodes ?? 0
-                }`,
-              },
-              {
-                title: 'Version',
-                description: typedCluster.status?.version || 'Unknown',
-              },
-            ]}
-          />
-        </EuiPanel>
-      </EuiFlexItem>
-    </EuiFlexGroup>
-  );
-
-  // Nodes tab content
-  const NodesTab = () => {
-    const nodeSetColumns: EuiBasicTableColumn<NodeSet>[] = [
-      { field: 'name', name: 'Name', sortable: true },
-      { field: 'count', name: 'Count', sortable: true },
-      {
-        field: 'config',
-        name: 'Roles',
-        render: (config: Record<string, unknown> | undefined) => {
-          const roles = config?.['node.roles'] as string[] | undefined;
-          if (!roles) return 'default';
-          return roles.join(', ');
-        },
+  const nodeSetColumns: EuiBasicTableColumn<NodeSet>[] = [
+    { field: 'name', name: 'Name' },
+    { field: 'count', name: 'Count', width: '80px' },
+    {
+      name: 'Roles',
+      render: (ns: NodeSet) => {
+        const roles = (ns.config as Record<string, unknown>)?.['node.roles'] as string[] | undefined;
+        return (roles || []).map((r) => (
+          <EuiBadge key={r} color="hollow" style={{ marginRight: 4 }}>
+            {r}
+          </EuiBadge>
+        ));
       },
-      {
-        field: 'volumeClaimTemplates',
-        name: 'Storage',
-        render: (templates: NodeSet['volumeClaimTemplates']) => {
-          if (!templates?.length) return 'None';
-          const storage = templates[0]?.spec?.resources?.requests?.storage;
-          return storage || 'default';
-        },
+    },
+    {
+      name: 'Storage',
+      render: (ns: NodeSet) => {
+        const storage = ns.volumeClaimTemplates?.[0]?.spec?.resources?.requests?.storage;
+        return storage || '-';
       },
-      {
-        field: 'podTemplate',
-        name: 'Memory',
-        render: (podTemplate: NodeSet['podTemplate']) => {
-          const container = podTemplate?.spec?.containers?.find((c) => c.name === 'elasticsearch');
-          return container?.resources?.limits?.memory || 'default';
-        },
-      },
-    ];
+    },
+  ];
 
-    return (
-      <EuiPanel>
-        <EuiTitle size="xs">
-          <h3>Node Sets ({typedCluster.spec.nodeSets.length})</h3>
-        </EuiTitle>
-        <EuiSpacer size="m" />
-        <EuiBasicTable items={typedCluster.spec.nodeSets} columns={nodeSetColumns} />
-      </EuiPanel>
-    );
-  };
+  const mockEvents: ResourceEvent[] = [];
 
-  // YAML tab content
-  const YamlTab = () => (
-    <EuiPanel>
-      <EuiTitle size="xs">
-        <h3>Resource YAML</h3>
-      </EuiTitle>
-      <EuiSpacer size="m" />
-      <EuiCodeBlock language="yaml" fontSize="m" paddingSize="m" isCopyable>
-        {formatAsYaml(typedCluster)}
-      </EuiCodeBlock>
-    </EuiPanel>
-  );
+  const eventColumns: EuiBasicTableColumn<ResourceEvent>[] = [
+    { field: 'type', name: 'Type', width: '80px' },
+    { field: 'reason', name: 'Reason', width: '160px' },
+    { field: 'message', name: 'Message', truncateText: true },
+    {
+      field: 'lastTimestamp',
+      name: 'Last Seen',
+      width: '180px',
+      render: (ts: string) => (ts ? new Date(ts).toLocaleString() : '-'),
+    },
+    { field: 'count', name: 'Count', width: '60px' },
+  ];
 
-  // Events tab content
-  const EventsTab = () => (
-    <EuiPanel>
-      <EuiTitle size="xs">
-        <h3>Recent Events</h3>
-      </EuiTitle>
-      <EuiSpacer size="m" />
-      <EuiCallOut title="Events" color="primary" iconType="iInCircle">
-        <p>Event streaming will be implemented in a future update.</p>
-      </EuiCallOut>
-    </EuiPanel>
-  );
+  const remoteClusters = resource.spec.remoteClusters;
 
-  const tabs = [
+  const tabs: EuiTabbedContentTab[] = [
     {
       id: 'overview',
       name: 'Overview',
       content: (
         <>
           <EuiSpacer size="l" />
-          <OverviewTab />
+          <EuiPanel>
+            <EuiDescriptionList
+              type="column"
+              listItems={overviewItems}
+              compressed
+            />
+          </EuiPanel>
+          {remoteClusters && remoteClusters.length > 0 && (
+            <>
+              <EuiSpacer size="l" />
+              <RemoteClusters remoteClusters={remoteClusters} />
+            </>
+          )}
         </>
       ),
     },
     {
-      id: 'nodes',
-      name: 'Nodes',
+      id: 'nodesets',
+      name: 'NodeSets',
       content: (
         <>
           <EuiSpacer size="l" />
-          <NodesTab />
+          <EuiBasicTable
+            items={resource.spec.nodeSets || []}
+            columns={nodeSetColumns}
+            noItemsMessage="No node sets configured"
+          />
         </>
       ),
     },
     {
-      id: 'yaml',
-      name: 'YAML',
+      id: 'credentials',
+      name: 'Credentials',
       content: (
         <>
           <EuiSpacer size="l" />
-          <YamlTab />
+          <CredentialsDisplay
+            clusterName={resource.metadata.name}
+            namespace={resource.metadata.namespace}
+          />
+        </>
+      ),
+    },
+    {
+      id: 'monitoring',
+      name: 'Monitoring',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <MonitoringConfig
+            value={resource.spec.monitoring || {}}
+            onChange={() => {}}
+            readOnly
+          />
         </>
       ),
     },
@@ -276,7 +214,31 @@ export function ElasticsearchDetailPage() {
       content: (
         <>
           <EuiSpacer size="l" />
-          <EventsTab />
+          <EuiBasicTable
+            items={mockEvents}
+            columns={eventColumns}
+            noItemsMessage="No events"
+          />
+        </>
+      ),
+    },
+    {
+      id: 'settings',
+      name: 'Settings',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <EuiPanel>
+            <EuiTitle size="xs">
+              <h3>Specification</h3>
+            </EuiTitle>
+            <EuiSpacer size="m" />
+            <EuiText size="s">
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {JSON.stringify(resource.spec, null, 2)}
+              </pre>
+            </EuiText>
+          </EuiPanel>
         </>
       ),
     },
@@ -285,97 +247,81 @@ export function ElasticsearchDetailPage() {
   return (
     <>
       <EuiPageHeader
-        pageTitle={
-          <EuiFlexGroup alignItems="center" gutterSize="m">
-            <EuiFlexItem grow={false}>{typedCluster.metadata.name}</EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiHealth color={healthColors[typedCluster.status?.health || 'unknown']}>
-                {typedCluster.status?.health || 'unknown'}
-              </EuiHealth>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiBadge color={phaseColors[typedCluster.status?.phase || 'Ready']}>
-                {typedCluster.status?.phase || 'Unknown'}
-              </EuiBadge>
-            </EuiFlexItem>
-          </EuiFlexGroup>
-        }
-        description={`Version ${typedCluster.spec.version} • ${typedCluster.metadata.namespace}`}
+        pageTitle={resource.metadata.name}
+        iconType="logoElasticsearch"
+        description={`Namespace: ${resource.metadata.namespace}`}
         rightSideItems={[
           <EuiButton
+            key="upgrade"
+            iconType="sortUp"
+            color="success"
+            onClick={() => setShowUpgradeFlyout(true)}
+          >
+            Upgrade
+          </EuiButton>,
+          <EuiButton
             key="edit"
-            onClick={() => navigate(`/elasticsearch/${namespace}/${name}/edit`)}
+            onClick={() =>
+              navigate(
+                `/elasticsearch/${namespace}/${name}/edit`,
+              )
+            }
           >
             Edit
           </EuiButton>,
-          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDeleteModal(true)}>
+          <EuiButtonEmpty
+            key="delete"
+            color="danger"
+            onClick={() => setShowDeleteModal(true)}
+          >
             Delete
           </EuiButtonEmpty>,
         ]}
       />
+      <EuiSpacer size="l" />
+      <EuiTabbedContent tabs={tabs} autoFocus="selected" />
 
-      <EuiTabbedContent tabs={tabs} initialSelectedTab={tabs[0]} autoFocus="selected" />
+      {showUpgradeFlyout && (
+        <EuiFlyout
+          onClose={() => setShowUpgradeFlyout(false)}
+          size="m"
+          aria-labelledby="upgradeElasticsearchFlyoutTitle"
+        >
+          <EuiFlyoutHeader hasBorder>
+            <EuiTitle size="m">
+              <h2 id="upgradeElasticsearchFlyoutTitle">
+                Upgrade {resource.metadata.name}
+              </h2>
+            </EuiTitle>
+          </EuiFlyoutHeader>
+          <EuiFlyoutBody>
+            <VersionUpgrade
+              currentVersion={resource.spec.version}
+              resourceName={resource.metadata.name}
+              namespace={resource.metadata.namespace}
+            />
+          </EuiFlyoutBody>
+        </EuiFlyout>
+      )}
 
       {showDeleteModal && (
         <EuiConfirmModal
-          title={`Delete ${typedCluster.metadata.name}?`}
+          title={`Delete ${resource.metadata.name}?`}
           onCancel={() => setShowDeleteModal(false)}
           onConfirm={handleDelete}
           cancelButtonText="Cancel"
           confirmButtonText="Delete"
           buttonColor="danger"
-          defaultFocusedButton="cancel"
+          isLoading={deleteMutation.isPending}
         >
           <p>
-            This will permanently delete the Elasticsearch cluster and all associated resources.
-            This action cannot be undone.
+            This will permanently delete the Elasticsearch cluster{' '}
+            <strong>{resource.metadata.name}</strong> in namespace{' '}
+            <strong>{resource.metadata.namespace}</strong>. This action cannot
+            be undone.
           </p>
         </EuiConfirmModal>
       )}
     </>
   );
-}
-
-// Simple YAML formatter (basic implementation)
-function formatAsYaml(obj: unknown, indent = 0): string {
-  const spaces = '  '.repeat(indent);
-
-  if (obj === null || obj === undefined) {
-    return 'null';
-  }
-
-  if (typeof obj === 'string') {
-    if (obj.includes('\n') || obj.includes(':')) {
-      return `|-\n${obj
-        .split('\n')
-        .map((line) => spaces + '  ' + line)
-        .join('\n')}`;
-    }
-    return obj;
-  }
-
-  if (typeof obj === 'number' || typeof obj === 'boolean') {
-    return String(obj);
-  }
-
-  if (Array.isArray(obj)) {
-    if (obj.length === 0) return '[]';
-    return obj.map((item) => `${spaces}- ${formatAsYaml(item, indent + 1).trimStart()}`).join('\n');
-  }
-
-  if (typeof obj === 'object') {
-    const entries = Object.entries(obj);
-    if (entries.length === 0) return '{}';
-    return entries
-      .map(([key, value]) => {
-        const valueStr = formatAsYaml(value, indent + 1);
-        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-          return `${spaces}${key}:\n${valueStr}`;
-        }
-        return `${spaces}${key}: ${valueStr}`;
-      })
-      .join('\n');
-  }
-
-  return String(obj);
 }

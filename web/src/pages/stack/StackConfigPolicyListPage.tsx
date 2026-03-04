@@ -1,0 +1,165 @@
+import {
+  EuiBasicTable,
+  EuiButton,
+  EuiBadge,
+  EuiPageHeader,
+  EuiSpacer,
+  EuiHealth,
+  type EuiBasicTableColumn,
+} from '@elastic/eui';
+import { useNavigate } from 'react-router-dom';
+import { useResourceList } from '../../hooks/useResources';
+import { ListSkeleton } from '../../components/common/Skeletons';
+import type { BaseResource, ResourceStatus, HealthStatus } from '../../types/resources';
+
+const HEALTH_COLORS: Record<HealthStatus, string> = {
+  green: 'success',
+  yellow: 'warning',
+  red: 'danger',
+  unknown: 'subdued',
+};
+
+interface StackConfigPolicy extends BaseResource {
+  kind: 'StackConfigPolicy';
+  spec: {
+    resourceSelector?: {
+      matchLabels?: Record<string, string>;
+      matchExpressions?: { key: string; operator: string; values?: string[] }[];
+    };
+    elasticsearch?: Record<string, unknown>;
+    kibana?: Record<string, unknown>;
+  };
+  status?: ResourceStatus & {
+    readyCount?: number;
+    resources?: number;
+    details?: string;
+  };
+}
+
+function formatAge(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days > 0) return `${days}d`;
+  const hours = Math.floor(diff / 3600000);
+  if (hours > 0) return `${hours}h`;
+  const minutes = Math.floor(diff / 60000);
+  return `${minutes}m`;
+}
+
+function formatSelector(
+  selector?: StackConfigPolicy['spec']['resourceSelector'],
+): string {
+  if (!selector) return 'All';
+  if (selector.matchLabels) {
+    return Object.entries(selector.matchLabels)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(', ');
+  }
+  if (selector.matchExpressions && selector.matchExpressions.length > 0) {
+    return selector.matchExpressions
+      .map((e) => `${e.key} ${e.operator} ${(e.values || []).join(',')}`)
+      .join('; ');
+  }
+  return 'All';
+}
+
+export function StackConfigPolicyListPage() {
+  const navigate = useNavigate();
+  const { data, isLoading, error } = useResourceList<StackConfigPolicy>('stackconfigpolicy');
+
+  if (isLoading) return <ListSkeleton />;
+
+  const items = data?.items || [];
+
+  const columns: EuiBasicTableColumn<StackConfigPolicy>[] = [
+    {
+      field: 'metadata.name',
+      name: 'Name',
+      truncateText: true,
+      sortable: true,
+    },
+    {
+      field: 'metadata.namespace',
+      name: 'Namespace',
+      truncateText: true,
+      sortable: true,
+    },
+    {
+      name: 'Resource Selector',
+      render: (item: StackConfigPolicy) => formatSelector(item.spec.resourceSelector),
+      truncateText: true,
+    },
+    {
+      field: 'status.health',
+      name: 'Health',
+      width: '100px',
+      render: (health: HealthStatus) => (
+        <EuiHealth color={HEALTH_COLORS[health || 'unknown']}>
+          {health || 'unknown'}
+        </EuiHealth>
+      ),
+    },
+    {
+      field: 'status.phase',
+      name: 'Status',
+      width: '140px',
+      render: (phase: string) => {
+        const color =
+          phase === 'Ready'
+            ? 'success'
+            : phase === 'ApplyingChanges'
+              ? 'primary'
+              : phase === 'Stalled' || phase === 'Invalid'
+                ? 'danger'
+                : 'default';
+        return <EuiBadge color={color}>{phase || 'Unknown'}</EuiBadge>;
+      },
+    },
+    {
+      field: 'metadata.creationTimestamp',
+      name: 'Age',
+      width: '80px',
+      render: (ts: string) => formatAge(ts),
+    },
+  ];
+
+  return (
+    <>
+      <EuiPageHeader
+        pageTitle="Stack Config Policies"
+        rightSideItems={[
+          <EuiButton
+            key="create"
+            fill
+            iconType="plusInCircle"
+            onClick={() => navigate('/stackconfigpolicy/create')}
+          >
+            Create Policy
+          </EuiButton>,
+        ]}
+      />
+      <EuiSpacer size="l" />
+      {error && (
+        <>
+          <EuiHealth color="danger">
+            Failed to load resources: {error.message}
+          </EuiHealth>
+          <EuiSpacer size="m" />
+        </>
+      )}
+      <EuiBasicTable
+        items={items}
+        columns={columns}
+        rowProps={(item: StackConfigPolicy) => ({
+          onClick: () =>
+            navigate(
+              `/stackconfigpolicy/${item.metadata.namespace}/${item.metadata.name}`,
+            ),
+          style: { cursor: 'pointer' },
+          'aria-label': `View ${item.metadata.name}`,
+        })}
+        noItemsMessage="No Stack Config Policies found"
+      />
+    </>
+  );
+}

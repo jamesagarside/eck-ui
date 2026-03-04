@@ -1,288 +1,102 @@
-// Kibana List Page
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  EuiPageHeader,
-  EuiButton,
   EuiBasicTable,
-  EuiFieldSearch,
-  EuiFlexGroup,
-  EuiFlexItem,
-  EuiFilterGroup,
-  EuiFilterButton,
+  EuiButton,
   EuiHealth,
-  EuiBadge,
-  EuiLink,
-  EuiToolTip,
+  EuiPageHeader,
   EuiSpacer,
-  EuiEmptyPrompt,
+  EuiBadge,
+  type EuiBasicTableColumn,
 } from '@elastic/eui';
-import type { EuiBasicTableColumn, Criteria, Pagination } from '@elastic/eui';
-import { useKibanaList } from '../../hooks/useResources';
+import { useNavigate } from 'react-router-dom';
+import { useResourceList } from '../../hooks/useResources';
 import { ListSkeleton } from '../../components/common/Skeletons';
-import type { KibanaInstance, HealthStatus, Phase } from '../../types/resources';
+import type { Kibana, HealthStatus } from '../../types/resources';
 
-// Health color mapping
-const healthColors: Record<HealthStatus, string> = {
+const HEALTH_COLORS: Record<HealthStatus, string> = {
   green: 'success',
   yellow: 'warning',
   red: 'danger',
   unknown: 'subdued',
 };
 
-// Phase badge colors
-const phaseColors: Record<Phase, 'primary' | 'warning' | 'danger' | 'default' | 'success'> = {
-  Ready: 'success',
-  ApplyingChanges: 'primary',
-  MigratingData: 'warning',
-  Stalled: 'danger',
-  Invalid: 'danger',
-};
-
-// Association status colors
-const associationColors: Record<string, 'success' | 'warning' | 'danger' | 'default'> = {
-  Established: 'success',
-  Pending: 'warning',
-  Failed: 'danger',
-};
-
-// Valid sort fields
-type SortableField = 'metadata.name' | 'metadata.namespace' | 'spec.version';
+function formatAge(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days > 0) return `${days}d`;
+  const hours = Math.floor(diff / 3600000);
+  if (hours > 0) return `${hours}h`;
+  const minutes = Math.floor(diff / 60000);
+  return `${minutes}m`;
+}
 
 export function KibanaListPage() {
   const navigate = useNavigate();
+  const { data, isLoading, error } = useResourceList<Kibana>('kibana');
 
-  // State
-  const [searchValue, setSearchValue] = useState('');
-  const [selectedHealth, setSelectedHealth] = useState<HealthStatus[]>([]);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
-  const [sortField, setSortField] = useState<SortableField>('metadata.name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  if (isLoading) return <ListSkeleton />;
 
-  // Build query params
-  const queryParams = useMemo(
-    () => ({
-      page: pageIndex + 1,
-      pageSize,
-      sort: sortField.split('.').pop() || sortField,
-      order: sortDirection,
-      search: searchValue || undefined,
-      health: selectedHealth.length === 1 ? selectedHealth[0] : undefined,
-    }),
-    [pageIndex, pageSize, sortField, sortDirection, searchValue, selectedHealth]
-  );
+  const items = data?.items || [];
 
-  // Fetch data
-  const { data, isLoading, error, refetch } = useKibanaList(queryParams);
-
-  const instances = (data?.data ?? []) as KibanaInstance[];
-  const totalItems = instances.length;
-
-  // Table columns
-  const columns: EuiBasicTableColumn<KibanaInstance>[] = [
-    {
-      field: 'metadata.name',
-      name: 'Name',
-      sortable: true,
-      render: (name: string, item: KibanaInstance) => (
-        <EuiLink onClick={() => navigate(`/kibana/${item.metadata.namespace}/${name}`)}>
-          {name}
-        </EuiLink>
-      ),
-    },
-    {
-      field: 'metadata.namespace',
-      name: 'Namespace',
-      sortable: true,
-    },
+  const columns: EuiBasicTableColumn<Kibana>[] = [
+    { field: 'metadata.name', name: 'Name', truncateText: true, sortable: true },
+    { field: 'metadata.namespace', name: 'Namespace', truncateText: true, sortable: true },
+    { field: 'spec.version', name: 'Version', width: '100px' },
     {
       field: 'status.health',
       name: 'Health',
-      render: (health: HealthStatus = 'unknown') => (
-        <EuiHealth color={healthColors[health]}>{health}</EuiHealth>
+      width: '100px',
+      render: (health: HealthStatus) => (
+        <EuiHealth color={HEALTH_COLORS[health || 'unknown']}>{health || 'unknown'}</EuiHealth>
       ),
     },
     {
       field: 'status.phase',
       name: 'Phase',
-      render: (phase: Phase = 'Ready') => <EuiBadge color={phaseColors[phase]}>{phase}</EuiBadge>,
-    },
-    {
-      field: 'status.associationStatus',
-      name: 'ES Association',
-      render: (status: string = 'Unknown') => (
-        <EuiBadge color={associationColors[status] || 'default'}>{status}</EuiBadge>
+      width: '140px',
+      render: (phase: string) => (
+        <EuiBadge color={phase === 'Ready' ? 'success' : 'default'}>{phase || 'Unknown'}</EuiBadge>
       ),
     },
+    { field: 'spec.count', name: 'Count', width: '70px' },
     {
-      field: 'spec.version',
-      name: 'Version',
-      sortable: true,
-    },
-    {
-      field: 'spec.count',
-      name: 'Replicas',
-    },
-    {
-      field: 'spec.elasticsearchRef',
-      name: 'Elasticsearch',
-      render: (esRef: KibanaInstance['spec']['elasticsearchRef']) => {
-        if (!esRef) return '-';
-        return (
-          <EuiLink
-            onClick={() => navigate(`/elasticsearch/${esRef.namespace || 'default'}/${esRef.name}`)}
-          >
-            {esRef.name}
-          </EuiLink>
-        );
-      },
+      field: 'spec.elasticsearchRef.name',
+      name: 'ES Ref',
+      truncateText: true,
     },
     {
       field: 'metadata.creationTimestamp',
-      name: 'Created',
-      sortable: true,
-      render: (timestamp: string) => {
-        if (!timestamp) return '-';
-        const date = new Date(timestamp);
-        return (
-          <EuiToolTip content={date.toLocaleString()}>
-            <span>{formatRelativeTime(date)}</span>
-          </EuiToolTip>
-        );
-      },
+      name: 'Age',
+      width: '80px',
+      render: (ts: string) => formatAge(ts),
     },
   ];
-
-  // Pagination
-  const pagination: Pagination = {
-    pageIndex,
-    pageSize,
-    totalItemCount: totalItems,
-    pageSizeOptions: [10, 20, 50],
-  };
-
-  // Handle table change
-  const onTableChange = ({ page, sort }: Criteria<KibanaInstance>) => {
-    if (page) {
-      setPageIndex(page.index);
-      setPageSize(page.size);
-    }
-    if (sort) {
-      setSortField(sort.field as SortableField);
-      setSortDirection(sort.direction);
-    }
-  };
-
-  // Toggle filter
-  const toggleHealthFilter = (health: HealthStatus) => {
-    setSelectedHealth((prev) =>
-      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
-    );
-    setPageIndex(0);
-  };
-
-  // Loading state
-  if (isLoading && !data) {
-    return <ListSkeleton />;
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <EuiEmptyPrompt
-        iconType="alert"
-        iconColor="danger"
-        title={<h2>Failed to load Kibana instances</h2>}
-        body={<p>{error.message}</p>}
-        actions={<EuiButton onClick={() => refetch()}>Retry</EuiButton>}
-      />
-    );
-  }
 
   return (
     <>
       <EuiPageHeader
         pageTitle="Kibana Instances"
         rightSideItems={[
-          <EuiButton key="create" fill iconType="plus" onClick={() => navigate('/kibana/create')}>
+          <EuiButton key="create" fill iconType="plusInCircle" onClick={() => navigate('/kibana/create')}>
             Create Kibana
           </EuiButton>,
         ]}
       />
-
       <EuiSpacer size="l" />
-
-      <EuiFlexGroup>
-        <EuiFlexItem grow={3}>
-          <EuiFieldSearch
-            placeholder="Search by name..."
-            value={searchValue}
-            onChange={(e) => {
-              setSearchValue(e.target.value);
-              setPageIndex(0);
-            }}
-            isClearable
-          />
-        </EuiFlexItem>
-        <EuiFlexItem grow={false}>
-          <EuiFilterGroup>
-            {(['green', 'yellow', 'red'] as HealthStatus[]).map((health) => (
-              <EuiFilterButton
-                key={health}
-                hasActiveFilters={selectedHealth.includes(health)}
-                onClick={() => toggleHealthFilter(health)}
-              >
-                <EuiHealth color={healthColors[health]}>{health}</EuiHealth>
-              </EuiFilterButton>
-            ))}
-          </EuiFilterGroup>
-        </EuiFlexItem>
-      </EuiFlexGroup>
-
-      <EuiSpacer size="m" />
-
-      {instances.length === 0 ? (
-        <EuiEmptyPrompt
-          iconType="logoKibana"
-          title={<h2>No Kibana instances</h2>}
-          body={<p>Get started by creating your first Kibana instance.</p>}
-          actions={
-            <EuiButton fill onClick={() => navigate('/kibana/create')}>
-              Create Kibana
-            </EuiButton>
-          }
-        />
-      ) : (
-        <EuiBasicTable
-          items={instances}
-          columns={columns}
-          pagination={pagination}
-          sorting={{
-            sort: {
-              field: sortField as keyof KibanaInstance,
-              direction: sortDirection,
-            },
-          }}
-          onChange={onTableChange}
-          loading={isLoading}
-        />
+      {error && (
+        <>
+          <EuiHealth color="danger">Failed to load resources: {error.message}</EuiHealth>
+          <EuiSpacer size="m" />
+        </>
       )}
+      <EuiBasicTable
+        items={items}
+        columns={columns}
+        rowProps={(item: Kibana) => ({
+          onClick: () => navigate(`/kibana/${item.metadata.namespace}/${item.metadata.name}`),
+          style: { cursor: 'pointer' },
+        })}
+        noItemsMessage="No Kibana instances found"
+      />
     </>
   );
-}
-
-// Helper function for relative time
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffDays > 0) return `${diffDays}d ago`;
-  if (diffHours > 0) return `${diffHours}h ago`;
-  if (diffMins > 0) return `${diffMins}m ago`;
-  return 'Just now';
 }

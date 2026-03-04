@@ -1,465 +1,305 @@
-// ECK Resource Types for TypeScript
+export type HealthStatus = 'green' | 'yellow' | 'red' | 'unknown';
+
+export type Phase =
+  | 'Ready'
+  | 'ApplyingChanges'
+  | 'MigratingData'
+  | 'Stalled'
+  | 'Invalid';
 
 export interface ResourceMetadata {
   name: string;
   namespace: string;
-  uid?: string; // Optional - not present when creating
-  creationTimestamp?: string; // Optional - not present when creating
+  resourceVersion: string;
+  creationTimestamp: string;
+  uid?: string;
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
-  resourceVersion?: string;
 }
 
-export type HealthStatus = 'green' | 'yellow' | 'red' | 'unknown';
-export type Phase = 'Ready' | 'ApplyingChanges' | 'MigratingData' | 'Stalled' | 'Invalid';
-
-// Elasticsearch Types
-export interface ElasticsearchCluster {
-  apiVersion?: string;
-  kind?: string;
+export interface BaseResource {
+  apiVersion: string;
+  kind: string;
   metadata: ResourceMetadata;
-  spec: ElasticsearchSpec;
-  status?: ElasticsearchStatus; // Optional - not present when creating
 }
 
-export interface ElasticsearchSpec {
+export interface ResourceStatus {
+  health: HealthStatus;
+  phase: Phase;
   version: string;
-  nodeSets: NodeSet[];
-  http?: HttpSettings;
-  transport?: TransportSettings;
-  secureSettings?: SecureSettings[];
-  podDisruptionBudget?: PodDisruptionBudget;
+  availableNodes?: number;
+  expectedNodes?: number;
 }
 
 export interface NodeSet {
   name: string;
   count: number;
   config?: Record<string, unknown>;
-  podTemplate?: PodTemplate;
+  podTemplate?: Record<string, unknown>;
   volumeClaimTemplates?: VolumeClaimTemplate[];
-}
-
-export interface HttpSettings {
-  service?: ServiceSettings;
-  tls?: TlsSettings;
-}
-
-export interface TransportSettings {
-  service?: ServiceSettings;
-  tls?: TlsSettings;
-}
-
-export interface ServiceSettings {
-  spec?: {
-    type?: string;
-    loadBalancerIP?: string;
-    ports?: ServicePort[];
-  };
-}
-
-export interface ServicePort {
-  name?: string;
-  port: number;
-  targetPort?: number;
-  protocol?: string;
-}
-
-export interface TlsSettings {
-  selfSignedCertificate?: {
-    disabled?: boolean;
-    subjectAltNames?: SAN[];
-  };
-  certificate?: {
-    secretName: string;
-  };
-}
-
-export interface SAN {
-  dns?: string;
-  ip?: string;
-}
-
-export interface SecureSettings {
-  secretName: string;
-  entries?: SecureSettingsEntry[];
-}
-
-export interface SecureSettingsEntry {
-  key: string;
-  path?: string;
-}
-
-export interface PodDisruptionBudget {
-  spec: {
-    minAvailable?: number | string;
-    maxUnavailable?: number | string;
-  };
-}
-
-export interface PodTemplate {
-  spec?: {
-    containers?: Container[];
-    initContainers?: Container[];
-    volumes?: Volume[];
-    affinity?: Affinity;
-    tolerations?: Toleration[];
-    nodeSelector?: Record<string, string>;
-  };
-}
-
-export interface Container {
-  name?: string;
-  resources?: ResourceRequirements;
-  env?: EnvVar[];
-}
-
-export interface ResourceRequirements {
-  limits?: Record<string, string>;
-  requests?: Record<string, string>;
-}
-
-export interface EnvVar {
-  name: string;
-  value?: string;
-  valueFrom?: EnvVarSource;
-}
-
-export interface EnvVarSource {
-  secretKeyRef?: SecretKeyRef;
-  configMapKeyRef?: ConfigMapKeyRef;
-  fieldRef?: FieldRef;
-}
-
-export interface SecretKeyRef {
-  name: string;
-  key: string;
-}
-
-export interface ConfigMapKeyRef {
-  name: string;
-  key: string;
-}
-
-export interface FieldRef {
-  fieldPath: string;
-}
-
-export interface Volume {
-  name: string;
-  emptyDir?: Record<string, unknown>;
-  configMap?: { name: string };
-  secret?: { secretName: string };
-  persistentVolumeClaim?: { claimName: string };
+  roles?: string[];
+  resources?: ComputeResources;
 }
 
 export interface VolumeClaimTemplate {
   metadata?: { name: string };
   spec: {
     accessModes?: string[];
-    resources?: {
-      requests?: Record<string, string>;
+    resources: {
+      requests: {
+        storage: string;
+      };
     };
     storageClassName?: string;
   };
 }
 
-export interface Affinity {
-  nodeAffinity?: NodeAffinity;
-  podAffinity?: PodAffinity;
-  podAntiAffinity?: PodAntiAffinity;
-}
-
-export interface NodeAffinity {
-  requiredDuringSchedulingIgnoredDuringExecution?: {
-    nodeSelectorTerms: SelectorTerm[];
+export interface ComputeResources {
+  requests?: {
+    memory?: string;
+    cpu?: string;
   };
-  preferredDuringSchedulingIgnoredDuringExecution?: WeightedSelectorTerm[];
+  limits?: {
+    memory?: string;
+    cpu?: string;
+  };
 }
 
-export interface PodAffinity {
-  requiredDuringSchedulingIgnoredDuringExecution?: PodAffinityTerm[];
-  preferredDuringSchedulingIgnoredDuringExecution?: WeightedPodAffinityTerm[];
-}
-
-export interface PodAntiAffinity {
-  requiredDuringSchedulingIgnoredDuringExecution?: PodAffinityTerm[];
-  preferredDuringSchedulingIgnoredDuringExecution?: WeightedPodAffinityTerm[];
-}
-
-export interface SelectorTerm {
-  matchExpressions?: MatchExpression[];
-  matchFields?: MatchExpression[];
-}
-
-export interface WeightedSelectorTerm {
-  weight: number;
-  preference: SelectorTerm;
-}
-
-export interface MatchExpression {
-  key: string;
-  operator: string;
-  values?: string[];
-}
-
-export interface PodAffinityTerm {
-  labelSelector?: LabelSelector;
-  namespaces?: string[];
-  topologyKey: string;
-}
-
-export interface WeightedPodAffinityTerm {
-  weight: number;
-  podAffinityTerm: PodAffinityTerm;
-}
-
-export interface LabelSelector {
-  matchLabels?: Record<string, string>;
-  matchExpressions?: MatchExpression[];
-}
-
-export interface Toleration {
-  key?: string;
-  operator?: string;
-  value?: string;
-  effect?: string;
-  tolerationSeconds?: number;
-}
-
-export interface ElasticsearchStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  expectedNodes?: number;
-}
-
-// Kibana Types
-export interface KibanaInstance {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: KibanaSpec;
-  status?: KibanaStatus;
-}
-
-export interface KibanaSpec {
-  version: string;
-  count?: number;
-  elasticsearchRef?: ElasticsearchRef;
-  http?: HttpSettings;
-  podTemplate?: PodTemplate;
-}
-
-export interface ElasticsearchRef {
+export interface MonitoringRef {
   name: string;
   namespace?: string;
 }
 
-export interface KibanaStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  associationStatus?: AssociationStatus;
+export interface MonitoringSpec {
+  metrics?: {
+    elasticsearchRefs?: MonitoringRef[];
+  };
+  logs?: {
+    elasticsearchRefs?: MonitoringRef[];
+  };
 }
 
-export type AssociationStatus = 'Pending' | 'Established' | 'Failed';
+export interface RemoteCluster {
+  name: string;
+  host?: string;
+  seeds?: string[];
+  mode?: 'proxy' | 'sniff';
+  skipUnavailable?: boolean;
+}
 
-// APM Server Types
-export interface ApmServer {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: ApmServerSpec;
-  status?: ApmServerStatus;
+export interface ChangeBudget {
+  maxSurge?: number;
+  maxUnavailable?: number;
+}
+
+export interface UpdateStrategy {
+  changeBudget?: ChangeBudget;
+}
+
+export interface ElasticsearchSpec {
+  version: string;
+  nodeSets: NodeSet[];
+  http?: Record<string, unknown>;
+  transport?: Record<string, unknown>;
+  secureSettings?: Record<string, unknown>[];
+  image?: string;
+  monitoring?: MonitoringSpec;
+  remoteClusters?: RemoteCluster[];
+  updateStrategy?: UpdateStrategy;
+}
+
+export interface Elasticsearch extends BaseResource {
+  kind: 'Elasticsearch';
+  spec: ElasticsearchSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
+}
+
+export interface KibanaSpec {
+  version: string;
+  count: number;
+  elasticsearchRef: { name: string; namespace?: string };
+  http?: Record<string, unknown>;
+  podTemplate?: Record<string, unknown>;
+  image?: string;
+}
+
+export interface Kibana extends BaseResource {
+  kind: 'Kibana';
+  spec: KibanaSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
 }
 
 export interface ApmServerSpec {
   version: string;
-  count?: number;
-  elasticsearchRef?: ElasticsearchRef;
-  kibanaRef?: ElasticsearchRef;
-  http?: HttpSettings;
-  podTemplate?: PodTemplate;
+  count: number;
+  elasticsearchRef: { name: string; namespace?: string };
+  kibanaRef?: { name: string; namespace?: string };
+  http?: Record<string, unknown>;
+  podTemplate?: Record<string, unknown>;
+  image?: string;
+}
+
+export interface ApmServer extends BaseResource {
+  kind: 'ApmServer';
+  spec: ApmServerSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
+}
+
+export interface BeatSpec {
+  type: string;
+  version: string;
+  elasticsearchRef: { name: string; namespace?: string };
+  kibanaRef?: { name: string; namespace?: string };
   config?: Record<string, unknown>;
+  deployment?: { replicas: number; podTemplate?: Record<string, unknown> };
+  daemonSet?: { podTemplate?: Record<string, unknown> };
+  image?: string;
 }
 
-export interface ApmServerStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  secretTokenSecret?: string;
-}
-
-// Agent Types
-export interface ElasticAgent {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: AgentSpec;
-  status?: AgentStatus;
+export interface Beat extends BaseResource {
+  kind: 'Beat';
+  spec: BeatSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
 }
 
 export interface AgentSpec {
   version: string;
-  mode?: 'fleet' | 'standalone';
-  elasticsearchRefs?: ElasticsearchRef[];
-  fleetServerRef?: ElasticsearchRef;
-  kibanaRef?: ElasticsearchRef;
-  daemonSet?: DaemonSetSpec;
-  deployment?: DeploymentSpec;
+  elasticsearchRefs?: { name: string; namespace?: string }[];
+  kibanaRef?: { name: string; namespace?: string };
+  fleetServerRef?: { name: string; namespace?: string };
+  mode?: 'standalone' | 'fleet';
+  deployment?: { replicas: number; podTemplate?: Record<string, unknown> };
+  daemonSet?: { podTemplate?: Record<string, unknown> };
   config?: Record<string, unknown>;
+  image?: string;
 }
 
-export interface DaemonSetSpec {
-  podTemplate?: PodTemplate;
-}
-
-export interface DeploymentSpec {
-  replicas?: number;
-  podTemplate?: PodTemplate;
-}
-
-export interface AgentStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  expectedNodes?: number;
-}
-
-// Beat Types
-export interface Beat {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: BeatSpec;
-  status?: BeatStatus;
-}
-
-export interface BeatSpec {
-  type: string; // filebeat, metricbeat, etc.
-  version: string;
-  elasticsearchRef: ElasticsearchRef;
-  kibanaRef?: ElasticsearchRef;
-  config?: Record<string, unknown>;
-  daemonSet?: DaemonSetSpec;
-  deployment?: DeploymentSpec;
-}
-
-export interface BeatStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  expectedNodes?: number;
-}
-
-// Logstash Types
-export interface Logstash {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: LogstashSpec;
-  status?: LogstashStatus;
+export interface Agent extends BaseResource {
+  kind: 'Agent';
+  spec: AgentSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
 }
 
 export interface LogstashSpec {
   version: string;
   count: number;
-  elasticsearchRefs?: ElasticsearchRef[];
+  elasticsearchRefs?: { name: string; namespace?: string; clusterName?: string }[];
+  pipelines?: { pipeline: { id: string; config?: string } }[];
+  podTemplate?: Record<string, unknown>;
+  services?: Record<string, unknown>[];
   config?: Record<string, unknown>;
-  pipelines?: LogstashPipeline[];
-  podTemplate?: PodTemplate;
-  volumeClaimTemplates?: VolumeClaimTemplate[];
+  image?: string;
 }
 
-export interface LogstashPipeline {
-  pipeline?: {
-    id: string;
-    config?: {
-      string: string;
-    };
+export interface Logstash extends BaseResource {
+  kind: 'Logstash';
+  spec: LogstashSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
   };
-}
-
-export interface LogstashStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  expectedNodes?: number;
-}
-
-// Enterprise Search Types
-export interface EnterpriseSearch {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: EnterpriseSearchSpec;
-  status?: EnterpriseSearchStatus;
 }
 
 export interface EnterpriseSearchSpec {
   version: string;
   count: number;
-  elasticsearchRef?: ElasticsearchRef;
+  elasticsearchRef: { name: string; namespace?: string };
+  http?: Record<string, unknown>;
+  podTemplate?: Record<string, unknown>;
   config?: Record<string, unknown>;
-  podTemplate?: PodTemplate;
+  image?: string;
 }
 
-export interface EnterpriseSearchStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  expectedNodes?: number;
-  service?: string;
-}
-
-// Elastic Maps Server Types
-export interface ElasticMapsServer {
-  apiVersion?: string;
-  kind?: string;
-  metadata: ResourceMetadata;
-  spec: ElasticMapsServerSpec;
-  status?: ElasticMapsServerStatus;
+export interface EnterpriseSearch extends BaseResource {
+  kind: 'EnterpriseSearch';
+  spec: EnterpriseSearchSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
 }
 
 export interface ElasticMapsServerSpec {
   version: string;
   count: number;
-  elasticsearchRef?: ElasticsearchRef;
+  elasticsearchRef: { name: string; namespace?: string };
+  http?: Record<string, unknown>;
+  podTemplate?: Record<string, unknown>;
   config?: Record<string, unknown>;
-  podTemplate?: PodTemplate;
+  image?: string;
 }
 
-export interface ElasticMapsServerStatus {
-  health: HealthStatus;
-  phase: Phase;
-  version?: string;
-  availableNodes?: number;
-  expectedNodes?: number;
-  service?: string;
+export interface ElasticMapsServer extends BaseResource {
+  kind: 'ElasticMapsServer';
+  spec: ElasticMapsServerSpec;
+  status?: ResourceStatus & {
+    availableNodes: number;
+    expectedNodes: number;
+  };
 }
 
-// Kubernetes Event Types
-export interface KubernetesEvent {
+export type ECKResource =
+  | Elasticsearch
+  | Kibana
+  | ApmServer
+  | Beat
+  | Agent
+  | Logstash
+  | EnterpriseSearch
+  | ElasticMapsServer;
+
+export type ResourceType =
+  | 'elasticsearch'
+  | 'kibana'
+  | 'apm'
+  | 'beat'
+  | 'agent'
+  | 'logstash'
+  | 'enterprise-search'
+  | 'maps'
+  | 'stackconfigpolicy'
+  | 'elasticsearchautoscaler';
+
+export interface ResourceList<T extends BaseResource = BaseResource> {
+  items: T[];
+  total: number;
+}
+
+export interface ResourceEvent {
   type: 'Normal' | 'Warning';
   reason: string;
   message: string;
-  firstTimestamp?: string;
-  lastTimestamp?: string;
-  count?: number;
-  source?: {
-    component?: string;
-    host?: string;
-  };
-  involvedObject: {
-    kind: string;
-    name: string;
-    namespace: string;
-  };
+  firstTimestamp: string;
+  lastTimestamp: string;
+  count: number;
+  source: { component: string };
+}
+
+export interface ResourceSummary {
+  type: ResourceType;
+  total: number;
+  healthy: number;
+  warning: number;
+  critical: number;
+}
+
+export interface ApiError {
+  status: number;
+  message: string;
+  details?: string;
 }

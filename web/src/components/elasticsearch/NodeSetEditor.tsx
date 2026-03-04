@@ -1,97 +1,265 @@
-// Node Set Editor Component
-import { useState } from 'react';
 import {
-  EuiPanel,
-  EuiTitle,
-  EuiSpacer,
   EuiFlexGroup,
   EuiFlexItem,
   EuiFormRow,
   EuiFieldText,
   EuiFieldNumber,
-  EuiSelect,
-  EuiCheckboxGroup,
+  EuiComboBox,
   EuiButton,
   EuiButtonIcon,
-  EuiAccordion,
-  EuiBadge,
-  EuiText,
-  EuiCallOut,
+  EuiPanel,
+  EuiSpacer,
+  EuiTitle,
+  EuiSelect,
+  type EuiComboBoxOptionOption,
 } from '@elastic/eui';
-import type { NodeSet } from '../../types/resources';
 
-interface NodeSetEditorProps {
-  nodeSets: NodeSetFormData[];
-  onChange: (nodeSets: NodeSetFormData[]) => void;
-  errors?: Record<string, string>;
-}
-
-export interface NodeSetFormData {
+export interface NodeSetConfig {
   name: string;
   count: number;
   roles: string[];
+  memoryRequest: string;
+  cpuRequest: string;
   memoryLimit: string;
   cpuLimit: string;
   storageSize: string;
   storageClass: string;
 }
 
-// Available Elasticsearch node roles
-const availableRoles = [
-  { id: 'master', label: 'Master' },
-  { id: 'data', label: 'Data' },
-  { id: 'data_hot', label: 'Data Hot' },
-  { id: 'data_warm', label: 'Data Warm' },
-  { id: 'data_cold', label: 'Data Cold' },
-  { id: 'ingest', label: 'Ingest' },
-  { id: 'ml', label: 'Machine Learning' },
-  { id: 'transform', label: 'Transform' },
-  { id: 'remote_cluster_client', label: 'Remote Cluster Client' },
+const AVAILABLE_ROLES: EuiComboBoxOptionOption[] = [
+  { label: 'master' },
+  { label: 'data' },
+  { label: 'data_content' },
+  { label: 'data_hot' },
+  { label: 'data_warm' },
+  { label: 'data_cold' },
+  { label: 'data_frozen' },
+  { label: 'ingest' },
+  { label: 'ml' },
+  { label: 'remote_cluster_client' },
+  { label: 'transform' },
+  { label: 'coordinating_only' },
 ];
 
-// Common memory options
-const memoryOptions = [
-  { value: '512Mi', text: '512 MiB' },
-  { value: '1Gi', text: '1 GiB' },
-  { value: '2Gi', text: '2 GiB' },
-  { value: '4Gi', text: '4 GiB' },
-  { value: '8Gi', text: '8 GiB' },
-  { value: '16Gi', text: '16 GiB' },
-  { value: '32Gi', text: '32 GiB' },
-  { value: '64Gi', text: '64 GiB' },
+const STORAGE_CLASSES = [
+  { value: '', text: 'Default' },
+  { value: 'standard', text: 'Standard' },
+  { value: 'premium', text: 'Premium' },
+  { value: 'ssd', text: 'SSD' },
 ];
 
-// Common storage options
-const storageOptions = [
-  { value: '10Gi', text: '10 GiB' },
-  { value: '50Gi', text: '50 GiB' },
-  { value: '100Gi', text: '100 GiB' },
-  { value: '250Gi', text: '250 GiB' },
-  { value: '500Gi', text: '500 GiB' },
-  { value: '1Ti', text: '1 TiB' },
-  { value: '2Ti', text: '2 TiB' },
-];
+interface NodeSetEditorProps {
+  nodeSets: NodeSetConfig[];
+  onChange: (nodeSets: NodeSetConfig[]) => void;
+}
 
-// Default node set
-export function createDefaultNodeSet(index: number): NodeSetFormData {
+function emptyNodeSet(): NodeSetConfig {
   return {
-    name: `nodeset-${index}`,
-    count: 3,
-    roles: ['master', 'data'],
+    name: '',
+    count: 1,
+    roles: ['master', 'data', 'ingest'],
+    memoryRequest: '2Gi',
+    cpuRequest: '1',
     memoryLimit: '2Gi',
     cpuLimit: '1',
-    storageSize: '50Gi',
+    storageSize: '10Gi',
     storageClass: '',
   };
 }
 
-// Convert form data to K8s-compatible NodeSet
-export function nodeSetFormToSpec(formData: NodeSetFormData): NodeSet {
-  return {
-    name: formData.name,
-    count: formData.count,
+export function NodeSetEditor({ nodeSets, onChange }: NodeSetEditorProps) {
+  const updateNodeSet = (index: number, updates: Partial<NodeSetConfig>) => {
+    const updated = nodeSets.map((ns, i) =>
+      i === index ? { ...ns, ...updates } : ns,
+    );
+    onChange(updated);
+  };
+
+  const addNodeSet = () => {
+    onChange([...nodeSets, emptyNodeSet()]);
+  };
+
+  const removeNodeSet = (index: number) => {
+    if (nodeSets.length <= 1) return;
+    onChange(nodeSets.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div>
+      {nodeSets.map((nodeSet, index) => (
+        <EuiPanel key={index} paddingSize="m" hasBorder style={{ marginBottom: 16 }}>
+          <EuiFlexGroup justifyContent="spaceBetween" alignItems="center">
+            <EuiFlexItem grow={false}>
+              <EuiTitle size="xxs">
+                <h4>NodeSet {index + 1}</h4>
+              </EuiTitle>
+            </EuiFlexItem>
+            {nodeSets.length > 1 && (
+              <EuiFlexItem grow={false}>
+                <EuiButtonIcon
+                  iconType="trash"
+                  color="danger"
+                  onClick={() => removeNodeSet(index)}
+                  aria-label={`Remove NodeSet ${index + 1}`}
+                />
+              </EuiFlexItem>
+            )}
+          </EuiFlexGroup>
+          <EuiSpacer size="m" />
+
+          <EuiFlexGroup>
+            <EuiFlexItem>
+              <EuiFormRow label="Name" helpText="Unique name for this node set">
+                <EuiFieldText
+                  value={nodeSet.name}
+                  onChange={(e) =>
+                    updateNodeSet(index, { name: e.target.value })
+                  }
+                  placeholder="e.g. data-hot"
+                  aria-label="NodeSet name"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+            <EuiFlexItem grow={false} style={{ width: 120 }}>
+              <EuiFormRow label="Count">
+                <EuiFieldNumber
+                  value={nodeSet.count}
+                  onChange={(e) =>
+                    updateNodeSet(index, {
+                      count: parseInt(e.target.value, 10) || 1,
+                    })
+                  }
+                  min={1}
+                  aria-label="Node count"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+          </EuiFlexGroup>
+
+          <EuiSpacer size="m" />
+
+          <EuiFormRow label="Roles" fullWidth>
+            <EuiComboBox
+              options={AVAILABLE_ROLES}
+              selectedOptions={nodeSet.roles.map((r) => ({ label: r }))}
+              onChange={(selected) =>
+                updateNodeSet(index, {
+                  roles: selected.map((s) => s.label),
+                })
+              }
+              isClearable
+              fullWidth
+              aria-label="Node roles"
+            />
+          </EuiFormRow>
+
+          <EuiSpacer size="m" />
+
+          <EuiTitle size="xxxs">
+            <h5>Resources</h5>
+          </EuiTitle>
+          <EuiSpacer size="s" />
+
+          <EuiFlexGroup>
+            <EuiFlexItem>
+              <EuiFormRow label="Memory request">
+                <EuiFieldText
+                  value={nodeSet.memoryRequest}
+                  onChange={(e) =>
+                    updateNodeSet(index, { memoryRequest: e.target.value })
+                  }
+                  placeholder="2Gi"
+                  aria-label="Memory request"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+            <EuiFlexItem>
+              <EuiFormRow label="CPU request">
+                <EuiFieldText
+                  value={nodeSet.cpuRequest}
+                  onChange={(e) =>
+                    updateNodeSet(index, { cpuRequest: e.target.value })
+                  }
+                  placeholder="1"
+                  aria-label="CPU request"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+            <EuiFlexItem>
+              <EuiFormRow label="Memory limit">
+                <EuiFieldText
+                  value={nodeSet.memoryLimit}
+                  onChange={(e) =>
+                    updateNodeSet(index, { memoryLimit: e.target.value })
+                  }
+                  placeholder="2Gi"
+                  aria-label="Memory limit"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+            <EuiFlexItem>
+              <EuiFormRow label="CPU limit">
+                <EuiFieldText
+                  value={nodeSet.cpuLimit}
+                  onChange={(e) =>
+                    updateNodeSet(index, { cpuLimit: e.target.value })
+                  }
+                  placeholder="1"
+                  aria-label="CPU limit"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+          </EuiFlexGroup>
+
+          <EuiSpacer size="m" />
+
+          <EuiTitle size="xxxs">
+            <h5>Storage</h5>
+          </EuiTitle>
+          <EuiSpacer size="s" />
+
+          <EuiFlexGroup>
+            <EuiFlexItem>
+              <EuiFormRow label="Storage size">
+                <EuiFieldText
+                  value={nodeSet.storageSize}
+                  onChange={(e) =>
+                    updateNodeSet(index, { storageSize: e.target.value })
+                  }
+                  placeholder="10Gi"
+                  aria-label="Storage size"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+            <EuiFlexItem>
+              <EuiFormRow label="Storage class">
+                <EuiSelect
+                  options={STORAGE_CLASSES}
+                  value={nodeSet.storageClass}
+                  onChange={(e) =>
+                    updateNodeSet(index, { storageClass: e.target.value })
+                  }
+                  aria-label="Storage class"
+                />
+              </EuiFormRow>
+            </EuiFlexItem>
+          </EuiFlexGroup>
+        </EuiPanel>
+      ))}
+
+      <EuiButton iconType="plusInCircle" onClick={addNodeSet} size="s">
+        Add NodeSet
+      </EuiButton>
+    </div>
+  );
+}
+
+export function nodeSetConfigsToSpec(configs: NodeSetConfig[]) {
+  return configs.map((ns) => ({
+    name: ns.name,
+    count: ns.count,
     config: {
-      'node.roles': formData.roles,
+      'node.roles': ns.roles,
     },
     podTemplate: {
       spec: {
@@ -99,245 +267,61 @@ export function nodeSetFormToSpec(formData: NodeSetFormData): NodeSet {
           {
             name: 'elasticsearch',
             resources: {
-              limits: {
-                memory: formData.memoryLimit,
-                cpu: formData.cpuLimit,
-              },
               requests: {
-                memory: formData.memoryLimit,
-                cpu: formData.cpuLimit,
+                memory: ns.memoryRequest,
+                cpu: ns.cpuRequest,
+              },
+              limits: {
+                memory: ns.memoryLimit,
+                cpu: ns.cpuLimit,
               },
             },
           },
         ],
       },
     },
-    volumeClaimTemplates: formData.storageSize
-      ? [
-          {
-            metadata: { name: 'elasticsearch-data' },
-            spec: {
-              accessModes: ['ReadWriteOnce'],
-              resources: {
-                requests: {
-                  storage: formData.storageSize,
-                },
-              },
-              storageClassName: formData.storageClass || undefined,
+    volumeClaimTemplates: [
+      {
+        metadata: { name: 'elasticsearch-data' },
+        spec: {
+          accessModes: ['ReadWriteOnce'],
+          resources: {
+            requests: {
+              storage: ns.storageSize,
             },
           },
-        ]
-      : undefined,
-  };
+          ...(ns.storageClass
+            ? { storageClassName: ns.storageClass }
+            : {}),
+        },
+      },
+    ],
+  }));
 }
 
-// Convert K8s NodeSet to form data
-export function specToNodeSetForm(nodeSet: NodeSet): NodeSetFormData {
-  const container = nodeSet.podTemplate?.spec?.containers?.find((c) => c.name === 'elasticsearch');
-  const storage = nodeSet.volumeClaimTemplates?.[0]?.spec?.resources?.requests?.storage;
-  const storageClass = nodeSet.volumeClaimTemplates?.[0]?.spec?.storageClassName;
+export function specToNodeSetConfigs(
+  nodeSets: { name: string; count: number; config?: Record<string, unknown>; podTemplate?: Record<string, unknown>; volumeClaimTemplates?: { spec: { resources: { requests: { storage: string } }; storageClassName?: string } }[] }[],
+): NodeSetConfig[] {
+  return nodeSets.map((ns) => {
+    const roles = (
+      (ns.config?.['node.roles'] as string[]) || ['master', 'data', 'ingest']
+    );
+    const podSpec = ns.podTemplate as
+      | { spec?: { containers?: { resources?: { requests?: { memory?: string; cpu?: string }; limits?: { memory?: string; cpu?: string } } }[] } }
+      | undefined;
+    const container = podSpec?.spec?.containers?.[0];
+    const vct = ns.volumeClaimTemplates?.[0];
 
-  return {
-    name: nodeSet.name,
-    count: nodeSet.count,
-    roles: (nodeSet.config?.['node.roles'] as string[]) || ['master', 'data'],
-    memoryLimit: container?.resources?.limits?.memory || '2Gi',
-    cpuLimit: container?.resources?.limits?.cpu || '1',
-    storageSize: storage || '50Gi',
-    storageClass: storageClass || '',
-  };
-}
-
-export function NodeSetEditor({ nodeSets, onChange, errors = {} }: NodeSetEditorProps) {
-  const [openAccordions, setOpenAccordions] = useState<Set<number>>(
-    new Set(nodeSets.length > 0 ? [0] : [])
-  );
-
-  const addNodeSet = () => {
-    const newNodeSet = createDefaultNodeSet(nodeSets.length);
-    const newIndex = nodeSets.length;
-    onChange([...nodeSets, newNodeSet]);
-    setOpenAccordions(new Set([newIndex]));
-  };
-
-  const removeNodeSet = (index: number) => {
-    onChange(nodeSets.filter((_, i) => i !== index));
-  };
-
-  const updateNodeSet = (index: number, updates: Partial<NodeSetFormData>) => {
-    onChange(nodeSets.map((ns, i) => (i === index ? { ...ns, ...updates } : ns)));
-  };
-
-  const toggleAccordion = (index: number) => {
-    const newOpen = new Set(openAccordions);
-    if (newOpen.has(index)) {
-      newOpen.delete(index);
-    } else {
-      newOpen.add(index);
-    }
-    setOpenAccordions(newOpen);
-  };
-
-  const getTotalNodes = () => nodeSets.reduce((sum, ns) => sum + ns.count, 0);
-
-  return (
-    <div>
-      <EuiFlexGroup justifyContent="spaceBetween" alignItems="center">
-        <EuiFlexItem grow={false}>
-          <EuiTitle size="xs">
-            <h4>
-              Node Sets ({nodeSets.length}) • {getTotalNodes()} total nodes
-            </h4>
-          </EuiTitle>
-        </EuiFlexItem>
-        <EuiFlexItem grow={false}>
-          <EuiButton size="s" iconType="plus" onClick={addNodeSet}>
-            Add node set
-          </EuiButton>
-        </EuiFlexItem>
-      </EuiFlexGroup>
-
-      <EuiSpacer size="m" />
-
-      {nodeSets.length === 0 && (
-        <EuiCallOut title="No node sets" iconType="iInCircle">
-          <p>Add at least one node set to define your cluster topology.</p>
-        </EuiCallOut>
-      )}
-
-      {nodeSets.map((nodeSet, index) => (
-        <EuiPanel key={`nodeset-${index}`} paddingSize="m" hasShadow={false} hasBorder>
-          <EuiAccordion
-            id={`nodeset-accordion-${index}`}
-            buttonContent={
-              <EuiFlexGroup alignItems="center" gutterSize="s">
-                <EuiFlexItem grow={false}>
-                  <strong>{nodeSet.name}</strong>
-                </EuiFlexItem>
-                <EuiFlexItem grow={false}>
-                  <EuiBadge>{nodeSet.count} nodes</EuiBadge>
-                </EuiFlexItem>
-                <EuiFlexItem grow={false}>
-                  <EuiText size="xs" color="subdued">
-                    {nodeSet.roles.join(', ')}
-                  </EuiText>
-                </EuiFlexItem>
-              </EuiFlexGroup>
-            }
-            extraAction={
-              nodeSets.length > 1 && (
-                <EuiButtonIcon
-                  iconType="trash"
-                  color="danger"
-                  aria-label="Remove node set"
-                  onClick={() => removeNodeSet(index)}
-                />
-              )
-            }
-            forceState={openAccordions.has(index) ? 'open' : 'closed'}
-            onToggle={() => toggleAccordion(index)}
-            paddingSize="m"
-          >
-            <EuiSpacer size="m" />
-
-            <EuiFlexGroup>
-              <EuiFlexItem>
-                <EuiFormRow
-                  label="Name"
-                  helpText="Unique identifier for this node set"
-                  isInvalid={!!errors[`nodeSets.${index}.name`]}
-                  error={errors[`nodeSets.${index}.name`]}
-                >
-                  <EuiFieldText
-                    value={nodeSet.name}
-                    onChange={(e) => updateNodeSet(index, { name: e.target.value })}
-                    isInvalid={!!errors[`nodeSets.${index}.name`]}
-                  />
-                </EuiFormRow>
-              </EuiFlexItem>
-              <EuiFlexItem grow={false}>
-                <EuiFormRow
-                  label="Count"
-                  helpText="Number of nodes"
-                  isInvalid={!!errors[`nodeSets.${index}.count`]}
-                  error={errors[`nodeSets.${index}.count`]}
-                >
-                  <EuiFieldNumber
-                    value={nodeSet.count}
-                    min={1}
-                    max={100}
-                    onChange={(e) => updateNodeSet(index, { count: parseInt(e.target.value) || 1 })}
-                    style={{ width: 100 }}
-                    isInvalid={!!errors[`nodeSets.${index}.count`]}
-                  />
-                </EuiFormRow>
-              </EuiFlexItem>
-            </EuiFlexGroup>
-
-            <EuiSpacer size="m" />
-
-            <EuiFormRow label="Node Roles" helpText="Select the roles for nodes in this set">
-              <EuiCheckboxGroup
-                options={availableRoles}
-                idToSelectedMap={Object.fromEntries(
-                  availableRoles.map((r) => [r.id, nodeSet.roles.includes(r.id)])
-                )}
-                onChange={(optionId) => {
-                  const newRoles = nodeSet.roles.includes(optionId)
-                    ? nodeSet.roles.filter((r) => r !== optionId)
-                    : [...nodeSet.roles, optionId];
-                  updateNodeSet(index, { roles: newRoles });
-                }}
-              />
-            </EuiFormRow>
-
-            <EuiSpacer size="m" />
-
-            <EuiFlexGroup>
-              <EuiFlexItem>
-                <EuiFormRow label="Memory Limit" helpText="JVM heap size">
-                  <EuiSelect
-                    options={memoryOptions}
-                    value={nodeSet.memoryLimit}
-                    onChange={(e) => updateNodeSet(index, { memoryLimit: e.target.value })}
-                  />
-                </EuiFormRow>
-              </EuiFlexItem>
-              <EuiFlexItem>
-                <EuiFormRow label="CPU Limit" helpText="CPU cores">
-                  <EuiFieldText
-                    value={nodeSet.cpuLimit}
-                    onChange={(e) => updateNodeSet(index, { cpuLimit: e.target.value })}
-                  />
-                </EuiFormRow>
-              </EuiFlexItem>
-            </EuiFlexGroup>
-
-            <EuiSpacer size="m" />
-
-            <EuiFlexGroup>
-              <EuiFlexItem>
-                <EuiFormRow label="Storage Size" helpText="Persistent volume size">
-                  <EuiSelect
-                    options={storageOptions}
-                    value={nodeSet.storageSize}
-                    onChange={(e) => updateNodeSet(index, { storageSize: e.target.value })}
-                  />
-                </EuiFormRow>
-              </EuiFlexItem>
-              <EuiFlexItem>
-                <EuiFormRow label="Storage Class" helpText="Leave empty for default">
-                  <EuiFieldText
-                    value={nodeSet.storageClass}
-                    onChange={(e) => updateNodeSet(index, { storageClass: e.target.value })}
-                    placeholder="default"
-                  />
-                </EuiFormRow>
-              </EuiFlexItem>
-            </EuiFlexGroup>
-          </EuiAccordion>
-        </EuiPanel>
-      ))}
-    </div>
-  );
+    return {
+      name: ns.name,
+      count: ns.count,
+      roles,
+      memoryRequest: container?.resources?.requests?.memory || '2Gi',
+      cpuRequest: container?.resources?.requests?.cpu || '1',
+      memoryLimit: container?.resources?.limits?.memory || '2Gi',
+      cpuLimit: container?.resources?.limits?.cpu || '1',
+      storageSize: vct?.spec?.resources?.requests?.storage || '10Gi',
+      storageClass: vct?.spec?.storageClassName || '',
+    };
+  });
 }

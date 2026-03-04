@@ -1,443 +1,59 @@
-// Elastic Agent Detail Page
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
-  EuiPageTemplate,
-  EuiPageHeader,
-  EuiButton,
-  EuiButtonEmpty,
-  EuiPanel,
-  EuiTitle,
-  EuiSpacer,
-  EuiFlexGroup,
-  EuiFlexItem,
-  EuiDescriptionList,
-  EuiBadge,
-  EuiHealth,
-  EuiCallOut,
-  EuiCodeBlock,
-  EuiTabbedContent,
-  EuiLink,
-  EuiIcon,
-  EuiText,
-  EuiConfirmModal,
+  EuiPageHeader, EuiSpacer, EuiTabbedContent, EuiDescriptionList, EuiHealth, EuiBadge, EuiPanel,
+  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiCallOut, EuiText, EuiTitle,
+  type EuiTabbedContentTab,
 } from '@elastic/eui';
-import { useAgentDetail, useDeleteAgent } from '../../hooks/useResources';
-import type { ElasticAgent } from '../../types/resources';
+import { useResource, useDeleteResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
-import jsYaml from 'js-yaml';
+import type { Agent, HealthStatus } from '../../types/resources';
 
-const healthColors: Record<string, string> = {
-  green: 'success',
-  yellow: 'warning',
-  red: 'danger',
-  unknown: 'subdued',
-};
-
-const modeColors: Record<string, string> = {
-  fleet: 'primary',
-  standalone: 'default',
-};
+const HEALTH_COLORS: Record<HealthStatus, string> = { green: 'success', yellow: 'warning', red: 'danger', unknown: 'subdued' };
 
 export function AgentDetailPage() {
-  const { namespace = '', name = '' } = useParams();
+  const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
+  const [showDelete, setShowDelete] = useState(false);
+  const { data: resource, isLoading, error } = useResource<Agent>('agent', namespace || '', name || '');
+  const deleteMutation = useDeleteResource('agent');
 
-  const { data: rawAgent, isLoading, error } = useAgentDetail(namespace, name);
-  const deleteMutation = useDeleteAgent();
+  if (isLoading) return <DetailSkeleton />;
+  if (error || !resource) return <EuiCallOut title="Failed to load Agent" color="danger" iconType="error">{error?.message || 'Not found'}</EuiCallOut>;
 
-  const agent = rawAgent as ElasticAgent | undefined;
+  const health = resource.status?.health || 'unknown';
+  const phase = resource.status?.phase || 'Unknown';
+  const handleDelete = async () => { if (namespace && name) { await deleteMutation.mutateAsync({ namespace, name }); navigate('/agent'); } };
 
-  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+  const overviewItems = [
+    { title: 'Name', description: resource.metadata.name },
+    { title: 'Namespace', description: resource.metadata.namespace },
+    { title: 'Version', description: resource.spec.version },
+    { title: 'Mode', description: resource.spec.mode || 'standalone' },
+    { title: 'Health', description: <EuiHealth color={HEALTH_COLORS[health]}>{health}</EuiHealth> },
+    { title: 'Phase', description: <EuiBadge color={phase === 'Ready' ? 'success' : 'default'}>{phase}</EuiBadge> },
+    { title: 'Created', description: new Date(resource.metadata.creationTimestamp).toLocaleString() },
+  ];
 
-  const handleDelete = async () => {
-    try {
-      await deleteMutation.mutateAsync({ namespace, name });
-      navigate('/agent');
-    } catch (err) {
-      console.error('Delete failed:', err);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <EuiPageTemplate>
-        <DetailSkeleton />
-      </EuiPageTemplate>
-    );
-  }
-
-  if (error || !agent) {
-    return (
-      <EuiPageTemplate>
-        <EuiCallOut title="Error loading Agent" color="danger" iconType="error">
-          <p>{error instanceof Error ? error.message : 'Agent not found'}</p>
-          <EuiButton onClick={() => navigate('/agent')}>Back to list</EuiButton>
-        </EuiCallOut>
-      </EuiPageTemplate>
-    );
-  }
-
-  const health = agent.status?.health || 'unknown';
-  const phase = agent.status?.phase || 'Unknown';
-  const version = agent.spec.version;
-  const mode = agent.spec.mode || 'standalone';
-  const isFleetMode = mode === 'fleet';
-
-  const yamlContent = jsYaml.dump(agent, { indent: 2, lineWidth: -1 });
-
-  // Overview tab
-  const overviewTab = {
-    id: 'overview',
-    name: 'Overview',
-    content: (
-      <>
-        <EuiSpacer size="m" />
-        <EuiFlexGroup>
-          <EuiFlexItem grow={2}>
-            <EuiPanel>
-              <EuiTitle size="xs">
-                <h3>Status</h3>
-              </EuiTitle>
-              <EuiSpacer size="m" />
-              <EuiDescriptionList
-                type="column"
-                columnWidths={[150, 'auto']}
-                listItems={[
-                  {
-                    title: 'Health',
-                    description: (
-                      <EuiHealth color={healthColors[health]}>
-                        {health.charAt(0).toUpperCase() + health.slice(1)}
-                      </EuiHealth>
-                    ),
-                  },
-                  {
-                    title: 'Phase',
-                    description: (
-                      <EuiBadge color={phase === 'Ready' ? 'success' : 'warning'}>{phase}</EuiBadge>
-                    ),
-                  },
-                  { title: 'Version', description: version },
-                  {
-                    title: 'Mode',
-                    description: (
-                      <EuiBadge color={modeColors[mode]}>
-                        {isFleetMode ? 'Fleet Managed' : 'Standalone'}
-                      </EuiBadge>
-                    ),
-                  },
-                  {
-                    title: 'Available',
-                    description: String(agent.status?.availableNodes ?? 0),
-                  },
-                  {
-                    title: 'Expected',
-                    description: String(agent.status?.expectedNodes ?? 0),
-                  },
-                ]}
-              />
-            </EuiPanel>
-          </EuiFlexItem>
-
-          <EuiFlexItem grow={2}>
-            <EuiPanel>
-              <EuiTitle size="xs">
-                <h3>Associations</h3>
-              </EuiTitle>
-              <EuiSpacer size="m" />
-              <EuiDescriptionList
-                type="column"
-                columnWidths={[150, 'auto']}
-                listItems={[
-                  {
-                    title: 'Elasticsearch',
-                    description: agent.spec.elasticsearchRefs?.length ? (
-                      agent.spec.elasticsearchRefs.map((ref, i) => {
-                        const ns = ref.namespace || namespace;
-                        return (
-                          <div key={i}>
-                            <EuiLink onClick={() => navigate(`/elasticsearch/${ns}/${ref.name}`)}>
-                              <EuiIcon type="logoElasticsearch" size="m" /> {ref.name}
-                            </EuiLink>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <EuiBadge color="hollow">None</EuiBadge>
-                    ),
-                  },
-                  {
-                    title: 'Fleet Server',
-                    description: agent.spec.fleetServerRef ? (
-                      <EuiLink
-                        onClick={() => {
-                          const ns = agent.spec.fleetServerRef?.namespace || namespace;
-                          navigate(`/agent/${ns}/${agent.spec.fleetServerRef?.name}`);
-                        }}
-                      >
-                        <EuiIcon type="fleetApp" size="m" /> {agent.spec.fleetServerRef.name}
-                      </EuiLink>
-                    ) : isFleetMode ? (
-                      <EuiBadge color="warning">Self (Fleet Server)</EuiBadge>
-                    ) : (
-                      <EuiBadge color="hollow">N/A</EuiBadge>
-                    ),
-                  },
-                  {
-                    title: 'Kibana',
-                    description: agent.spec.kibanaRef ? (
-                      <EuiLink
-                        onClick={() => {
-                          const ns = agent.spec.kibanaRef?.namespace || namespace;
-                          navigate(`/kibana/${ns}/${agent.spec.kibanaRef?.name}`);
-                        }}
-                      >
-                        <EuiIcon type="logoKibana" size="m" /> {agent.spec.kibanaRef.name}
-                      </EuiLink>
-                    ) : (
-                      <EuiBadge color="hollow">None</EuiBadge>
-                    ),
-                  },
-                ]}
-              />
-            </EuiPanel>
-          </EuiFlexItem>
-
-          <EuiFlexItem grow={1}>
-            <EuiPanel>
-              <EuiTitle size="xs">
-                <h3>Metadata</h3>
-              </EuiTitle>
-              <EuiSpacer size="m" />
-              <EuiDescriptionList
-                type="column"
-                columnWidths={[100, 'auto']}
-                listItems={[
-                  { title: 'Name', description: name },
-                  {
-                    title: 'Namespace',
-                    description: <EuiBadge color="hollow">{namespace}</EuiBadge>,
-                  },
-                  {
-                    title: 'Created',
-                    description: agent.metadata.creationTimestamp
-                      ? new Date(agent.metadata.creationTimestamp).toLocaleString()
-                      : 'Unknown',
-                  },
-                ]}
-              />
-            </EuiPanel>
-          </EuiFlexItem>
-        </EuiFlexGroup>
-      </>
-    ),
-  };
-
-  // Deployment tab
-  const deploymentTab = {
-    id: 'deployment',
-    name: 'Deployment',
-    content: (
-      <>
-        <EuiSpacer size="m" />
-        <EuiPanel>
-          <EuiTitle size="xs">
-            <h3>Deployment Configuration</h3>
-          </EuiTitle>
-          <EuiSpacer size="m" />
-
-          {agent.spec.daemonSet && (
-            <>
-              <EuiCallOut title="DaemonSet Mode" color="primary" iconType="cluster">
-                <EuiText size="s">
-                  <p>This agent runs as a DaemonSet, deploying one pod per node in the cluster.</p>
-                </EuiText>
-              </EuiCallOut>
-              <EuiSpacer size="m" />
-              {agent.spec.daemonSet.podTemplate && (
-                <EuiCodeBlock language="yaml" fontSize="s" paddingSize="m">
-                  {jsYaml.dump(agent.spec.daemonSet.podTemplate, { indent: 2 })}
-                </EuiCodeBlock>
-              )}
-            </>
-          )}
-
-          {agent.spec.deployment && (
-            <>
-              <EuiCallOut title="Deployment Mode" color="primary" iconType="compute">
-                <EuiText size="s">
-                  <p>
-                    This agent runs as a Deployment with {agent.spec.deployment.replicas || 1}{' '}
-                    replica(s).
-                  </p>
-                </EuiText>
-              </EuiCallOut>
-              <EuiSpacer size="m" />
-              <EuiDescriptionList
-                type="column"
-                columnWidths={[150, 'auto']}
-                listItems={[
-                  {
-                    title: 'Replicas',
-                    description: String(agent.spec.deployment.replicas || 1),
-                  },
-                ]}
-              />
-              {agent.spec.deployment.podTemplate && (
-                <>
-                  <EuiSpacer size="m" />
-                  <EuiCodeBlock language="yaml" fontSize="s" paddingSize="m">
-                    {jsYaml.dump(agent.spec.deployment.podTemplate, { indent: 2 })}
-                  </EuiCodeBlock>
-                </>
-              )}
-            </>
-          )}
-
-          {!agent.spec.daemonSet && !agent.spec.deployment && (
-            <EuiCallOut title="No deployment configured" color="warning">
-              <p>Neither DaemonSet nor Deployment is configured for this agent.</p>
-            </EuiCallOut>
-          )}
-        </EuiPanel>
-      </>
-    ),
-  };
-
-  // Config tab
-  const configTab = {
-    id: 'config',
-    name: 'Configuration',
-    content: (
-      <>
-        <EuiSpacer size="m" />
-        <EuiPanel>
-          <EuiTitle size="xs">
-            <h3>Agent Configuration</h3>
-          </EuiTitle>
-          <EuiSpacer size="m" />
-
-          {isFleetMode ? (
-            <EuiCallOut title="Fleet Managed" color="primary" iconType="fleetApp">
-              <EuiText size="s">
-                <p>
-                  This agent is managed by Fleet. Configuration is controlled through Kibana Fleet
-                  policies rather than the ECK manifest.
-                </p>
-              </EuiText>
-            </EuiCallOut>
-          ) : agent.spec.config && Object.keys(agent.spec.config).length > 0 ? (
-            <EuiCodeBlock language="yaml" fontSize="s" paddingSize="m">
-              {jsYaml.dump(agent.spec.config, { indent: 2 })}
-            </EuiCodeBlock>
-          ) : (
-            <EuiCallOut title="No custom configuration" color="primary">
-              <p>This agent uses default configuration settings.</p>
-            </EuiCallOut>
-          )}
-        </EuiPanel>
-      </>
-    ),
-  };
-
-  // YAML tab
-  const yamlTab = {
-    id: 'yaml',
-    name: 'YAML',
-    content: (
-      <>
-        <EuiSpacer size="m" />
-        <EuiCodeBlock language="yaml" fontSize="s" paddingSize="m" isCopyable>
-          {yamlContent}
-        </EuiCodeBlock>
-      </>
-    ),
-  };
+  const tabs: EuiTabbedContentTab[] = [
+    { id: 'overview', name: 'Overview', content: <><EuiSpacer size="l" /><EuiPanel><EuiDescriptionList type="column" listItems={overviewItems} compressed /></EuiPanel></> },
+    { id: 'settings', name: 'Settings', content: <><EuiSpacer size="l" /><EuiPanel><EuiTitle size="xs"><h3>Specification</h3></EuiTitle><EuiSpacer size="m" /><EuiText size="s"><pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(resource.spec, null, 2)}</pre></EuiText></EuiPanel></> },
+  ];
 
   return (
-    <EuiPageTemplate>
-      <EuiPageHeader
-        pageTitle={name}
-        breadcrumbs={[
-          {
-            text: 'Elastic Agents',
-            href: '#',
-            onClick: (e) => {
-              e.preventDefault();
-              navigate('/agent');
-            },
-          },
-          { text: name },
-        ]}
-        description={
-          <EuiFlexGroup alignItems="center" gutterSize="s" responsive={false}>
-            <EuiFlexItem grow={false}>
-              <EuiBadge color="hollow">{namespace}</EuiBadge>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiHealth color={healthColors[health]}>{health}</EuiHealth>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiBadge color={modeColors[mode]}>{isFleetMode ? 'Fleet' : 'Standalone'}</EuiBadge>
-            </EuiFlexItem>
-            <EuiFlexItem grow={false}>
-              <EuiText size="s" color="subdued">
-                Version {version}
-              </EuiText>
-            </EuiFlexItem>
-          </EuiFlexGroup>
-        }
+    <>
+      <EuiPageHeader pageTitle={resource.metadata.name} iconType="logoSecurity" description={`Namespace: ${resource.metadata.namespace}`}
         rightSideItems={[
-          <EuiButton
-            key="edit"
-            iconType="pencil"
-            onClick={() => navigate(`/agent/${namespace}/${name}/edit`)}
-          >
-            Edit
-          </EuiButton>,
-          <EuiButtonEmpty
-            key="delete"
-            color="danger"
-            iconType="trash"
-            onClick={() => setIsDeleteModalVisible(true)}
-          >
-            Delete
-          </EuiButtonEmpty>,
-        ]}
-      />
-
-      <EuiPageTemplate.Section>
-        <EuiTabbedContent
-          tabs={[overviewTab, deploymentTab, configTab, yamlTab]}
-          initialSelectedTab={overviewTab}
-          autoFocus="selected"
-        />
-      </EuiPageTemplate.Section>
-
-      {isDeleteModalVisible && (
-        <EuiConfirmModal
-          title={`Delete ${name}?`}
-          onCancel={() => setIsDeleteModalVisible(false)}
-          onConfirm={handleDelete}
-          cancelButtonText="Cancel"
-          confirmButtonText="Delete"
-          buttonColor="danger"
-          defaultFocusedButton="cancel"
-          isLoading={deleteMutation.isPending}
-        >
-          <p>
-            This will permanently delete the Elastic Agent <strong>{name}</strong> in namespace{' '}
-            <strong>{namespace}</strong>.
-          </p>
-          {isFleetMode && (
-            <p>
-              <strong>Warning:</strong> This agent is in Fleet mode. Make sure to unenroll agents
-              from Fleet before deleting.
-            </p>
-          )}
+          <EuiButton key="edit" onClick={() => navigate(`/agent/${namespace}/${name}/edit`)}>Edit</EuiButton>,
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDelete(true)}>Delete</EuiButtonEmpty>,
+        ]} />
+      <EuiSpacer size="l" />
+      <EuiTabbedContent tabs={tabs} autoFocus="selected" />
+      {showDelete && (
+        <EuiConfirmModal title={`Delete ${resource.metadata.name}?`} onCancel={() => setShowDelete(false)} onConfirm={handleDelete} cancelButtonText="Cancel" confirmButtonText="Delete" buttonColor="danger" isLoading={deleteMutation.isPending}>
+          <p>This will permanently delete <strong>{resource.metadata.name}</strong>.</p>
         </EuiConfirmModal>
       )}
-    </EuiPageTemplate>
+    </>
   );
 }

@@ -1,4 +1,6 @@
 ---
+# Optional Ingress - apply separately when needed
+# Update the host and TLS configuration for your environment
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -6,15 +8,14 @@ metadata:
   namespace: eck-ui
   labels:
     app.kubernetes.io/name: eck-ui
-    app.kubernetes.io/component: ui
   annotations:
-    # Adjust these annotations based on your Ingress controller
+    # Uncomment and configure for your ingress controller
     # nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
 spec:
-  ingressClassName: nginx  # Change based on your Ingress controller
+  # ingressClassName: nginx
   rules:
-    - host: eck-ui.example.com  # Replace with your domain
+    - host: eck-ui.example.com
       http:
         paths:
           - path: /
@@ -24,7 +25,6 @@ spec:
                 name: eck-ui
                 port:
                   name: http
-  # Uncomment and configure for TLS
   # tls:
   #   - hosts:
   #       - eck-ui.example.com

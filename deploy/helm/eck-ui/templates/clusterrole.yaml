@@ -1,4 +1,3 @@
-{{- if .Values.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -6,48 +5,39 @@ metadata:
   labels:
     {{- include "eck-ui.labels" . | nindent 4 }}
 rules:
-  # Namespace access
-  - apiGroups: [""]
-    resources: ["namespaces"]
-    verbs: ["get", "list", "watch"]
-  # Pod/Event access
-  - apiGroups: [""]
-    resources: ["pods", "pods/log", "events"]
-    verbs: ["get", "list", "watch"]
-  # Secret access (for credentials)
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list"]
-  # Elasticsearch
-  - apiGroups: ["elasticsearch.k8s.elastic.co"]
-    resources: ["elasticsearches", "elasticsearches/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Kibana
-  - apiGroups: ["kibana.k8s.elastic.co"]
-    resources: ["kibanas", "kibanas/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # APM Server
-  - apiGroups: ["apm.k8s.elastic.co"]
-    resources: ["apmservers", "apmservers/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Elastic Agent
-  - apiGroups: ["agent.k8s.elastic.co"]
-    resources: ["agents", "agents/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Beat
-  - apiGroups: ["beat.k8s.elastic.co"]
-    resources: ["beats", "beats/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Enterprise Search
-  - apiGroups: ["enterprisesearch.k8s.elastic.co"]
-    resources: ["enterprisesearches", "enterprisesearches/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Elastic Maps Server
-  - apiGroups: ["maps.k8s.elastic.co"]
-    resources: ["elasticmapsservers", "elasticmapsservers/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Logstash
-  - apiGroups: ["logstash.k8s.elastic.co"]
-    resources: ["logstashes", "logstashes/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-{{- end }}
+  # ECK CRD resources - full access for management UI
+  - apiGroups:
+      - elasticsearch.k8s.elastic.co
+      - kibana.k8s.elastic.co
+      - apm.k8s.elastic.co
+      - beat.k8s.elastic.co
+      - agent.k8s.elastic.co
+      - maps.k8s.elastic.co
+      - logstash.k8s.elastic.co
+      - enterprisesearch.k8s.elastic.co
+      - autoscaling.k8s.elastic.co
+      - stackconfigpolicy.k8s.elastic.co
+    resources:
+      - "*"
+    verbs:
+      - "*"
+  # Core Kubernetes resources - read-only
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - events
+      - secrets
+      - services
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  # Authentication - token review for auth delegation
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create

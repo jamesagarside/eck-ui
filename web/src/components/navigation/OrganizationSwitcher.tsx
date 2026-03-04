@@ -2,116 +2,62 @@ import { useState } from 'react';
 import {
   EuiPopover,
   EuiButtonEmpty,
-  EuiListGroup,
-  EuiListGroupItem,
-  EuiIcon,
-  EuiFlexGroup,
-  EuiFlexItem,
-  EuiText,
-  EuiHorizontalRule,
-  EuiFieldSearch,
-  EuiSpacer,
+  EuiSelectable,
+  type EuiSelectableOption,
 } from '@elastic/eui';
-import { useOrganization } from '../../context/OrganizationContext';
+import { useAuthStore } from '../../stores/authStore';
 
 export function OrganizationSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const activeOrg = useAuthStore((s) => s.activeOrg);
+  const orgs = useAuthStore((s) => s.orgs);
+  const switchOrg = useAuthStore((s) => s.switchOrg);
 
-  const { organizations, currentOrganization, setCurrentOrganization, isLoading } =
-    useOrganization();
+  if (orgs.length <= 1) {
+    return null;
+  }
 
-  const filteredOrgs = organizations.filter((org) =>
-    org.name.toLowerCase().includes(searchValue.toLowerCase())
-  );
+  const options: EuiSelectableOption[] = orgs.map((org) => ({
+    label: org.name,
+    checked: org.name === activeOrg?.name ? 'on' : undefined,
+  }));
 
-  const button = (
-    <EuiButtonEmpty
-      iconType="arrowDown"
-      iconSide="right"
-      onClick={() => setIsOpen(!isOpen)}
-      size="s"
-    >
-      <EuiFlexGroup alignItems="center" gutterSize="s" responsive={false}>
-        <EuiFlexItem grow={false}>
-          <EuiIcon type="spaces" />
-        </EuiFlexItem>
-        <EuiFlexItem grow={false}>
-          <EuiText size="s">
-            <strong>{currentOrganization?.name ?? 'Select Organization'}</strong>
-          </EuiText>
-        </EuiFlexItem>
-      </EuiFlexGroup>
-    </EuiButtonEmpty>
-  );
+  const handleChange = (newOptions: EuiSelectableOption[]) => {
+    const selected = newOptions.find((opt) => opt.checked === 'on');
+    if (selected) {
+      switchOrg(selected.label);
+      setIsOpen(false);
+    }
+  };
 
   return (
     <EuiPopover
-      button={button}
+      button={
+        <EuiButtonEmpty
+          iconType="arrowDown"
+          iconSide="right"
+          onClick={() => setIsOpen(!isOpen)}
+          size="s"
+          aria-label="Switch organization"
+        >
+          {activeOrg?.name || 'Select organization'}
+        </EuiButtonEmpty>
+      }
       isOpen={isOpen}
       closePopover={() => setIsOpen(false)}
-      anchorPosition="downLeft"
-      panelPaddingSize="s"
+      panelPaddingSize="none"
+      anchorPosition="downRight"
     >
-      <div style={{ width: 280 }}>
-        <EuiFieldSearch
-          placeholder="Search organizations..."
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-          isClearable
-          compressed
-        />
-
-        <EuiSpacer size="s" />
-
-        <EuiListGroup flush gutterSize="none" maxWidth={false}>
-          {isLoading ? (
-            <EuiListGroupItem label="Loading..." isDisabled />
-          ) : filteredOrgs.length === 0 ? (
-            <EuiListGroupItem label="No organizations found" isDisabled />
-          ) : (
-            filteredOrgs.map((org) => (
-              <EuiListGroupItem
-                key={org.id}
-                label={
-                  <EuiFlexGroup alignItems="center" gutterSize="s" responsive={false}>
-                    <EuiFlexItem grow={false}>
-                      <EuiIcon
-                        type="check"
-                        color={currentOrganization?.id === org.id ? 'primary' : 'ghost'}
-                      />
-                    </EuiFlexItem>
-                    <EuiFlexItem>
-                      <EuiText size="s">{org.name}</EuiText>
-                    </EuiFlexItem>
-                    <EuiFlexItem grow={false}>
-                      <EuiText size="xs" color="subdued">
-                        {org.role}
-                      </EuiText>
-                    </EuiFlexItem>
-                  </EuiFlexGroup>
-                }
-                onClick={() => {
-                  setCurrentOrganization(org);
-                  setIsOpen(false);
-                  setSearchValue('');
-                }}
-                isActive={currentOrganization?.id === org.id}
-                size="s"
-              />
-            ))
-          )}
-        </EuiListGroup>
-
-        <EuiHorizontalRule margin="s" />
-
-        <EuiListGroupItem
-          iconType="plus"
-          label="Create organization"
-          href="/organizations/new"
-          size="s"
-        />
-      </div>
+      <EuiSelectable
+        singleSelection
+        options={options}
+        onChange={handleChange}
+        listProps={{ bordered: false }}
+        style={{ width: 240 }}
+        aria-label="Organization list"
+      >
+        {(list) => list}
+      </EuiSelectable>
     </EuiPopover>
   );
 }
