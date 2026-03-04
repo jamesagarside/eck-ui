@@ -3,17 +3,20 @@
 ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operator for deploying and managing the Elastic Stack. It handles complex orchestration (rolling upgrades, TLS, cluster topology changes) but requires users to interact via `kubectl` and YAML manifests.
 
 **Current state**: No UI exists for ECK. Users manage resources via:
+
 - kubectl apply/delete/patch commands
 - Hand-crafted YAML manifests
 - Third-party Kubernetes dashboards (generic, not ECK-aware)
 
 **Stakeholders**:
+
 - Platform teams deploying ECK for their organizations
 - Application developers needing self-service Elastic Stack deployments
 - Security/compliance teams requiring audit trails and RBAC
 - Operations teams monitoring cluster health
 
 **Constraints**:
+
 - Must use Elastic EUI for consistent branding
 - Must run as a container within Kubernetes
 - Must not bypass ECK operator (UI → K8s API → ECK operator → resources)
@@ -23,6 +26,7 @@ ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operato
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Provide a Cloud-like experience for ECK users
 - Enable self-service deployment without kubectl knowledge
 - Support multi-organization tenancy with RBAC
@@ -31,6 +35,7 @@ ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operato
 - Deploy as a single container with minimal dependencies
 
 **Non-Goals:**
+
 - Replacing the ECK operator (UI is a client, not a replacement)
 - Supporting non-ECK Elasticsearch deployments
 - Implementing a control plane (ECK is the control plane)
@@ -45,6 +50,7 @@ ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operato
 **Decision**: Use Go for the backend API server.
 
 **Rationale**:
+
 - Native Kubernetes client-go library with full CRD support
 - Same language as ECK operator, enabling code sharing
 - Strong typing for ECK CRD structures
@@ -52,6 +58,7 @@ ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operato
 - Single binary deployment
 
 **Alternatives considered**:
+
 - Node.js: Better frontend/backend code sharing, but weaker K8s client support
 - Rust: Performance overkill, steeper learning curve
 
@@ -60,12 +67,14 @@ ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operato
 **Decision**: React 18+ with Elastic EUI component library.
 
 **Rationale**:
+
 - EUI is React-native, provides Elastic branding out of the box
 - Large ecosystem for state management, routing, testing
 - TypeScript for type safety matching Go backend
 - Requirement from project brief
 
 **Alternatives considered**:
+
 - None (EUI requirement is fixed)
 
 ### D3: API Architecture → REST with OpenAPI
@@ -73,12 +82,14 @@ ECK (Elastic Cloud on Kubernetes) provides a production-grade Kubernetes operato
 **Decision**: RESTful API with OpenAPI 3.0 specification.
 
 **Rationale**:
+
 - Natural mapping to Kubernetes resource model (CRUD on resources)
 - OpenAPI enables automatic client generation, documentation
 - Simpler than GraphQL for resource-oriented operations
 - Better caching semantics with HTTP verbs
 
 **Alternatives considered**:
+
 - GraphQL: More flexible queries, but adds complexity for CRUD-heavy operations
 - gRPC: Better for inter-service, but REST is simpler for browser clients
 
@@ -92,18 +103,21 @@ Organization "widgets-inc" → namespace "eck-widgets-inc"
 ```
 
 **Rationale**:
+
 - Leverages Kubernetes native isolation (NetworkPolicy, ResourceQuota, RBAC)
 - ECK already operates at namespace level
 - Clear resource ownership boundaries
 - Aligns with enterprise multi-tenancy patterns
 
 **Alternatives considered**:
+
 - Label-based isolation: Weaker security, complex queries
 - Separate clusters: Operational overhead, defeats purpose of shared ECK
 
 ### D5: Authentication → Service Account + OIDC Bridge
 
 **Decision**: Dual authentication model:
+
 1. **Pod-to-API Server**: Kubernetes service account (mounted token)
 2. **User-to-UI**: OIDC identity provider (optional), falls back to K8s token auth
 
@@ -121,28 +135,33 @@ Organization "widgets-inc" → namespace "eck-widgets-inc"
 ```
 
 **Rationale**:
+
 - Service account provides secure pod identity
 - OIDC bridges corporate identity (Azure AD, Okta, etc.)
 - Works in air-gapped environments with K8s token fallback
 - No custom identity store to manage
 
 **Alternatives considered**:
+
 - Basic auth: Insecure, poor UX
 - mTLS certificates: Complex distribution
 - Custom user database: Adds operational burden
 
 ### D6: State Management → TanStack Query + Zustand
 
-**Decision**: 
+**Decision**:
+
 - **Server state**: TanStack Query (React Query) for K8s resource caching
 - **Client state**: Zustand for UI-only state (modals, form state)
 
 **Rationale**:
+
 - TanStack Query handles caching, refetching, optimistic updates
 - Zustand is minimal, no boilerplate, TypeScript-first
 - Clear separation between server and client state
 
 **Alternatives considered**:
+
 - Redux Toolkit: More boilerplate, better for complex client state
 - SWR: Similar to React Query, less feature-rich
 
@@ -165,11 +184,13 @@ data:
 ```
 
 **Rationale**:
+
 - ConfigMap is sufficient for metadata (no controller needed)
 - Namespace referenced, not owned (allows pre-existing namespaces)
 - Labels enable discovery by UI
 
 **Alternatives considered**:
+
 - Custom CRD: Overkill for simple metadata
 - Database: Adds persistence dependency
 - In-namespace annotation: Scattered, hard to enumerate
@@ -192,18 +213,20 @@ data:
     "resource.name": "production",
     "resource.namespace": "eck-acme-corp",
     "action": "UPDATE",
-    "changes": {"spec.nodeSets[0].count": {"old": 3, "new": 5}}
+    "changes": { "spec.nodeSets[0].count": { "old": 3, "new": 5 } }
   }
 }
 ```
 
 **Rationale**:
+
 - OTel format is industry standard, wide collector support
 - Stdout decouples logging from shipping (12-factor)
 - Structured attributes enable rich querying
 - No external dependency for the UI itself
 
 **Alternatives considered**:
+
 - Direct Elasticsearch ingest: Creates coupling, bootstrap problem
 - Syslog: Less structured, harder to query
 
@@ -223,12 +246,14 @@ data:
 ```
 
 **Rationale**:
+
 - Simplest deployment model (single pod, single image)
 - No ingress routing complexity (same origin for API and UI)
 - Go serves static files efficiently
 - Single point of configuration
 
 **Alternatives considered**:
+
 - Separate frontend/backend: More complex deployment, CORS issues
 - Nginx sidecar: Extra container, more config
 
@@ -237,53 +262,60 @@ data:
 **Decision**: Generate create/edit forms from ECK CRD OpenAPI schemas with UI hints.
 
 **Rationale**:
+
 - CRDs define authoritative schema via OpenAPI
 - Reduces duplicate type definitions
 - Automatic updates when CRDs change
 - Form validation matches K8s validation
 
 **How it works**:
+
 1. At build time, extract OpenAPI schemas from CRD YAMLs
 2. Generate TypeScript types for forms
 3. Runtime form renderer uses schema + UI hints
 4. Validation runs against schema before submit
 
 **Alternatives considered**:
+
 - Hand-coded forms: Drift from CRDs, maintenance burden
 - Dynamic schema fetch: Runtime complexity, startup latency
 
 ## Risks / Trade-offs
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| CRD schema changes break UI | High - forms fail or submit invalid data | Pin ECK version compatibility matrix; schema migration tests |
-| Namespace isolation bypass | Critical - data leak between orgs | Defense in depth: API validates namespace access; K8s RBAC as fallback |
-| Service account over-privileged | Medium - security exposure | Minimal RBAC roles; separate service accounts per namespace if needed |
-| Large clusters overwhelm UI | Medium - poor UX | Server-side pagination; resource quotas; lazy loading |
-| OIDC provider unavailable | Medium - users locked out | K8s token fallback; local admin account |
-| Audit log volume explosion | Low - storage costs | Sampling config; retention policies; external shipper handles backpressure |
+| Risk                            | Impact                                   | Mitigation                                                                 |
+| ------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |
+| CRD schema changes break UI     | High - forms fail or submit invalid data | Pin ECK version compatibility matrix; schema migration tests               |
+| Namespace isolation bypass      | Critical - data leak between orgs        | Defense in depth: API validates namespace access; K8s RBAC as fallback     |
+| Service account over-privileged | Medium - security exposure               | Minimal RBAC roles; separate service accounts per namespace if needed      |
+| Large clusters overwhelm UI     | Medium - poor UX                         | Server-side pagination; resource quotas; lazy loading                      |
+| OIDC provider unavailable       | Medium - users locked out                | K8s token fallback; local admin account                                    |
+| Audit log volume explosion      | Low - storage costs                      | Sampling config; retention policies; external shipper handles backpressure |
 
 ## Migration Plan
 
 ### Phase 1: Core Platform (MVP)
+
 1. Deploy backend with service account
 2. ES + Kibana resource management only
 3. Single-org mode (no multi-tenancy)
 4. Basic health dashboard
 
 ### Phase 2: Multi-tenancy
+
 1. Organization management
 2. Namespace isolation
 3. RBAC integration
 4. OIDC authentication
 
 ### Phase 3: Full Stack
+
 1. All ECK resource types
 2. Stack deployment wizard
 3. Advanced monitoring
 4. Audit logging to Elasticsearch
 
 ### Rollback Strategy
+
 - Container image versioning (easy rollback)
 - No persistent state to migrate (stateless UI)
 - ECK resources unaffected by UI rollback

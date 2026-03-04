@@ -22,10 +22,7 @@ import {
   EuiCallOut,
   EuiConfirmModal,
 } from '@elastic/eui';
-import {
-  useElasticMapsServerDetail,
-  useDeleteElasticMapsServer,
-} from '../../hooks/useResources';
+import { useElasticMapsServerDetail, useDeleteElasticMapsServer } from '../../hooks/useResources';
 import type { ElasticMapsServer } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
@@ -43,7 +40,7 @@ function getHealthColor(health: HealthStatus): string {
 
 function formatRelativeTime(dateString?: string): string {
   if (!dateString) return '-';
-  
+
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -94,11 +91,7 @@ export function MapsDetailPage() {
     return (
       <EuiPageTemplate>
         <EuiPageTemplate.Section>
-          <EuiCallOut
-            title="Error loading Elastic Maps Server"
-            color="danger"
-            iconType="error"
-          >
+          <EuiCallOut title="Error loading Elastic Maps Server" color="danger" iconType="error">
             <p>{error instanceof Error ? error.message : 'Elastic Maps Server not found'}</p>
           </EuiCallOut>
         </EuiPageTemplate.Section>
@@ -130,7 +123,9 @@ export function MapsDetailPage() {
                   },
                   {
                     title: 'Namespace',
-                    description: <EuiBadge color="hollow">{mapsServer.metadata.namespace}</EuiBadge>,
+                    description: (
+                      <EuiBadge color="hollow">{mapsServer.metadata.namespace}</EuiBadge>
+                    ),
                   },
                   {
                     title: 'Health',
@@ -166,7 +161,9 @@ export function MapsDetailPage() {
                       <EuiLink
                         onClick={() => {
                           const ns = mapsServer.spec.elasticsearchRef?.namespace || namespace;
-                          navigate(`/elasticsearch/${ns}/${mapsServer.spec.elasticsearchRef?.name}`);
+                          navigate(
+                            `/elasticsearch/${ns}/${mapsServer.spec.elasticsearchRef?.name}`
+                          );
                         }}
                       >
                         {mapsServer.spec.elasticsearchRef.name}
@@ -255,17 +252,10 @@ export function MapsDetailPage() {
           { text: mapsServer.metadata.name },
         ]}
         rightSideItems={[
-          <EuiButton
-            key="edit"
-            onClick={() => navigate(`/maps/${namespace}/${name}/edit`)}
-          >
+          <EuiButton key="edit" onClick={() => navigate(`/maps/${namespace}/${name}/edit`)}>
             Edit
           </EuiButton>,
-          <EuiButtonEmpty
-            key="delete"
-            color="danger"
-            onClick={() => setIsDeleteModalVisible(true)}
-          >
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setIsDeleteModalVisible(true)}>
             Delete
           </EuiButtonEmpty>,
         ]}
@@ -323,8 +313,7 @@ export function MapsDetailPage() {
           )}
           <p>
             This will permanently delete the Elastic Maps Server{' '}
-            <strong>{mapsServer.metadata.name}</strong> from namespace{' '}
-            <strong>{namespace}</strong>.
+            <strong>{mapsServer.metadata.name}</strong> from namespace <strong>{namespace}</strong>.
           </p>
           <p>This action cannot be undone.</p>
         </EuiConfirmModal>

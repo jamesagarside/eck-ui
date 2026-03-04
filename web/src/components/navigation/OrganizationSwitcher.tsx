@@ -17,13 +17,9 @@ import { useOrganization } from '../../context/OrganizationContext';
 export function OrganizationSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  
-  const { 
-    organizations, 
-    currentOrganization, 
-    setCurrentOrganization,
-    isLoading 
-  } = useOrganization();
+
+  const { organizations, currentOrganization, setCurrentOrganization, isLoading } =
+    useOrganization();
 
   const filteredOrgs = organizations.filter((org) =>
     org.name.toLowerCase().includes(searchValue.toLowerCase())
@@ -65,9 +61,9 @@ export function OrganizationSwitcher() {
           isClearable
           compressed
         />
-        
+
         <EuiSpacer size="s" />
-        
+
         <EuiListGroup flush gutterSize="none" maxWidth={false}>
           {isLoading ? (
             <EuiListGroupItem label="Loading..." isDisabled />
@@ -80,8 +76,8 @@ export function OrganizationSwitcher() {
                 label={
                   <EuiFlexGroup alignItems="center" gutterSize="s" responsive={false}>
                     <EuiFlexItem grow={false}>
-                      <EuiIcon 
-                        type="check" 
+                      <EuiIcon
+                        type="check"
                         color={currentOrganization?.id === org.id ? 'primary' : 'ghost'}
                       />
                     </EuiFlexItem>
@@ -106,9 +102,9 @@ export function OrganizationSwitcher() {
             ))
           )}
         </EuiListGroup>
-        
+
         <EuiHorizontalRule margin="s" />
-        
+
         <EuiListGroupItem
           iconType="plus"
           label="Create organization"

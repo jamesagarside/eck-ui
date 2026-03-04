@@ -116,7 +116,8 @@ export function LogstashDetailPage() {
     {
       title: 'Nodes',
       description:
-        logstash.status?.availableNodes !== undefined && logstash.status?.expectedNodes !== undefined
+        logstash.status?.availableNodes !== undefined &&
+        logstash.status?.expectedNodes !== undefined
           ? `${logstash.status.availableNodes} / ${logstash.status.expectedNodes}`
           : '-',
     },
@@ -143,11 +144,7 @@ export function LogstashDetailPage() {
   const associationItems = esRefs.map((ref, index) => ({
     title: `Elasticsearch ${index + 1}`,
     description: (
-      <EuiLink
-        onClick={() =>
-          navigate(`/elasticsearch/${ref.namespace || namespace}/${ref.name}`)
-        }
-      >
+      <EuiLink onClick={() => navigate(`/elasticsearch/${ref.namespace || namespace}/${ref.name}`)}>
         {ref.name}
         {ref.namespace && ref.namespace !== namespace && ` (${ref.namespace})`}
       </EuiLink>
@@ -218,7 +215,9 @@ export function LogstashDetailPage() {
                 buttonContent={
                   <EuiFlexGroup alignItems="center" gutterSize="s">
                     <EuiFlexItem grow={false}>
-                      <EuiBadge color="hollow">{pipeline.pipeline?.id || `Pipeline ${index + 1}`}</EuiBadge>
+                      <EuiBadge color="hollow">
+                        {pipeline.pipeline?.id || `Pipeline ${index + 1}`}
+                      </EuiBadge>
                     </EuiFlexItem>
                   </EuiFlexGroup>
                 }
@@ -239,7 +238,8 @@ export function LogstashDetailPage() {
             <EuiCallOut title="No pipelines configured" color="primary" iconType="iInCircle">
               <EuiText size="s">
                 <p>
-                  This Logstash instance has no pipelines configured. Add pipelines in the edit page.
+                  This Logstash instance has no pipelines configured. Add pipelines in the edit
+                  page.
                 </p>
               </EuiText>
             </EuiCallOut>
@@ -267,9 +267,7 @@ export function LogstashDetailPage() {
           ) : (
             <EuiCallOut title="No custom configuration" color="primary" iconType="iInCircle">
               <EuiText size="s">
-                <p>
-                  This Logstash instance is using the default configuration.
-                </p>
+                <p>This Logstash instance is using the default configuration.</p>
               </EuiText>
             </EuiCallOut>
           )}

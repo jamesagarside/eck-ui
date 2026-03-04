@@ -297,10 +297,7 @@ export function ApmCreatePage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="APM Server version"
-                >
+                <EuiFormRow label="Version" helpText="APM Server version">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -392,8 +389,8 @@ export function ApmCreatePage() {
                 <EuiCallOut title="RUM Enabled" color="primary" iconType="globe">
                   <EuiText size="s">
                     <p>
-                      RUM will be enabled with default settings allowing all origins.
-                      Configure CORS origins in advanced settings if needed.
+                      RUM will be enabled with default settings allowing all origins. Configure CORS
+                      origins in advanced settings if needed.
                     </p>
                   </EuiText>
                 </EuiCallOut>

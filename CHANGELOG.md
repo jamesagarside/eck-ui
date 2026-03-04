@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial ECK UI implementation
 - Kubernetes service account authentication with RBAC
 - Full CRUD operations for all ECK resource types:
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive documentation and ADRs
 
 ### Security
+
 - Security headers (CSP, X-Frame-Options, X-Content-Type-Options)
 - Request size limits for API endpoints
 - XSS pattern detection and blocking
@@ -37,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - TBD
 
 ### Added
+
 - Initial release
 
 [Unreleased]: https://github.com/jamesagarside/eck-ui/compare/v0.1.0...HEAD

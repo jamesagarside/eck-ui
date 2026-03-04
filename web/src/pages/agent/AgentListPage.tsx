@@ -133,9 +133,7 @@ export function AgentListPage() {
       sortable: true,
       render: (name: string, agent: ElasticAgent) => (
         <EuiLink
-          onClick={() =>
-            navigate(`/agent/${agent.metadata.namespace}/${agent.metadata.name}`)
-          }
+          onClick={() => navigate(`/agent/${agent.metadata.namespace}/${agent.metadata.name}`)}
         >
           {name}
         </EuiLink>
@@ -177,9 +175,7 @@ export function AgentListPage() {
       render: (_: unknown, agent: ElasticAgent) => {
         const phase = agent.status?.phase || 'Unknown';
         const isReady = phase === 'Ready';
-        return (
-          <EuiBadge color={isReady ? 'success' : 'warning'}>{phase}</EuiBadge>
-        );
+        return <EuiBadge color={isReady ? 'success' : 'warning'}>{phase}</EuiBadge>;
       },
     },
     {
@@ -202,8 +198,7 @@ export function AgentListPage() {
                 navigate(`/agent/${ns}/${fleetRef.name}`);
               }}
             >
-              <EuiIcon type="fleetApp" size="m" />{' '}
-              {fleetRef.name}
+              <EuiIcon type="fleetApp" size="m" /> {fleetRef.name}
             </EuiLink>
           </EuiToolTip>
         );
@@ -227,8 +222,8 @@ export function AgentListPage() {
                 navigate(`/elasticsearch/${ns}/${firstRef.name}`);
               }}
             >
-              <EuiIcon type="logoElasticsearch" size="m" />{' '}
-              {firstRef.name}{extra}
+              <EuiIcon type="logoElasticsearch" size="m" /> {firstRef.name}
+              {extra}
             </EuiLink>
           </EuiToolTip>
         );
@@ -249,7 +244,9 @@ export function AgentListPage() {
           return <EuiBadge color="hollow">DaemonSet</EuiBadge>;
         }
         if (agent.spec.deployment) {
-          return <EuiBadge color="hollow">Deployment ({agent.spec.deployment.replicas || 1})</EuiBadge>;
+          return (
+            <EuiBadge color="hollow">Deployment ({agent.spec.deployment.replicas || 1})</EuiBadge>
+          );
         }
         return <EuiBadge color="hollow">Unknown</EuiBadge>;
       },

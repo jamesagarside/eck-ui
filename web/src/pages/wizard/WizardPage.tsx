@@ -24,11 +24,12 @@ function WizardContent() {
 
   const steps = WIZARD_STEPS.map((step, index) => ({
     title: step.title,
-    status: index < currentStep
-      ? 'complete' as const
-      : index === currentStep
-        ? 'current' as const
-        : 'incomplete' as const,
+    status:
+      index < currentStep
+        ? ('complete' as const)
+        : index === currentStep
+          ? ('current' as const)
+          : ('incomplete' as const),
     onClick: () => setStep(index),
   }));
 
@@ -76,21 +77,12 @@ function WizardContent() {
         {currentStep < 3 && (
           <EuiFlexGroup justifyContent="spaceBetween">
             <EuiFlexItem grow={false}>
-              <EuiButtonEmpty
-                onClick={prevStep}
-                disabled={currentStep === 0}
-                iconType="arrowLeft"
-              >
+              <EuiButtonEmpty onClick={prevStep} disabled={currentStep === 0} iconType="arrowLeft">
                 Previous
               </EuiButtonEmpty>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
-              <EuiButton
-                fill
-                onClick={nextStep}
-                iconType="arrowRight"
-                iconSide="right"
-              >
+              <EuiButton fill onClick={nextStep} iconType="arrowRight" iconSide="right">
                 {currentStep === 2 ? 'Review' : 'Next'}
               </EuiButton>
             </EuiFlexItem>

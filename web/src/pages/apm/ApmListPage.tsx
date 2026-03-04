@@ -110,9 +110,7 @@ export function ApmListPage() {
       sortable: true,
       render: (name: string, server: ApmServer) => (
         <EuiLink
-          onClick={() =>
-            navigate(`/apm/${server.metadata.namespace}/${server.metadata.name}`)
-          }
+          onClick={() => navigate(`/apm/${server.metadata.namespace}/${server.metadata.name}`)}
         >
           {name}
         </EuiLink>
@@ -141,9 +139,7 @@ export function ApmListPage() {
       render: (_: unknown, server: ApmServer) => {
         const phase = server.status?.phase || 'Unknown';
         const isReady = phase === 'Ready';
-        return (
-          <EuiBadge color={isReady ? 'success' : 'warning'}>{phase}</EuiBadge>
-        );
+        return <EuiBadge color={isReady ? 'success' : 'warning'}>{phase}</EuiBadge>;
       },
     },
     {
@@ -162,8 +158,7 @@ export function ApmListPage() {
                 navigate(`/elasticsearch/${ns}/${esRef.name}`);
               }}
             >
-              <EuiIcon type="logoElasticsearch" size="m" />{' '}
-              {esRef.name}
+              <EuiIcon type="logoElasticsearch" size="m" /> {esRef.name}
             </EuiLink>
           </EuiToolTip>
         );
@@ -185,8 +180,7 @@ export function ApmListPage() {
                 navigate(`/kibana/${ns}/${kibanaRef.name}`);
               }}
             >
-              <EuiIcon type="logoKibana" size="m" />{' '}
-              {kibanaRef.name}
+              <EuiIcon type="logoKibana" size="m" /> {kibanaRef.name}
             </EuiLink>
           </EuiToolTip>
         );
@@ -266,9 +260,7 @@ export function ApmListPage() {
               </EuiFilterButton>
               <EuiFilterButton
                 hasActiveFilters={filterHealth === 'yellow'}
-                onClick={() =>
-                  setFilterHealth(filterHealth === 'yellow' ? null : 'yellow')
-                }
+                onClick={() => setFilterHealth(filterHealth === 'yellow' ? null : 'yellow')}
                 numFilters={healthCounts.yellow}
               >
                 <EuiHealth color="warning">Warning</EuiHealth>

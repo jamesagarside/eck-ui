@@ -51,11 +51,7 @@ export function KibanaStep() {
             </EuiTitle>
             <EuiSpacer size="m" />
 
-            <EuiCallOut
-              title="Automatic Association"
-              iconType="link"
-              size="s"
-            >
+            <EuiCallOut title="Automatic Association" iconType="link" size="s">
               <p>
                 Kibana will be automatically associated with your Elasticsearch cluster
                 <strong> {elasticsearch.name || '(name pending)'}</strong>
@@ -78,10 +74,7 @@ export function KibanaStep() {
                 </EuiFormRow>
               </EuiFlexItem>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Replica Count"
-                  helpText="Number of Kibana pods"
-                >
+                <EuiFormRow label="Replica Count" helpText="Number of Kibana pods">
                   <EuiFieldNumber
                     value={kibana.count}
                     min={1}
@@ -124,8 +117,8 @@ export function KibanaStep() {
           >
             <p>
               While Kibana is optional, it provides essential features for managing your
-              Elasticsearch cluster, creating visualizations, and setting up Fleet for
-              Elastic Agent. You can always add it later.
+              Elasticsearch cluster, creating visualizations, and setting up Fleet for Elastic
+              Agent. You can always add it later.
             </p>
           </EuiCallOut>
         </>

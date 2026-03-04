@@ -9,6 +9,7 @@ Accepted
 ECK UI needs a consistent, professional look that aligns with Elastic's design language. Users familiar with Elastic Cloud or Kibana should feel at home when using ECK UI.
 
 We evaluated several options:
+
 - **Elastic EUI**: Official Elastic UI framework, used by Kibana and Elastic Cloud
 - **Material-UI**: Popular React component library with Material Design
 - **Ant Design**: Enterprise-grade React component library

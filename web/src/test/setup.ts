@@ -38,10 +38,7 @@ const originalError = console.error;
 beforeAll(() => {
   console.error = (...args: unknown[]) => {
     // Suppress React act() warnings in tests
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes('Warning: An update to')
-    ) {
+    if (typeof args[0] === 'string' && args[0].includes('Warning: An update to')) {
       return;
     }
     originalError.call(console, ...args);

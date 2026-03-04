@@ -263,12 +263,8 @@ export function BeatEditPage() {
   const updatedSpec = originalSpec ? buildUpdatedSpec(originalSpec, formData) : null;
   const isDirty = originalSpec && updatedSpec && hasChanges(originalSpec.spec, updatedSpec.spec);
 
-  const originalYaml = originalSpec
-    ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 })
-    : '';
-  const updatedYaml = updatedSpec
-    ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 })
-    : '';
+  const originalYaml = originalSpec ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 }) : '';
+  const updatedYaml = updatedSpec ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 }) : '';
 
   const diffItems = [];
   if (originalSpec && formData) {
@@ -277,8 +273,7 @@ export function BeatEditPage() {
         title: 'Version',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.version}</EuiCode> →{' '}
-            <EuiCode>{formData.version}</EuiCode>
+            <EuiCode>{originalSpec.spec.version}</EuiCode> → <EuiCode>{formData.version}</EuiCode>
           </>
         ),
       });
@@ -330,9 +325,7 @@ export function BeatEditPage() {
                 {
                   title: 'Deployment',
                   description: (
-                    <EuiBadge color="hollow">
-                      {isDeployment ? 'Deployment' : 'DaemonSet'}
-                    </EuiBadge>
+                    <EuiBadge color="hollow">{isDeployment ? 'Deployment' : 'DaemonSet'}</EuiBadge>
                   ),
                 },
               ]}
@@ -349,10 +342,7 @@ export function BeatEditPage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Changing version will trigger an upgrade"
-                >
+                <EuiFormRow label="Version" helpText="Changing version will trigger an upgrade">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -431,10 +421,7 @@ export function BeatEditPage() {
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              label="Kibana Instance"
-              helpText="Kibana for dashboards and setup"
-            >
+            <EuiFormRow label="Kibana Instance" helpText="Kibana for dashboards and setup">
               <EuiComboBox
                 placeholder="Select a Kibana instance"
                 singleSelection={{ asPlainText: true }}
@@ -547,9 +534,9 @@ export function BeatEditPage() {
           { text: 'Edit' },
         ]}
         description={`Modify the configuration of ${beatTypeLabel} in namespace ${namespace}`}
-        rightSideItems={[
-          isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>,
-        ].filter(Boolean)}
+        rightSideItems={[isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>].filter(
+          Boolean
+        )}
       />
 
       <EuiPageTemplate.Section>

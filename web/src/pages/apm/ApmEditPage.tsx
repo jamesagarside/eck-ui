@@ -151,8 +151,7 @@ export function ApmEditPage() {
   // Initialize form data when server loads
   useEffect(() => {
     if (server && !formData) {
-      const tlsDisabled =
-        server.spec.http?.tls?.selfSignedCertificate?.disabled ?? false;
+      const tlsDisabled = server.spec.http?.tls?.selfSignedCertificate?.disabled ?? false;
       const rumEnabled = !!server.spec.config?.['apm-server.rum.enabled'];
 
       setFormData({
@@ -270,12 +269,8 @@ export function ApmEditPage() {
   const updatedSpec = originalSpec ? buildUpdatedSpec(originalSpec, formData) : null;
   const isDirty = originalSpec && updatedSpec && hasChanges(originalSpec.spec, updatedSpec.spec);
 
-  const originalYaml = originalSpec
-    ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 })
-    : '';
-  const updatedYaml = updatedSpec
-    ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 })
-    : '';
+  const originalYaml = originalSpec ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 }) : '';
+  const updatedYaml = updatedSpec ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 }) : '';
 
   const diffItems = [];
   if (originalSpec && formData) {
@@ -284,8 +279,7 @@ export function ApmEditPage() {
         title: 'Version',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.version}</EuiCode> →{' '}
-            <EuiCode>{formData.version}</EuiCode>
+            <EuiCode>{originalSpec.spec.version}</EuiCode> → <EuiCode>{formData.version}</EuiCode>
           </>
         ),
       });
@@ -295,8 +289,7 @@ export function ApmEditPage() {
         title: 'Replicas',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.count || 1}</EuiCode> →{' '}
-            <EuiCode>{formData.count}</EuiCode>
+            <EuiCode>{originalSpec.spec.count || 1}</EuiCode> → <EuiCode>{formData.count}</EuiCode>
           </>
         ),
       });
@@ -352,10 +345,7 @@ export function ApmEditPage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Changing version will trigger an upgrade"
-                >
+                <EuiFormRow label="Version" helpText="Changing version will trigger an upgrade">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -581,9 +571,9 @@ export function ApmEditPage() {
           { text: 'Edit' },
         ]}
         description={`Modify the configuration of ${name} in namespace ${namespace}`}
-        rightSideItems={[
-          isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>,
-        ].filter(Boolean)}
+        rightSideItems={[isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>].filter(
+          Boolean
+        )}
       />
 
       <EuiPageTemplate.Section>

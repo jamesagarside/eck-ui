@@ -116,9 +116,7 @@ export function ApmDetailPage() {
                   {
                     title: 'Phase',
                     description: (
-                      <EuiBadge color={phase === 'Ready' ? 'success' : 'warning'}>
-                        {phase}
-                      </EuiBadge>
+                      <EuiBadge color={phase === 'Ready' ? 'success' : 'warning'}>{phase}</EuiBadge>
                     ),
                   },
                   { title: 'Version', description: version },
@@ -167,8 +165,7 @@ export function ApmDetailPage() {
                           navigate(`/kibana/${ns}/${server.spec.kibanaRef?.name}`);
                         }}
                       >
-                        <EuiIcon type="logoKibana" size="m" />{' '}
-                        {server.spec.kibanaRef.name}
+                        <EuiIcon type="logoKibana" size="m" /> {server.spec.kibanaRef.name}
                       </EuiLink>
                     ) : (
                       <EuiBadge color="hollow">None</EuiBadge>
@@ -222,15 +219,9 @@ export function ApmDetailPage() {
           </EuiTitle>
           <EuiSpacer size="m" />
 
-          <EuiCallOut
-            title="APM Server URL"
-            color="primary"
-            iconType="iInCircle"
-          >
+          <EuiCallOut title="APM Server URL" color="primary" iconType="iInCircle">
             <EuiText>
-              <p>
-                Configure your APM agents to send data to this endpoint:
-              </p>
+              <p>Configure your APM agents to send data to this endpoint:</p>
             </EuiText>
             <EuiSpacer size="s" />
             <EuiFlexGroup alignItems="center" gutterSize="s">
@@ -243,11 +234,7 @@ export function ApmDetailPage() {
                 <EuiCopy textToCopy={apmEndpoint}>
                   {(copy) => (
                     <EuiToolTip content="Copy endpoint">
-                      <EuiButtonEmpty
-                        iconType="copy"
-                        onClick={copy}
-                        size="s"
-                      >
+                      <EuiButtonEmpty iconType="copy" onClick={copy} size="s">
                         Copy
                       </EuiButtonEmpty>
                     </EuiToolTip>
@@ -265,11 +252,10 @@ export function ApmDetailPage() {
           <EuiSpacer size="s" />
           <EuiCallOut color="warning" iconType="lock">
             <EuiText size="s">
-              <p>
-                The APM Server secret token is stored in a Kubernetes secret:
-              </p>
+              <p>The APM Server secret token is stored in a Kubernetes secret:</p>
               <EuiCodeBlock paddingSize="s" fontSize="s">
-                kubectl get secret {name}-apm-token -n {namespace} -o jsonpath='{'{.data.secret-token}'}' | base64 -d
+                kubectl get secret {name}-apm-token -n {namespace} -o jsonpath='
+                {'{.data.secret-token}'}' | base64 -d
               </EuiCodeBlock>
             </EuiText>
           </EuiCallOut>
@@ -289,14 +275,10 @@ export function ApmDetailPage() {
                 description: (
                   <EuiBadge
                     color={
-                      server.spec.http?.tls?.selfSignedCertificate?.disabled
-                        ? 'warning'
-                        : 'success'
+                      server.spec.http?.tls?.selfSignedCertificate?.disabled ? 'warning' : 'success'
                     }
                   >
-                    {server.spec.http?.tls?.selfSignedCertificate?.disabled
-                      ? 'No'
-                      : 'Yes'}
+                    {server.spec.http?.tls?.selfSignedCertificate?.disabled ? 'No' : 'Yes'}
                   </EuiBadge>
                 ),
               },
@@ -304,7 +286,8 @@ export function ApmDetailPage() {
                 title: 'CA Certificate',
                 description: (
                   <EuiCodeBlock paddingSize="s" fontSize="s" isCopyable>
-                    kubectl get secret {name}-apm-http-certs-public -n {namespace} -o jsonpath='{'{.data.ca\\.crt}'}' | base64 -d
+                    kubectl get secret {name}-apm-http-certs-public -n {namespace} -o jsonpath='
+                    {'{.data.ca\\.crt}'}' | base64 -d
                   </EuiCodeBlock>
                 ),
               },
@@ -335,7 +318,9 @@ export function ApmDetailPage() {
               {
                 title: 'RUM (Real User Monitoring)',
                 description: (
-                  <EuiBadge color={server.spec.config?.['apm-server.rum.enabled'] ? 'success' : 'hollow'}>
+                  <EuiBadge
+                    color={server.spec.config?.['apm-server.rum.enabled'] ? 'success' : 'hollow'}
+                  >
                     {server.spec.config?.['apm-server.rum.enabled'] ? 'Enabled' : 'Disabled'}
                   </EuiBadge>
                 ),
@@ -451,12 +436,10 @@ export function ApmDetailPage() {
           isLoading={deleteMutation.isPending}
         >
           <p>
-            This will permanently delete the APM Server <strong>{name}</strong> in
-            namespace <strong>{namespace}</strong>.
+            This will permanently delete the APM Server <strong>{name}</strong> in namespace{' '}
+            <strong>{namespace}</strong>.
           </p>
-          <p>
-            All associated secrets and certificates will also be removed.
-          </p>
+          <p>All associated secrets and certificates will also be removed.</p>
         </EuiConfirmModal>
       )}
     </EuiPageTemplate>

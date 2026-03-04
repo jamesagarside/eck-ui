@@ -51,47 +51,52 @@ export function ReviewStep() {
   const createBeat = useCreateBeat();
 
   // Build resource specifications
-  const esSpec = useMemo(() => ({
-    apiVersion: 'elasticsearch.k8s.elastic.co/v1',
-    kind: 'Elasticsearch',
-    metadata: {
-      name: elasticsearch.name || 'elasticsearch',
-      namespace: elasticsearch.namespace,
-    },
-    spec: {
-      version: elasticsearch.version,
-      nodeSets: elasticsearch.nodes.map((node) => ({
-        name: node.name,
-        count: node.count,
-        config: {
-          'node.roles': node.roles,
-        },
-        volumeClaimTemplates: [
-          {
-            metadata: { name: 'elasticsearch-data' },
+  const esSpec = useMemo(
+    () => ({
+      apiVersion: 'elasticsearch.k8s.elastic.co/v1',
+      kind: 'Elasticsearch',
+      metadata: {
+        name: elasticsearch.name || 'elasticsearch',
+        namespace: elasticsearch.namespace,
+      },
+      spec: {
+        version: elasticsearch.version,
+        nodeSets: elasticsearch.nodes.map((node) => ({
+          name: node.name,
+          count: node.count,
+          config: {
+            'node.roles': node.roles,
+          },
+          volumeClaimTemplates: [
+            {
+              metadata: { name: 'elasticsearch-data' },
+              spec: {
+                accessModes: ['ReadWriteOnce'],
+                resources: { requests: { storage: node.storage } },
+              },
+            },
+          ],
+          podTemplate: {
             spec: {
-              accessModes: ['ReadWriteOnce'],
-              resources: { requests: { storage: node.storage } },
+              containers: [
+                {
+                  name: 'elasticsearch',
+                  resources: {
+                    requests: { memory: node.memory, cpu: node.cpu },
+                    limits: { memory: node.memory, cpu: node.cpu },
+                  },
+                },
+              ],
             },
           },
-        ],
-        podTemplate: {
-          spec: {
-            containers: [
-              {
-                name: 'elasticsearch',
-                resources: {
-                  requests: { memory: node.memory, cpu: node.cpu },
-                  limits: { memory: node.memory, cpu: node.cpu },
-                },
-              },
-            ],
-          },
-        },
-      })),
-      http: elasticsearch.tls ? { tls: { selfSignedCertificate: { disabled: false } } } : { tls: { selfSignedCertificate: { disabled: true } } },
-    },
-  }), [elasticsearch]);
+        })),
+        http: elasticsearch.tls
+          ? { tls: { selfSignedCertificate: { disabled: false } } }
+          : { tls: { selfSignedCertificate: { disabled: true } } },
+      },
+    }),
+    [elasticsearch]
+  );
 
   const kibanaSpec = useMemo(() => {
     if (!kibana) return null;
@@ -123,7 +128,9 @@ export function ReviewStep() {
         version: elasticsearch.version,
         count: apm.count,
         elasticsearchRef: { name: elasticsearch.name || 'elasticsearch' },
-        kibanaRef: kibana ? { name: kibana.name || `${elasticsearch.name || 'elasticsearch'}-kb` } : undefined,
+        kibanaRef: kibana
+          ? { name: kibana.name || `${elasticsearch.name || 'elasticsearch'}-kb` }
+          : undefined,
         config: apm.rum ? { 'apm-server.rum.enabled': true } : undefined,
       },
     };
@@ -143,7 +150,9 @@ export function ReviewStep() {
         mode: fleet.mode,
         fleetServerEnabled: true,
         elasticsearchRefs: [{ name: elasticsearch.name || 'elasticsearch' }],
-        kibanaRef: kibana ? { name: kibana.name || `${elasticsearch.name || 'elasticsearch'}-kb` } : undefined,
+        kibanaRef: kibana
+          ? { name: kibana.name || `${elasticsearch.name || 'elasticsearch'}-kb` }
+          : undefined,
         deployment: { replicas: fleet.count },
       },
     };
@@ -164,7 +173,9 @@ export function ReviewStep() {
           type: beat.type,
           version: elasticsearch.version,
           elasticsearchRef: { name: elasticsearch.name || 'elasticsearch' },
-          kibanaRef: kibana ? { name: kibana.name || `${elasticsearch.name || 'elasticsearch'}-kb` } : undefined,
+          kibanaRef: kibana
+            ? { name: kibana.name || `${elasticsearch.name || 'elasticsearch'}-kb` }
+            : undefined,
           ...(beat.deployment === 'daemonset'
             ? { daemonSet: {} }
             : { deployment: { replicas: 1 } }),
@@ -182,7 +193,10 @@ export function ReviewStep() {
     elasticsearch.nodes.forEach((node) => {
       totalPods += node.count;
     });
-    const esStorage = elasticsearch.nodes.reduce((sum, n) => sum + parseInt(n.storage) * n.count, 0);
+    const esStorage = elasticsearch.nodes.reduce(
+      (sum, n) => sum + parseInt(n.storage) * n.count,
+      0
+    );
     const esMemory = elasticsearch.nodes.reduce((sum, n) => sum + parseInt(n.memory) * n.count, 0);
     totalStorage = `${esStorage}Gi`;
     totalMemory = `${esMemory}Gi`;
@@ -269,9 +283,7 @@ export function ReviewStep() {
     });
 
     // Initialize status
-    setDeploymentStatus(
-      resources.map((r) => ({ resource: r.name, status: 'pending' as const }))
-    );
+    setDeploymentStatus(resources.map((r) => ({ resource: r.name, status: 'pending' as const })));
 
     // Deploy sequentially
     let hasErrors = false;
@@ -279,25 +291,19 @@ export function ReviewStep() {
       const resource = resources[i];
 
       setDeploymentStatus((prev) =>
-        prev.map((s, idx) =>
-          idx === i ? { ...s, status: 'deploying' as const } : s
-        )
+        prev.map((s, idx) => (idx === i ? { ...s, status: 'deploying' as const } : s))
       );
 
       try {
         await resource.deploy();
         setDeploymentStatus((prev) =>
-          prev.map((s, idx) =>
-            idx === i ? { ...s, status: 'success' as const } : s
-          )
+          prev.map((s, idx) => (idx === i ? { ...s, status: 'success' as const } : s))
         );
       } catch (error) {
         hasErrors = true;
         const message = error instanceof Error ? error.message : 'Unknown error';
         setDeploymentStatus((prev) =>
-          prev.map((s, idx) =>
-            idx === i ? { ...s, status: 'error' as const, error: message } : s
-          )
+          prev.map((s, idx) => (idx === i ? { ...s, status: 'error' as const, error: message } : s))
         );
       }
     }
@@ -357,7 +363,8 @@ export function ReviewStep() {
             <EuiFlexItem grow={6}>
               <strong>Elasticsearch</strong>
               <EuiText size="xs" color="subdued">
-                {elasticsearch.nodes.length} node set(s), {elasticsearch.nodes.reduce((s, n) => s + n.count, 0)} total nodes
+                {elasticsearch.nodes.length} node set(s),{' '}
+                {elasticsearch.nodes.reduce((s, n) => s + n.count, 0)} total nodes
               </EuiText>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
@@ -426,7 +433,10 @@ export function ReviewStep() {
                 <EuiFlexItem grow={6}>
                   <strong>Beats</strong>
                   <EuiText size="xs" color="subdued">
-                    {beats.types.filter((t) => t.enabled).map((t) => t.type).join(', ')}
+                    {beats.types
+                      .filter((t) => t.enabled)
+                      .map((t) => t.type)
+                      .join(', ')}
                   </EuiText>
                 </EuiFlexItem>
               </EuiFlexGroup>
@@ -440,13 +450,7 @@ export function ReviewStep() {
       <EuiAccordion id="yaml-preview" buttonContent="View Generated YAML">
         <EuiSpacer size="m" />
         <EuiCodeBlock language="yaml" fontSize="s" paddingSize="m" isCopyable>
-          {[
-            esSpec,
-            kibanaSpec,
-            apmSpec,
-            fleetSpec,
-            ...beatSpecs,
-          ]
+          {[esSpec, kibanaSpec, apmSpec, fleetSpec, ...beatSpecs]
             .filter(Boolean)
             .map((spec) => jsYaml.dump(spec, { indent: 2, lineWidth: -1 }))
             .join('---\n')}

@@ -80,40 +80,58 @@ export function AppProvider({ children }: AppProviderProps) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
-  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = `toast-${toastIdCounter++}`;
-    setToasts((current) => [...current, { ...toast, id }]);
-    // Auto-remove after 5 seconds for non-error toasts
-    if (toast.color !== 'danger') {
-      setTimeout(() => removeToast(id), 5000);
-    }
-  }, [removeToast]);
+  const addToast = useCallback(
+    (toast: Omit<Toast, 'id'>) => {
+      const id = `toast-${toastIdCounter++}`;
+      setToasts((current) => [...current, { ...toast, id }]);
+      // Auto-remove after 5 seconds for non-error toasts
+      if (toast.color !== 'danger') {
+        setTimeout(() => removeToast(id), 5000);
+      }
+    },
+    [removeToast]
+  );
 
-  const addSuccessToast = useCallback((title: string, text?: string) => {
-    addToast({ title, text, color: 'success' });
-  }, [addToast]);
+  const addSuccessToast = useCallback(
+    (title: string, text?: string) => {
+      addToast({ title, text, color: 'success' });
+    },
+    [addToast]
+  );
 
-  const addErrorToast = useCallback((title: string, text?: string) => {
-    addToast({ title, text, color: 'danger' });
-  }, [addToast]);
+  const addErrorToast = useCallback(
+    (title: string, text?: string) => {
+      addToast({ title, text, color: 'danger' });
+    },
+    [addToast]
+  );
 
-  const addWarningToast = useCallback((title: string, text?: string) => {
-    addToast({ title, text, color: 'warning' });
-  }, [addToast]);
+  const addWarningToast = useCallback(
+    (title: string, text?: string) => {
+      addToast({ title, text, color: 'warning' });
+    },
+    [addToast]
+  );
 
-  const themeValue = useMemo(() => ({
-    colorMode,
-    toggleColorMode,
-    setColorMode,
-  }), [colorMode, toggleColorMode, setColorMode]);
+  const themeValue = useMemo(
+    () => ({
+      colorMode,
+      toggleColorMode,
+      setColorMode,
+    }),
+    [colorMode, toggleColorMode, setColorMode]
+  );
 
-  const toastValue = useMemo(() => ({
-    addToast,
-    addSuccessToast,
-    addErrorToast,
-    addWarningToast,
-    removeToast,
-  }), [addToast, addSuccessToast, addErrorToast, addWarningToast, removeToast]);
+  const toastValue = useMemo(
+    () => ({
+      addToast,
+      addSuccessToast,
+      addErrorToast,
+      addWarningToast,
+      removeToast,
+    }),
+    [addToast, addSuccessToast, addErrorToast, addWarningToast, removeToast]
+  );
 
   return (
     <EuiProvider colorMode={colorMode}>

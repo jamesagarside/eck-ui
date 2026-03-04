@@ -138,7 +138,8 @@ function buildSpec(data: FormData): ElasticAgent {
       mode: data.mode,
       elasticsearchRefs: data.elasticsearchRef ? [data.elasticsearchRef] : undefined,
       kibanaRef: data.kibanaRef || undefined,
-      fleetServerRef: data.mode === 'fleet' && !data.isFleetServer ? data.fleetServerRef || undefined : undefined,
+      fleetServerRef:
+        data.mode === 'fleet' && !data.isFleetServer ? data.fleetServerRef || undefined : undefined,
     },
   };
 
@@ -324,10 +325,7 @@ export function AgentCreatePage() {
                 </EuiFormRow>
               </EuiFlexItem>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Elastic Agent version"
-                >
+                <EuiFormRow label="Version" helpText="Elastic Agent version">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -347,9 +345,7 @@ export function AgentCreatePage() {
             </EuiTitle>
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              helpText="Fleet managed agents are controlled through Kibana Fleet"
-            >
+            <EuiFormRow helpText="Fleet managed agents are controlled through Kibana Fleet">
               <EuiRadioGroup
                 options={modeOptions}
                 idSelected={formData.mode}
@@ -401,9 +397,7 @@ export function AgentCreatePage() {
             </EuiTitle>
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              helpText="Choose how the agent pods are deployed"
-            >
+            <EuiFormRow helpText="Choose how the agent pods are deployed">
               <EuiRadioGroup
                 options={deploymentTypeOptions}
                 idSelected={formData.deploymentType}
@@ -457,10 +451,7 @@ export function AgentCreatePage() {
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              label="Kibana Instance"
-              helpText="Required for Fleet mode setup"
-            >
+            <EuiFormRow label="Kibana Instance" helpText="Required for Fleet mode setup">
               <EuiComboBox
                 placeholder="Select a Kibana instance"
                 singleSelection={{ asPlainText: true }}
@@ -477,8 +468,8 @@ export function AgentCreatePage() {
                 <EuiCallOut title="Fleet Server Setup" color="primary" iconType="fleetApp">
                   <EuiText size="s">
                     <p>
-                      This agent will be configured as a Fleet Server. After deployment,
-                      you can enroll other agents to this Fleet Server through Kibana Fleet.
+                      This agent will be configured as a Fleet Server. After deployment, you can
+                      enroll other agents to this Fleet Server through Kibana Fleet.
                     </p>
                   </EuiText>
                 </EuiCallOut>

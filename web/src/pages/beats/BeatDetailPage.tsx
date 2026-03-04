@@ -132,11 +132,7 @@ export function BeatDetailPage() {
     },
     {
       title: 'Deployment Type',
-      description: (
-        <EuiBadge color="hollow">
-          {isDeployment ? 'Deployment' : 'DaemonSet'}
-        </EuiBadge>
-      ),
+      description: <EuiBadge color="hollow">{isDeployment ? 'Deployment' : 'DaemonSet'}</EuiBadge>,
     },
     {
       title: 'Nodes',

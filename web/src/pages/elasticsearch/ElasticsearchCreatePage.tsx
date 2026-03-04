@@ -80,9 +80,7 @@ function validateForm(data: FormData): ValidationErrors {
 
   // Check for duplicate node set names
   const nodeSetNames = data.nodeSets.map((ns) => ns.name);
-  const duplicates = nodeSetNames.filter(
-    (name, index) => nodeSetNames.indexOf(name) !== index
-  );
+  const duplicates = nodeSetNames.filter((name, index) => nodeSetNames.indexOf(name) !== index);
   if (duplicates.length > 0) {
     errors['nodeSets.duplicate'] = `Duplicate node set names: ${duplicates.join(', ')}`;
   }
@@ -211,7 +209,8 @@ export function ElasticsearchCreatePage() {
             </>
           )}
 
-          {Object.keys(errors).filter((k) => k.startsWith('nodeSets.') && !k.includes('.')).length > 0 && (
+          {Object.keys(errors).filter((k) => k.startsWith('nodeSets.') && !k.includes('.')).length >
+            0 && (
             <>
               <EuiCallOut title="Node set configuration issues" color="warning" iconType="warning">
                 {errors.nodeSets && <p>{errors.nodeSets}</p>}
@@ -268,10 +267,7 @@ export function ElasticsearchCreatePage() {
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              label="Version"
-              helpText="Elasticsearch version to deploy"
-            >
+            <EuiFormRow label="Version" helpText="Elasticsearch version to deploy">
               <EuiSelect
                 options={versionOptions}
                 value={formData.version}
@@ -298,9 +294,7 @@ export function ElasticsearchCreatePage() {
             </EuiTitle>
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              helpText="Enable HTTP endpoint for external access"
-            >
+            <EuiFormRow helpText="Enable HTTP endpoint for external access">
               <EuiSwitch
                 label="Enable HTTP"
                 checked={formData.enableHTTP}
@@ -310,9 +304,7 @@ export function ElasticsearchCreatePage() {
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              helpText="Enable TLS encryption for HTTP endpoint (recommended)"
-            >
+            <EuiFormRow helpText="Enable TLS encryption for HTTP endpoint (recommended)">
               <EuiSwitch
                 label="Enable TLS"
                 checked={formData.enableTLS}
@@ -324,14 +316,10 @@ export function ElasticsearchCreatePage() {
             {!formData.enableTLS && formData.enableHTTP && (
               <>
                 <EuiSpacer size="m" />
-                <EuiCallOut
-                  title="TLS Disabled"
-                  color="warning"
-                  iconType="warning"
-                >
+                <EuiCallOut title="TLS Disabled" color="warning" iconType="warning">
                   <EuiText size="s">
-                    Disabling TLS is not recommended for production environments.
-                    Traffic will be unencrypted.
+                    Disabling TLS is not recommended for production environments. Traffic will be
+                    unencrypted.
                   </EuiText>
                 </EuiCallOut>
               </>
@@ -371,22 +359,11 @@ export function ElasticsearchCreatePage() {
     content: (
       <>
         <EuiSpacer size="m" />
-        <EuiCallOut
-          title="YAML Preview"
-          iconType="document"
-          color="primary"
-        >
-          <EuiText size="s">
-            This is the Kubernetes resource that will be created.
-          </EuiText>
+        <EuiCallOut title="YAML Preview" iconType="document" color="primary">
+          <EuiText size="s">This is the Kubernetes resource that will be created.</EuiText>
         </EuiCallOut>
         <EuiSpacer size="m" />
-        <EuiCodeBlock
-          language="yaml"
-          fontSize="m"
-          paddingSize="m"
-          isCopyable
-        >
+        <EuiCodeBlock language="yaml" fontSize="m" paddingSize="m" isCopyable>
           {yamlPreview}
         </EuiCodeBlock>
       </>
@@ -398,7 +375,14 @@ export function ElasticsearchCreatePage() {
       <EuiPageHeader
         pageTitle="Create Elasticsearch Cluster"
         breadcrumbs={[
-          { text: 'Elasticsearch', href: '#', onClick: (e) => { e.preventDefault(); navigate('/elasticsearch'); } },
+          {
+            text: 'Elasticsearch',
+            href: '#',
+            onClick: (e) => {
+              e.preventDefault();
+              navigate('/elasticsearch');
+            },
+          },
           { text: 'Create' },
         ]}
         description="Deploy a new Elasticsearch cluster to your Kubernetes cluster"

@@ -27,10 +27,7 @@ import {
   useNamespaces,
   useElasticsearchList,
 } from '../../hooks/useResources';
-import type {
-  EnterpriseSearch,
-  ElasticsearchCluster,
-} from '../../types/resources';
+import type { EnterpriseSearch, ElasticsearchCluster } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
 // Version options

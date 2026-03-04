@@ -98,9 +98,10 @@ export function BeatListPage() {
       health: beat.status?.health || 'unknown',
       phase: beat.status?.phase || 'Unknown',
       esRef: beat.spec.elasticsearchRef?.name || 'Not configured',
-      nodes: beat.status?.availableNodes !== undefined && beat.status?.expectedNodes !== undefined
-        ? `${beat.status.availableNodes}/${beat.status.expectedNodes}`
-        : '-',
+      nodes:
+        beat.status?.availableNodes !== undefined && beat.status?.expectedNodes !== undefined
+          ? `${beat.status.availableNodes}/${beat.status.expectedNodes}`
+          : '-',
       createdAt: beat.metadata.creationTimestamp,
     }));
   }, [beats]);
@@ -141,9 +142,7 @@ export function BeatListPage() {
       name: 'Name',
       sortable: true,
       render: (name: string, item: BeatRow) => (
-        <EuiLink onClick={() => navigate(`/beats/${item.namespace}/${name}`)}>
-          {name}
-        </EuiLink>
+        <EuiLink onClick={() => navigate(`/beats/${item.namespace}/${name}`)}>{name}</EuiLink>
       ),
     },
     {
@@ -188,15 +187,12 @@ export function BeatListPage() {
       field: 'esRef',
       name: 'Elasticsearch',
       sortable: true,
-      render: (esRef: string) => (
+      render: (esRef: string) =>
         esRef !== 'Not configured' ? (
-          <EuiLink onClick={() => navigate(`/elasticsearch?search=${esRef}`)}>
-            {esRef}
-          </EuiLink>
+          <EuiLink onClick={() => navigate(`/elasticsearch?search=${esRef}`)}>{esRef}</EuiLink>
         ) : (
           <span style={{ color: '#999' }}>{esRef}</span>
-        )
-      ),
+        ),
     },
     {
       field: 'nodes',
@@ -207,7 +203,7 @@ export function BeatListPage() {
       field: 'createdAt',
       name: 'Created',
       sortable: true,
-      render: (timestamp: string | undefined) => timestamp ? formatRelativeTime(timestamp) : '-',
+      render: (timestamp: string | undefined) => (timestamp ? formatRelativeTime(timestamp) : '-'),
     },
   ];
 
@@ -220,17 +216,13 @@ export function BeatListPage() {
 
   const toggleHealth = (health: HealthStatus) => {
     setSelectedHealth((prev) =>
-      prev.includes(health)
-        ? prev.filter((h) => h !== health)
-        : [...prev, health]
+      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
     );
   };
 
   const toggleType = (type: string) => {
     setSelectedTypes((prev) =>
-      prev.includes(type)
-        ? prev.filter((t) => t !== type)
-        : [...prev, type]
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
   };
 
@@ -245,10 +237,7 @@ export function BeatListPage() {
   if (error) {
     return (
       <EuiPageTemplate>
-        <EuiPageHeader
-          pageTitle="Beats"
-          description="Error loading Beats"
-        />
+        <EuiPageHeader pageTitle="Beats" description="Error loading Beats" />
       </EuiPageTemplate>
     );
   }

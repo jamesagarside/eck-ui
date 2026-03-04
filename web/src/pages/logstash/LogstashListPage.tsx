@@ -82,9 +82,11 @@ export function LogstashListPage() {
       health: instance.status?.health || 'unknown',
       phase: instance.status?.phase || 'Unknown',
       count: instance.spec.count || 1,
-      nodes: instance.status?.availableNodes !== undefined && instance.status?.expectedNodes !== undefined
-        ? `${instance.status.availableNodes}/${instance.status.expectedNodes}`
-        : '-',
+      nodes:
+        instance.status?.availableNodes !== undefined &&
+        instance.status?.expectedNodes !== undefined
+          ? `${instance.status.availableNodes}/${instance.status.expectedNodes}`
+          : '-',
       pipelines: instance.spec.pipelines?.length || 0,
       createdAt: instance.metadata.creationTimestamp,
     }));
@@ -121,9 +123,7 @@ export function LogstashListPage() {
       name: 'Name',
       sortable: true,
       render: (name: string, item: LogstashRow) => (
-        <EuiLink onClick={() => navigate(`/logstash/${item.namespace}/${name}`)}>
-          {name}
-        </EuiLink>
+        <EuiLink onClick={() => navigate(`/logstash/${item.namespace}/${name}`)}>{name}</EuiLink>
       ),
     },
     {
@@ -169,14 +169,16 @@ export function LogstashListPage() {
       name: 'Pipelines',
       sortable: true,
       render: (count: number) => (
-        <EuiBadge color="hollow">{count} pipeline{count !== 1 ? 's' : ''}</EuiBadge>
+        <EuiBadge color="hollow">
+          {count} pipeline{count !== 1 ? 's' : ''}
+        </EuiBadge>
       ),
     },
     {
       field: 'createdAt',
       name: 'Created',
       sortable: true,
-      render: (timestamp: string | undefined) => timestamp ? formatRelativeTime(timestamp) : '-',
+      render: (timestamp: string | undefined) => (timestamp ? formatRelativeTime(timestamp) : '-'),
     },
   ];
 
@@ -189,9 +191,7 @@ export function LogstashListPage() {
 
   const toggleHealth = (health: HealthStatus) => {
     setSelectedHealth((prev) =>
-      prev.includes(health)
-        ? prev.filter((h) => h !== health)
-        : [...prev, health]
+      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
     );
   };
 
@@ -206,10 +206,7 @@ export function LogstashListPage() {
   if (error) {
     return (
       <EuiPageTemplate>
-        <EuiPageHeader
-          pageTitle="Logstash"
-          description="Error loading Logstash instances"
-        />
+        <EuiPageHeader pageTitle="Logstash" description="Error loading Logstash instances" />
       </EuiPageTemplate>
     );
   }

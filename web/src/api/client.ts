@@ -27,12 +27,7 @@ export class ApiRequestError extends Error {
   public readonly status: number;
   public readonly details?: Record<string, unknown>;
 
-  constructor(
-    message: string,
-    code: string,
-    status: number,
-    details?: Record<string, unknown>
-  ) {
+  constructor(message: string, code: string, status: number, details?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiRequestError';
     this.code = code;
@@ -99,7 +94,7 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    
+
     const headers: Record<string, string> = {
       ...this.defaultHeaders,
       ...(options.headers as Record<string, string>),
@@ -125,7 +120,7 @@ class ApiClient {
     // Handle non-OK responses
     if (!response.ok) {
       let errorData: ApiError;
-      
+
       try {
         errorData = await response.json();
       } catch {
@@ -185,116 +180,91 @@ class ApiClient {
     return {
       // Elasticsearch
       elasticsearch: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/elasticsearch${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/elasticsearch/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/elasticsearch`, data),
-        update: (name: string, data: unknown) => 
+        get: (name: string) => this.get<unknown>(`${nsPath}/elasticsearch/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/elasticsearch`, data),
+        update: (name: string, data: unknown) =>
           this.put<unknown>(`${nsPath}/elasticsearch/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/elasticsearch/${name}`),
-        events: (name: string) => 
-          this.get<unknown[]>(`${nsPath}/elasticsearch/${name}/events`),
+        delete: (name: string) => this.delete<void>(`${nsPath}/elasticsearch/${name}`),
+        events: (name: string) => this.get<unknown[]>(`${nsPath}/elasticsearch/${name}/events`),
       },
 
       // Kibana
       kibana: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/kibana${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/kibana/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/kibana`, data),
-        update: (name: string, data: unknown) => 
+        get: (name: string) => this.get<unknown>(`${nsPath}/kibana/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/kibana`, data),
+        update: (name: string, data: unknown) =>
           this.put<unknown>(`${nsPath}/kibana/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/kibana/${name}`),
+        delete: (name: string) => this.delete<void>(`${nsPath}/kibana/${name}`),
       },
 
       // APM Server
       apm: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/apmserver${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/apmserver/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/apmserver`, data),
-        update: (name: string, data: unknown) => 
+        get: (name: string) => this.get<unknown>(`${nsPath}/apmserver/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/apmserver`, data),
+        update: (name: string, data: unknown) =>
           this.put<unknown>(`${nsPath}/apmserver/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/apmserver/${name}`),
+        delete: (name: string) => this.delete<void>(`${nsPath}/apmserver/${name}`),
       },
 
       // Agent
       agent: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/agent${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/agent/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/agent`, data),
-        update: (name: string, data: unknown) => 
-          this.put<unknown>(`${nsPath}/agent/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/agent/${name}`),
+        get: (name: string) => this.get<unknown>(`${nsPath}/agent/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/agent`, data),
+        update: (name: string, data: unknown) => this.put<unknown>(`${nsPath}/agent/${name}`, data),
+        delete: (name: string) => this.delete<void>(`${nsPath}/agent/${name}`),
       },
 
       // Beat
       beat: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/beat${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/beat/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/beat`, data),
-        update: (name: string, data: unknown) => 
-          this.put<unknown>(`${nsPath}/beat/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/beat/${name}`),
+        get: (name: string) => this.get<unknown>(`${nsPath}/beat/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/beat`, data),
+        update: (name: string, data: unknown) => this.put<unknown>(`${nsPath}/beat/${name}`, data),
+        delete: (name: string) => this.delete<void>(`${nsPath}/beat/${name}`),
       },
 
       // Logstash
       logstash: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/logstash${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/logstash/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/logstash`, data),
-        update: (name: string, data: unknown) => 
+        get: (name: string) => this.get<unknown>(`${nsPath}/logstash/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/logstash`, data),
+        update: (name: string, data: unknown) =>
           this.put<unknown>(`${nsPath}/logstash/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/logstash/${name}`),
+        delete: (name: string) => this.delete<void>(`${nsPath}/logstash/${name}`),
       },
 
       // Enterprise Search
       enterpriseSearch: {
-        list: (params?: ListParams) => 
+        list: (params?: ListParams) =>
           this.get<ApiResponse<unknown[]>>(`${nsPath}/enterprisesearch${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/enterprisesearch/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/enterprisesearch`, data),
-        update: (name: string, data: unknown) => 
+        get: (name: string) => this.get<unknown>(`${nsPath}/enterprisesearch/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/enterprisesearch`, data),
+        update: (name: string, data: unknown) =>
           this.put<unknown>(`${nsPath}/enterprisesearch/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/enterprisesearch/${name}`),
+        delete: (name: string) => this.delete<void>(`${nsPath}/enterprisesearch/${name}`),
       },
 
       // Elastic Maps Server
       maps: {
-        list: (params?: ListParams) => 
-          this.get<ApiResponse<unknown[]>>(`${nsPath}/elasticmapsserver${buildQueryString(params)}`),
-        get: (name: string) => 
-          this.get<unknown>(`${nsPath}/elasticmapsserver/${name}`),
-        create: (data: unknown) => 
-          this.post<unknown>(`${nsPath}/elasticmapsserver`, data),
-        update: (name: string, data: unknown) => 
+        list: (params?: ListParams) =>
+          this.get<ApiResponse<unknown[]>>(
+            `${nsPath}/elasticmapsserver${buildQueryString(params)}`
+          ),
+        get: (name: string) => this.get<unknown>(`${nsPath}/elasticmapsserver/${name}`),
+        create: (data: unknown) => this.post<unknown>(`${nsPath}/elasticmapsserver`, data),
+        update: (name: string, data: unknown) =>
           this.put<unknown>(`${nsPath}/elasticmapsserver/${name}`, data),
-        delete: (name: string) => 
-          this.delete<void>(`${nsPath}/elasticmapsserver/${name}`),
+        delete: (name: string) => this.delete<void>(`${nsPath}/elasticmapsserver/${name}`),
       },
     };
   }
@@ -314,15 +284,15 @@ interface ListParams {
 // Build query string from params
 function buildQueryString(params?: ListParams): string {
   if (!params) return '';
-  
+
   const searchParams = new URLSearchParams();
-  
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       searchParams.set(key, String(value));
     }
   });
-  
+
   const queryString = searchParams.toString();
   return queryString ? `?${queryString}` : '';
 }

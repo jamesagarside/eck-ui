@@ -5,6 +5,7 @@ This guide covers upgrading ECK UI between versions.
 ## General Upgrade Steps
 
 1. **Backup your configuration**
+
    ```bash
    kubectl get secret eck-ui-config -o yaml > eck-ui-config-backup.yaml
    ```
@@ -12,6 +13,7 @@ This guide covers upgrading ECK UI between versions.
 2. **Check for breaking changes** in the [CHANGELOG](CHANGELOG.md)
 
 3. **Update the Helm chart**
+
    ```bash
    helm repo update
    helm upgrade eck-ui eck-ui/eck-ui --namespace eck-ui --values values.yaml
@@ -27,7 +29,7 @@ This guide covers upgrading ECK UI between versions.
 
 ### Upgrading to 0.2.x
 
-*Future version - notes will be added when released*
+_Future version - notes will be added when released_
 
 ### Upgrading to 0.1.x
 
@@ -50,6 +52,7 @@ helm rollback eck-ui [REVISION] -n eck-ui
 ECK UI uses Kubernetes ConfigMaps and Secrets for persistent state. There are no database migrations required.
 
 Organization and user data is stored in:
+
 - `ConfigMap/eck-ui-orgs` - Organization definitions
 - `Secret/eck-ui-users` - User credentials (if using local auth)
 

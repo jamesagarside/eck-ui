@@ -9,6 +9,7 @@ Accepted
 ECK UI needs to be easily deployable in Kubernetes environments. We need to decide how to package and distribute the application.
 
 Options considered:
+
 1. **Separate containers**: Backend API and frontend served by different containers (e.g., nginx for static files)
 2. **Single container with embedded frontend**: Go binary serves both API and static frontend files
 3. **Source distribution**: Users build their own images from source

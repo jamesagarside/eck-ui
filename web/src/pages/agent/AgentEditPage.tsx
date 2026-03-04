@@ -244,12 +244,8 @@ export function AgentEditPage() {
   const updatedSpec = originalSpec ? buildUpdatedSpec(originalSpec, formData) : null;
   const isDirty = originalSpec && updatedSpec && hasChanges(originalSpec.spec, updatedSpec.spec);
 
-  const originalYaml = originalSpec
-    ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 })
-    : '';
-  const updatedYaml = updatedSpec
-    ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 })
-    : '';
+  const originalYaml = originalSpec ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 }) : '';
+  const updatedYaml = updatedSpec ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 }) : '';
 
   const diffItems = [];
   if (originalSpec && formData) {
@@ -258,8 +254,7 @@ export function AgentEditPage() {
         title: 'Version',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.version}</EuiCode> →{' '}
-            <EuiCode>{formData.version}</EuiCode>
+            <EuiCode>{originalSpec.spec.version}</EuiCode> → <EuiCode>{formData.version}</EuiCode>
           </>
         ),
       });
@@ -338,10 +333,7 @@ export function AgentEditPage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Changing version will trigger an upgrade"
-                >
+                <EuiFormRow label="Version" helpText="Changing version will trigger an upgrade">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -401,10 +393,7 @@ export function AgentEditPage() {
             </EuiTitle>
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              label="Elasticsearch Cluster"
-              helpText="Cluster to send data to"
-            >
+            <EuiFormRow label="Elasticsearch Cluster" helpText="Cluster to send data to">
               <EuiComboBox
                 placeholder="Select an Elasticsearch cluster"
                 singleSelection={{ asPlainText: true }}
@@ -417,10 +406,7 @@ export function AgentEditPage() {
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              label="Kibana Instance"
-              helpText="Kibana for Fleet management"
-            >
+            <EuiFormRow label="Kibana Instance" helpText="Kibana for Fleet management">
               <EuiComboBox
                 placeholder="Select a Kibana instance"
                 singleSelection={{ asPlainText: true }}
@@ -533,9 +519,9 @@ export function AgentEditPage() {
           { text: 'Edit' },
         ]}
         description={`Modify the configuration of ${name} in namespace ${namespace}`}
-        rightSideItems={[
-          isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>,
-        ].filter(Boolean)}
+        rightSideItems={[isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>].filter(
+          Boolean
+        )}
       />
 
       <EuiPageTemplate.Section>

@@ -201,12 +201,8 @@ export function LogstashEditPage() {
   const updatedSpec = originalSpec ? buildUpdatedSpec(originalSpec, formData) : null;
   const isDirty = originalSpec && updatedSpec && hasChanges(originalSpec.spec, updatedSpec.spec);
 
-  const originalYaml = originalSpec
-    ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 })
-    : '';
-  const updatedYaml = updatedSpec
-    ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 })
-    : '';
+  const originalYaml = originalSpec ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 }) : '';
+  const updatedYaml = updatedSpec ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 }) : '';
 
   const diffItems = [];
   if (originalSpec && formData) {
@@ -215,8 +211,7 @@ export function LogstashEditPage() {
         title: 'Version',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.version}</EuiCode> →{' '}
-            <EuiCode>{formData.version}</EuiCode>
+            <EuiCode>{originalSpec.spec.version}</EuiCode> → <EuiCode>{formData.version}</EuiCode>
           </>
         ),
       });
@@ -226,8 +221,7 @@ export function LogstashEditPage() {
         title: 'Count',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.count || 1}</EuiCode> →{' '}
-            <EuiCode>{formData.count}</EuiCode>
+            <EuiCode>{originalSpec.spec.count || 1}</EuiCode> → <EuiCode>{formData.count}</EuiCode>
           </>
         ),
       });
@@ -292,10 +286,7 @@ export function LogstashEditPage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Changing version will trigger an upgrade"
-                >
+                <EuiFormRow label="Version" helpText="Changing version will trigger an upgrade">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -361,8 +352,8 @@ export function LogstashEditPage() {
           <EuiCallOut title="Pipeline Configuration" color="primary" iconType="iInCircle">
             <EuiText size="s">
               <p>
-                To modify pipelines, edit the raw YAML or use kubectl to update the Logstash resource
-                directly.
+                To modify pipelines, edit the raw YAML or use kubectl to update the Logstash
+                resource directly.
               </p>
             </EuiText>
           </EuiCallOut>
@@ -468,9 +459,9 @@ export function LogstashEditPage() {
           { text: 'Edit' },
         ]}
         description={`Modify the configuration of Logstash in namespace ${namespace}`}
-        rightSideItems={[
-          isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>,
-        ].filter(Boolean)}
+        rightSideItems={[isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>].filter(
+          Boolean
+        )}
       />
 
       <EuiPageTemplate.Section>

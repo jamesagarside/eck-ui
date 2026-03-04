@@ -51,7 +51,7 @@ type SortableField = 'metadata.name' | 'metadata.namespace' | 'spec.version';
 
 export function KibanaListPage() {
   const navigate = useNavigate();
-  
+
   // State
   const [searchValue, setSearchValue] = useState('');
   const [selectedHealth, setSelectedHealth] = useState<HealthStatus[]>([]);
@@ -61,18 +61,21 @@ export function KibanaListPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Build query params
-  const queryParams = useMemo(() => ({
-    page: pageIndex + 1,
-    pageSize,
-    sort: sortField.split('.').pop() || sortField,
-    order: sortDirection,
-    search: searchValue || undefined,
-    health: selectedHealth.length === 1 ? selectedHealth[0] : undefined,
-  }), [pageIndex, pageSize, sortField, sortDirection, searchValue, selectedHealth]);
+  const queryParams = useMemo(
+    () => ({
+      page: pageIndex + 1,
+      pageSize,
+      sort: sortField.split('.').pop() || sortField,
+      order: sortDirection,
+      search: searchValue || undefined,
+      health: selectedHealth.length === 1 ? selectedHealth[0] : undefined,
+    }),
+    [pageIndex, pageSize, sortField, sortDirection, searchValue, selectedHealth]
+  );
 
   // Fetch data
   const { data, isLoading, error, refetch } = useKibanaList(queryParams);
-  
+
   const instances = (data?.data ?? []) as KibanaInstance[];
   const totalItems = instances.length;
 
@@ -103,9 +106,7 @@ export function KibanaListPage() {
     {
       field: 'status.phase',
       name: 'Phase',
-      render: (phase: Phase = 'Ready') => (
-        <EuiBadge color={phaseColors[phase]}>{phase}</EuiBadge>
-      ),
+      render: (phase: Phase = 'Ready') => <EuiBadge color={phaseColors[phase]}>{phase}</EuiBadge>,
     },
     {
       field: 'status.associationStatus',
@@ -129,7 +130,9 @@ export function KibanaListPage() {
       render: (esRef: KibanaInstance['spec']['elasticsearchRef']) => {
         if (!esRef) return '-';
         return (
-          <EuiLink onClick={() => navigate(`/elasticsearch/${esRef.namespace || 'default'}/${esRef.name}`)}>
+          <EuiLink
+            onClick={() => navigate(`/elasticsearch/${esRef.namespace || 'default'}/${esRef.name}`)}
+          >
             {esRef.name}
           </EuiLink>
         );
@@ -174,9 +177,7 @@ export function KibanaListPage() {
   // Toggle filter
   const toggleHealthFilter = (health: HealthStatus) => {
     setSelectedHealth((prev) =>
-      prev.includes(health)
-        ? prev.filter((h) => h !== health)
-        : [...prev, health]
+      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
     );
     setPageIndex(0);
   };
@@ -194,9 +195,7 @@ export function KibanaListPage() {
         iconColor="danger"
         title={<h2>Failed to load Kibana instances</h2>}
         body={<p>{error.message}</p>}
-        actions={
-          <EuiButton onClick={() => refetch()}>Retry</EuiButton>
-        }
+        actions={<EuiButton onClick={() => refetch()}>Retry</EuiButton>}
       />
     );
   }
@@ -206,12 +205,7 @@ export function KibanaListPage() {
       <EuiPageHeader
         pageTitle="Kibana Instances"
         rightSideItems={[
-          <EuiButton
-            key="create"
-            fill
-            iconType="plus"
-            onClick={() => navigate('/kibana/create')}
-          >
+          <EuiButton key="create" fill iconType="plus" onClick={() => navigate('/kibana/create')}>
             Create Kibana
           </EuiButton>,
         ]}

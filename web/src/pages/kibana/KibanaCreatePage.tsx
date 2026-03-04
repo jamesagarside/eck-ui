@@ -252,10 +252,7 @@ export function KibanaCreatePage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Kibana version to deploy"
-                >
+                <EuiFormRow label="Version" helpText="Kibana version to deploy">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -315,7 +312,8 @@ export function KibanaCreatePage() {
                   iconType="warning"
                 >
                   <EuiText size="s">
-                    Create an Elasticsearch cluster first, or ensure you have access to existing clusters.
+                    Create an Elasticsearch cluster first, or ensure you have access to existing
+                    clusters.
                   </EuiText>
                 </EuiCallOut>
               </>
@@ -330,9 +328,7 @@ export function KibanaCreatePage() {
             </EuiTitle>
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              helpText="Enable HTTP endpoint for external access"
-            >
+            <EuiFormRow helpText="Enable HTTP endpoint for external access">
               <EuiSwitch
                 label="Enable HTTP"
                 checked={formData.enableHTTP}
@@ -342,9 +338,7 @@ export function KibanaCreatePage() {
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              helpText="Enable TLS encryption for HTTP endpoint (recommended)"
-            >
+            <EuiFormRow helpText="Enable TLS encryption for HTTP endpoint (recommended)">
               <EuiSwitch
                 label="Enable TLS"
                 checked={formData.enableTLS}
@@ -356,14 +350,10 @@ export function KibanaCreatePage() {
             {!formData.enableTLS && formData.enableHTTP && (
               <>
                 <EuiSpacer size="m" />
-                <EuiCallOut
-                  title="TLS Disabled"
-                  color="warning"
-                  iconType="warning"
-                >
+                <EuiCallOut title="TLS Disabled" color="warning" iconType="warning">
                   <EuiText size="s">
-                    Disabling TLS is not recommended for production environments.
-                    Traffic will be unencrypted.
+                    Disabling TLS is not recommended for production environments. Traffic will be
+                    unencrypted.
                   </EuiText>
                 </EuiCallOut>
               </>
@@ -403,22 +393,11 @@ export function KibanaCreatePage() {
     content: (
       <>
         <EuiSpacer size="m" />
-        <EuiCallOut
-          title="YAML Preview"
-          iconType="document"
-          color="primary"
-        >
-          <EuiText size="s">
-            This is the Kubernetes resource that will be created.
-          </EuiText>
+        <EuiCallOut title="YAML Preview" iconType="document" color="primary">
+          <EuiText size="s">This is the Kubernetes resource that will be created.</EuiText>
         </EuiCallOut>
         <EuiSpacer size="m" />
-        <EuiCodeBlock
-          language="yaml"
-          fontSize="m"
-          paddingSize="m"
-          isCopyable
-        >
+        <EuiCodeBlock language="yaml" fontSize="m" paddingSize="m" isCopyable>
           {yamlPreview}
         </EuiCodeBlock>
       </>
@@ -430,7 +409,14 @@ export function KibanaCreatePage() {
       <EuiPageHeader
         pageTitle="Create Kibana Instance"
         breadcrumbs={[
-          { text: 'Kibana', href: '#', onClick: (e) => { e.preventDefault(); navigate('/kibana'); } },
+          {
+            text: 'Kibana',
+            href: '#',
+            onClick: (e) => {
+              e.preventDefault();
+              navigate('/kibana');
+            },
+          },
           { text: 'Create' },
         ]}
         description="Deploy a new Kibana instance connected to an Elasticsearch cluster"

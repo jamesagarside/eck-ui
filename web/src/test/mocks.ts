@@ -223,14 +223,16 @@ export function mockFetch(responses: Record<string, unknown>) {
     const pathname = new URL(url, 'http://localhost').pathname;
     const method = options?.method || 'GET';
     const key = `${method}:${pathname}`;
-    
-    const response = responses[key] || responses[pathname] || { status: 404, body: { error: 'Not found' } };
-    
+
+    const response = responses[key] ||
+      responses[pathname] || { status: 404, body: { error: 'Not found' } };
+
     return Promise.resolve({
       ok: (response as { status?: number }).status !== 404,
       status: (response as { status?: number }).status || 200,
       json: () => Promise.resolve((response as { body?: unknown }).body || response),
-      text: () => Promise.resolve(JSON.stringify((response as { body?: unknown }).body || response)),
+      text: () =>
+        Promise.resolve(JSON.stringify((response as { body?: unknown }).body || response)),
     });
   });
 }

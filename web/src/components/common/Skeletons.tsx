@@ -21,9 +21,9 @@ export function ListSkeleton() {
           <EuiSkeletonRectangle width={120} height={40} />
         </EuiFlexItem>
       </EuiFlexGroup>
-      
+
       <EuiSpacer size="l" />
-      
+
       {/* Search and filter skeleton */}
       <EuiFlexGroup>
         <EuiFlexItem>
@@ -33,9 +33,9 @@ export function ListSkeleton() {
           <EuiSkeletonRectangle width={150} height={40} />
         </EuiFlexItem>
       </EuiFlexGroup>
-      
+
       <EuiSpacer size="m" />
-      
+
       {/* Table skeleton */}
       <EuiPanel paddingSize="none">
         {/* Table header */}
@@ -48,7 +48,7 @@ export function ListSkeleton() {
             ))}
           </EuiFlexGroup>
         </div>
-        
+
         {/* Table rows */}
         {[1, 2, 3, 4, 5].map((row) => (
           <div key={row} style={{ borderBottom: '1px solid #d3dae6', padding: '12px 16px' }}>
@@ -94,9 +94,9 @@ export function DetailSkeleton() {
           </EuiFlexGroup>
         </EuiFlexItem>
       </EuiFlexGroup>
-      
+
       <EuiSpacer size="l" />
-      
+
       {/* Tabs skeleton */}
       <EuiFlexGroup gutterSize="m">
         {[1, 2, 3, 4].map((i) => (
@@ -105,9 +105,9 @@ export function DetailSkeleton() {
           </EuiFlexItem>
         ))}
       </EuiFlexGroup>
-      
+
       <EuiSpacer size="l" />
-      
+
       {/* Content skeleton */}
       <EuiFlexGroup>
         {/* Main content */}
@@ -122,7 +122,7 @@ export function DetailSkeleton() {
             <EuiSkeletonText lines={3} />
           </EuiPanel>
         </EuiFlexItem>
-        
+
         {/* Side panel */}
         <EuiFlexItem grow={1}>
           <EuiPanel>
@@ -164,9 +164,9 @@ export function FormSkeleton() {
           <EuiSkeletonRectangle width="100%" height={40} />
         </div>
       ))}
-      
+
       <EuiSpacer size="l" />
-      
+
       <EuiFlexGroup justifyContent="flexEnd">
         <EuiFlexItem grow={false}>
           <EuiSkeletonRectangle width={100} height={40} />

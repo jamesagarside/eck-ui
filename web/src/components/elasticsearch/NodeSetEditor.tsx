@@ -133,9 +133,7 @@ export function nodeSetFormToSpec(formData: NodeSetFormData): NodeSet {
 
 // Convert K8s NodeSet to form data
 export function specToNodeSetForm(nodeSet: NodeSet): NodeSetFormData {
-  const container = nodeSet.podTemplate?.spec?.containers?.find(
-    (c) => c.name === 'elasticsearch'
-  );
+  const container = nodeSet.podTemplate?.spec?.containers?.find((c) => c.name === 'elasticsearch');
   const storage = nodeSet.volumeClaimTemplates?.[0]?.spec?.resources?.requests?.storage;
   const storageClass = nodeSet.volumeClaimTemplates?.[0]?.spec?.storageClassName;
 
@@ -167,9 +165,7 @@ export function NodeSetEditor({ nodeSets, onChange, errors = {} }: NodeSetEditor
   };
 
   const updateNodeSet = (index: number, updates: Partial<NodeSetFormData>) => {
-    onChange(
-      nodeSets.map((ns, i) => (i === index ? { ...ns, ...updates } : ns))
-    );
+    onChange(nodeSets.map((ns, i) => (i === index ? { ...ns, ...updates } : ns)));
   };
 
   const toggleAccordion = (index: number) => {
@@ -280,10 +276,7 @@ export function NodeSetEditor({ nodeSets, onChange, errors = {} }: NodeSetEditor
 
             <EuiSpacer size="m" />
 
-            <EuiFormRow
-              label="Node Roles"
-              helpText="Select the roles for nodes in this set"
-            >
+            <EuiFormRow label="Node Roles" helpText="Select the roles for nodes in this set">
               <EuiCheckboxGroup
                 options={availableRoles}
                 idToSelectedMap={Object.fromEntries(

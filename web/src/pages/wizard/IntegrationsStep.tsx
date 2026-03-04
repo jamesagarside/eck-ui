@@ -28,30 +28,19 @@ const BEAT_TYPE_INFO: Record<BeatTypeConfig['type'], { label: string; descriptio
 };
 
 export function IntegrationsStep() {
-  const {
-    state,
-    toggleApm,
-    updateApm,
-    toggleFleet,
-    updateFleet,
-    toggleBeats,
-    updateBeats,
-  } = useWizard();
+  const { state, toggleApm, updateApm, toggleFleet, updateFleet, toggleBeats, updateBeats } =
+    useWizard();
   const { apm, fleet, beats, elasticsearch, kibana } = state;
 
   const handleBeatTypeToggle = (type: BeatTypeConfig['type']) => {
     if (!beats) return;
-    const newTypes = beats.types.map((t) =>
-      t.type === type ? { ...t, enabled: !t.enabled } : t
-    );
+    const newTypes = beats.types.map((t) => (t.type === type ? { ...t, enabled: !t.enabled } : t));
     updateBeats({ types: newTypes });
   };
 
   const handleBeatTypeUpdate = (type: BeatTypeConfig['type'], update: Partial<BeatTypeConfig>) => {
     if (!beats) return;
-    const newTypes = beats.types.map((t) =>
-      t.type === type ? { ...t, ...update } : t
-    );
+    const newTypes = beats.types.map((t) => (t.type === type ? { ...t, ...update } : t));
     updateBeats({ types: newTypes });
   };
 
@@ -319,8 +308,8 @@ export function IntegrationsStep() {
 
       <EuiCallOut title="Tip: Start Simple" iconType="iInCircle" color="primary">
         <p>
-          You can always add more integrations later. We recommend starting with just
-          Elasticsearch and Kibana, then adding APM, Fleet, or Beats as needed.
+          You can always add more integrations later. We recommend starting with just Elasticsearch
+          and Kibana, then adding APM, Fleet, or Beats as needed.
         </p>
       </EuiCallOut>
     </EuiForm>

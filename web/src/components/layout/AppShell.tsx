@@ -27,10 +27,7 @@ export function AppShell({ children, breadcrumbs = [] }: AppShellProps) {
   const [navIsOpen, setNavIsOpen] = useState(true);
   const { colorMode, toggleColorMode } = useTheme();
 
-  const defaultBreadcrumbs: EuiBreadcrumb[] = [
-    { text: 'ECK', href: '/' },
-    ...breadcrumbs,
-  ];
+  const defaultBreadcrumbs: EuiBreadcrumb[] = [{ text: 'ECK', href: '/' }, ...breadcrumbs];
 
   return (
     <>
@@ -102,17 +99,11 @@ export function AppShell({ children, breadcrumbs = [] }: AppShellProps) {
       >
         {/* Breadcrumbs */}
         <EuiPageTemplate.Section grow={false} paddingSize="s">
-          <EuiBreadcrumbs
-            breadcrumbs={defaultBreadcrumbs}
-            truncate={false}
-            max={6}
-          />
+          <EuiBreadcrumbs breadcrumbs={defaultBreadcrumbs} truncate={false} max={6} />
         </EuiPageTemplate.Section>
 
         {/* Page Content */}
-        <EuiPageTemplate.Section>
-          {children}
-        </EuiPageTemplate.Section>
+        <EuiPageTemplate.Section>{children}</EuiPageTemplate.Section>
       </EuiPageTemplate>
     </>
   );

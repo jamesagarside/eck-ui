@@ -115,9 +115,7 @@ export function AgentDetailPage() {
                   {
                     title: 'Phase',
                     description: (
-                      <EuiBadge color={phase === 'Ready' ? 'success' : 'warning'}>
-                        {phase}
-                      </EuiBadge>
+                      <EuiBadge color={phase === 'Ready' ? 'success' : 'warning'}>{phase}</EuiBadge>
                     ),
                   },
                   { title: 'Version', description: version },
@@ -159,11 +157,8 @@ export function AgentDetailPage() {
                         const ns = ref.namespace || namespace;
                         return (
                           <div key={i}>
-                            <EuiLink
-                              onClick={() => navigate(`/elasticsearch/${ns}/${ref.name}`)}
-                            >
-                              <EuiIcon type="logoElasticsearch" size="m" />{' '}
-                              {ref.name}
+                            <EuiLink onClick={() => navigate(`/elasticsearch/${ns}/${ref.name}`)}>
+                              <EuiIcon type="logoElasticsearch" size="m" /> {ref.name}
                             </EuiLink>
                           </div>
                         );
@@ -181,8 +176,7 @@ export function AgentDetailPage() {
                           navigate(`/agent/${ns}/${agent.spec.fleetServerRef?.name}`);
                         }}
                       >
-                        <EuiIcon type="fleetApp" size="m" />{' '}
-                        {agent.spec.fleetServerRef.name}
+                        <EuiIcon type="fleetApp" size="m" /> {agent.spec.fleetServerRef.name}
                       </EuiLink>
                     ) : isFleetMode ? (
                       <EuiBadge color="warning">Self (Fleet Server)</EuiBadge>
@@ -199,8 +193,7 @@ export function AgentDetailPage() {
                           navigate(`/kibana/${ns}/${agent.spec.kibanaRef?.name}`);
                         }}
                       >
-                        <EuiIcon type="logoKibana" size="m" />{' '}
-                        {agent.spec.kibanaRef.name}
+                        <EuiIcon type="logoKibana" size="m" /> {agent.spec.kibanaRef.name}
                       </EuiLink>
                     ) : (
                       <EuiBadge color="hollow">None</EuiBadge>
@@ -258,9 +251,7 @@ export function AgentDetailPage() {
             <>
               <EuiCallOut title="DaemonSet Mode" color="primary" iconType="cluster">
                 <EuiText size="s">
-                  <p>
-                    This agent runs as a DaemonSet, deploying one pod per node in the cluster.
-                  </p>
+                  <p>This agent runs as a DaemonSet, deploying one pod per node in the cluster.</p>
                 </EuiText>
               </EuiCallOut>
               <EuiSpacer size="m" />
@@ -277,7 +268,8 @@ export function AgentDetailPage() {
               <EuiCallOut title="Deployment Mode" color="primary" iconType="compute">
                 <EuiText size="s">
                   <p>
-                    This agent runs as a Deployment with {agent.spec.deployment.replicas || 1} replica(s).
+                    This agent runs as a Deployment with {agent.spec.deployment.replicas || 1}{' '}
+                    replica(s).
                   </p>
                 </EuiText>
               </EuiCallOut>
@@ -330,8 +322,8 @@ export function AgentDetailPage() {
             <EuiCallOut title="Fleet Managed" color="primary" iconType="fleetApp">
               <EuiText size="s">
                 <p>
-                  This agent is managed by Fleet. Configuration is controlled through
-                  Kibana Fleet policies rather than the ECK manifest.
+                  This agent is managed by Fleet. Configuration is controlled through Kibana Fleet
+                  policies rather than the ECK manifest.
                 </p>
               </EuiText>
             </EuiCallOut>
@@ -387,9 +379,7 @@ export function AgentDetailPage() {
               <EuiHealth color={healthColors[health]}>{health}</EuiHealth>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
-              <EuiBadge color={modeColors[mode]}>
-                {isFleetMode ? 'Fleet' : 'Standalone'}
-              </EuiBadge>
+              <EuiBadge color={modeColors[mode]}>{isFleetMode ? 'Fleet' : 'Standalone'}</EuiBadge>
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
               <EuiText size="s" color="subdued">
@@ -437,13 +427,13 @@ export function AgentDetailPage() {
           isLoading={deleteMutation.isPending}
         >
           <p>
-            This will permanently delete the Elastic Agent <strong>{name}</strong> in
-            namespace <strong>{namespace}</strong>.
+            This will permanently delete the Elastic Agent <strong>{name}</strong> in namespace{' '}
+            <strong>{namespace}</strong>.
           </p>
           {isFleetMode && (
             <p>
-              <strong>Warning:</strong> This agent is in Fleet mode. Make sure to
-              unenroll agents from Fleet before deleting.
+              <strong>Warning:</strong> This agent is in Fleet mode. Make sure to unenroll agents
+              from Fleet before deleting.
             </p>
           )}
         </EuiConfirmModal>

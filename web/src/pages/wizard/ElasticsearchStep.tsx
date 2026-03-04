@@ -245,10 +245,7 @@ export function ElasticsearchStep() {
 
         <EuiFlexGroup>
           <EuiFlexItem>
-            <EuiFormRow
-              label="Cluster Name"
-              helpText="Unique name for your Elasticsearch cluster"
-            >
+            <EuiFormRow label="Cluster Name" helpText="Unique name for your Elasticsearch cluster">
               <EuiFieldText
                 value={elasticsearch.name}
                 onChange={(e) => updateElasticsearch({ name: e.target.value })}

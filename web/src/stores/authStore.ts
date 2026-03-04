@@ -16,7 +16,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   login: (redirectUrl?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -35,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (redirectUrl?: string) => {
         const currentUrl = redirectUrl || window.location.href;
         const returnUrl = encodeURIComponent(currentUrl);
-        
+
         // Redirect to OIDC login
         window.location.href = `/api/v1/auth/login?return_url=${returnUrl}`;
       },
@@ -43,9 +43,9 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         try {
           set({ isLoading: true, error: null });
-          
+
           await apiClient.post('/auth/logout');
-          
+
           set({
             user: null,
             isAuthenticated: false,
@@ -63,9 +63,9 @@ export const useAuthStore = create<AuthState>()(
       refreshSession: async () => {
         try {
           set({ isLoading: true, error: null });
-          
+
           const response = await apiClient.get<{ user: User }>('/auth/me');
-          
+
           set({
             user: response.user,
             isAuthenticated: true,

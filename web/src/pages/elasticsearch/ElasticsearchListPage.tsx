@@ -49,7 +49,7 @@ type SortableField = 'metadata.name' | 'metadata.namespace' | 'spec.version';
 
 export function ElasticsearchListPage() {
   const navigate = useNavigate();
-  
+
   // State
   const [searchValue, setSearchValue] = useState('');
   const [selectedHealth, setSelectedHealth] = useState<HealthStatus[]>([]);
@@ -60,19 +60,22 @@ export function ElasticsearchListPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Build query params
-  const queryParams = useMemo(() => ({
-    page: pageIndex + 1,
-    pageSize,
-    sort: sortField.split('.').pop() || sortField,
-    order: sortDirection,
-    search: searchValue || undefined,
-    health: selectedHealth.length === 1 ? selectedHealth[0] : undefined,
-    phase: selectedPhase.length === 1 ? selectedPhase[0] : undefined,
-  }), [pageIndex, pageSize, sortField, sortDirection, searchValue, selectedHealth, selectedPhase]);
+  const queryParams = useMemo(
+    () => ({
+      page: pageIndex + 1,
+      pageSize,
+      sort: sortField.split('.').pop() || sortField,
+      order: sortDirection,
+      search: searchValue || undefined,
+      health: selectedHealth.length === 1 ? selectedHealth[0] : undefined,
+      phase: selectedPhase.length === 1 ? selectedPhase[0] : undefined,
+    }),
+    [pageIndex, pageSize, sortField, sortDirection, searchValue, selectedHealth, selectedPhase]
+  );
 
   // Fetch data
   const { data, isLoading, error, refetch } = useElasticsearchList(queryParams);
-  
+
   const clusters = (data?.data ?? []) as ElasticsearchCluster[];
   const totalItems = clusters.length;
 
@@ -98,9 +101,7 @@ export function ElasticsearchListPage() {
       name: 'Health',
       sortable: true,
       render: (health: HealthStatus) => (
-        <EuiHealth color={healthColors[health] || 'subdued'}>
-          {health}
-        </EuiHealth>
+        <EuiHealth color={healthColors[health] || 'subdued'}>{health}</EuiHealth>
       ),
     },
     {
@@ -108,9 +109,7 @@ export function ElasticsearchListPage() {
       name: 'Phase',
       sortable: true,
       render: (phase: Phase) => (
-        <EuiBadge color={phaseColors[phase] || 'default'}>
-          {phase}
-        </EuiBadge>
+        <EuiBadge color={phaseColors[phase] || 'default'}>{phase}</EuiBadge>
       ),
     },
     {
@@ -124,7 +123,9 @@ export function ElasticsearchListPage() {
       render: (status: ElasticsearchCluster['status']) => {
         if (!status) return <span>-</span>;
         return (
-          <EuiToolTip content={`${status.availableNodes ?? 0} of ${status.expectedNodes ?? 0} nodes available`}>
+          <EuiToolTip
+            content={`${status.availableNodes ?? 0} of ${status.expectedNodes ?? 0} nodes available`}
+          >
             <span>
               {status.availableNodes ?? 0}/{status.expectedNodes ?? 0}
             </span>
@@ -178,18 +179,14 @@ export function ElasticsearchListPage() {
   // Toggle filter
   const toggleHealthFilter = (health: HealthStatus) => {
     setSelectedHealth((prev) =>
-      prev.includes(health)
-        ? prev.filter((h) => h !== health)
-        : [...prev, health]
+      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
     );
     setPageIndex(0);
   };
 
   const togglePhaseFilter = (phase: Phase) => {
     setSelectedPhase((prev) =>
-      prev.includes(phase)
-        ? prev.filter((p) => p !== phase)
-        : [...prev, phase]
+      prev.includes(phase) ? prev.filter((p) => p !== phase) : [...prev, phase]
     );
     setPageIndex(0);
   };
@@ -207,9 +204,7 @@ export function ElasticsearchListPage() {
         iconColor="danger"
         title={<h2>Failed to load clusters</h2>}
         body={<p>{error.message}</p>}
-        actions={
-          <EuiButton onClick={() => refetch()}>Retry</EuiButton>
-        }
+        actions={<EuiButton onClick={() => refetch()}>Retry</EuiButton>}
       />
     );
   }

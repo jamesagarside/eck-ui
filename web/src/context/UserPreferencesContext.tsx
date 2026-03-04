@@ -7,15 +7,15 @@ export interface UserPreferences {
   defaultPageSize: number;
   showYamlInsteadOfForm: boolean;
   expandedSidebar: boolean;
-  
+
   // Table preferences
   defaultSortField: string;
   defaultSortDirection: 'asc' | 'desc';
-  
+
   // Dashboard preferences
   dashboardLayout: 'cards' | 'table';
   showHealthIndicators: boolean;
-  
+
   // Advanced preferences
   enableKeyboardShortcuts: boolean;
   confirmDestructiveActions: boolean;
@@ -68,30 +68,31 @@ export function UserPreferencesProvider({ children }: UserPreferencesProviderPro
     localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
   }, [preferences]);
 
-  const updatePreference = useCallback(<K extends keyof UserPreferences>(
-    key: K,
-    value: UserPreferences[K]
-  ) => {
-    setPreferences((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  }, []);
+  const updatePreference = useCallback(
+    <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
+      setPreferences((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
+    },
+    []
+  );
 
   const resetPreferences = useCallback(() => {
     setPreferences(defaultPreferences);
   }, []);
 
-  const value = useMemo(() => ({
-    preferences,
-    updatePreference,
-    resetPreferences,
-  }), [preferences, updatePreference, resetPreferences]);
+  const value = useMemo(
+    () => ({
+      preferences,
+      updatePreference,
+      resetPreferences,
+    }),
+    [preferences, updatePreference, resetPreferences]
+  );
 
   return (
-    <UserPreferencesContext.Provider value={value}>
-      {children}
-    </UserPreferencesContext.Provider>
+    <UserPreferencesContext.Provider value={value}>{children}</UserPreferencesContext.Provider>
   );
 }
 

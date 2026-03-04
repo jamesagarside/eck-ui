@@ -30,11 +30,7 @@ import {
   useElasticsearchList,
   useKibanaList,
 } from '../../hooks/useResources';
-import type {
-  Beat,
-  ElasticsearchCluster,
-  KibanaInstance,
-} from '../../types/resources';
+import type { Beat, ElasticsearchCluster, KibanaInstance } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
 // Beat types

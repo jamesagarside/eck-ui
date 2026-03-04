@@ -9,6 +9,7 @@ Accepted
 ECK UI manages critical infrastructure (Elasticsearch clusters) and requires comprehensive audit logging for security, compliance, and debugging purposes.
 
 Options considered:
+
 1. **Custom logging**: Write audit logs to stdout/files
 2. **Elasticsearch direct**: Send audit events directly to Elasticsearch
 3. **OpenTelemetry**: Use OTel SDK to export structured audit events

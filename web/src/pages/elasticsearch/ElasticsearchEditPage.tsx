@@ -23,10 +23,7 @@ import {
   EuiDescriptionList,
   EuiBadge,
 } from '@elastic/eui';
-import {
-  useElasticsearchDetail,
-  useUpdateElasticsearch,
-} from '../../hooks/useResources';
+import { useElasticsearchDetail, useUpdateElasticsearch } from '../../hooks/useResources';
 import {
   NodeSetEditor,
   nodeSetFormToSpec,
@@ -69,9 +66,7 @@ function validateForm(data: FormData): ValidationErrors {
 
   // Check for duplicate node set names
   const nodeSetNames = data.nodeSets.map((ns) => ns.name);
-  const duplicates = nodeSetNames.filter(
-    (name, index) => nodeSetNames.indexOf(name) !== index
-  );
+  const duplicates = nodeSetNames.filter((name, index) => nodeSetNames.indexOf(name) !== index);
   if (duplicates.length > 0) {
     errors['nodeSets.duplicate'] = `Duplicate node set names: ${duplicates.join(', ')}`;
   }
@@ -102,10 +97,7 @@ function validateForm(data: FormData): ValidationErrors {
   return errors;
 }
 
-function buildUpdatedSpec(
-  original: ElasticsearchCluster,
-  data: FormData
-): ElasticsearchCluster {
+function buildUpdatedSpec(original: ElasticsearchCluster, data: FormData): ElasticsearchCluster {
   return {
     ...original,
     spec: {
@@ -135,13 +127,9 @@ export function ElasticsearchEditPage() {
   const { namespace = '', name = '' } = useParams();
   const navigate = useNavigate();
 
-  const {
-    data: rawCluster,
-    isLoading,
-    error: loadError,
-  } = useElasticsearchDetail(namespace, name);
+  const { data: rawCluster, isLoading, error: loadError } = useElasticsearchDetail(namespace, name);
   const updateMutation = useUpdateElasticsearch();
-  
+
   // Cast to typed cluster
   const cluster = rawCluster as ElasticsearchCluster | undefined;
 
@@ -153,8 +141,7 @@ export function ElasticsearchEditPage() {
   // Initialize form data when cluster loads
   useEffect(() => {
     if (cluster && !formData) {
-      const tlsDisabled =
-        cluster.spec.http?.tls?.selfSignedCertificate?.disabled ?? false;
+      const tlsDisabled = cluster.spec.http?.tls?.selfSignedCertificate?.disabled ?? false;
 
       setFormData({
         version: cluster.spec.version,
@@ -228,12 +215,8 @@ export function ElasticsearchEditPage() {
   const isDirty = originalSpec && updatedSpec && hasChanges(originalSpec.spec, updatedSpec.spec);
 
   // Generate YAML preview
-  const originalYaml = originalSpec
-    ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 })
-    : '';
-  const updatedYaml = updatedSpec
-    ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 })
-    : '';
+  const originalYaml = originalSpec ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 }) : '';
+  const updatedYaml = updatedSpec ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 }) : '';
 
   // Simple diff summary
   const diffItems = [];
@@ -243,16 +226,12 @@ export function ElasticsearchEditPage() {
         title: 'Version',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.version}</EuiCode> →{' '}
-            <EuiCode>{formData.version}</EuiCode>
+            <EuiCode>{originalSpec.spec.version}</EuiCode> → <EuiCode>{formData.version}</EuiCode>
           </>
         ),
       });
     }
-    const originalNodes = (originalSpec.spec.nodeSets || []).reduce(
-      (sum, ns) => sum + ns.count,
-      0
-    );
+    const originalNodes = (originalSpec.spec.nodeSets || []).reduce((sum, ns) => sum + ns.count, 0);
     const newNodes = formData.nodeSets.reduce((sum, ns) => sum + ns.count, 0);
     if (originalNodes !== newNodes) {
       diffItems.push({
@@ -282,7 +261,8 @@ export function ElasticsearchEditPage() {
             </>
           )}
 
-          {Object.keys(errors).filter((k) => k.startsWith('nodeSets.') && !k.includes('.')).length > 0 && (
+          {Object.keys(errors).filter((k) => k.startsWith('nodeSets.') && !k.includes('.')).length >
+            0 && (
             <>
               <EuiCallOut title="Node set configuration issues" color="warning" iconType="warning">
                 {errors.nodeSets && <p>{errors.nodeSets}</p>}
@@ -338,16 +318,11 @@ export function ElasticsearchEditPage() {
             {originalSpec && formData.version !== originalSpec.spec.version && (
               <>
                 <EuiSpacer size="m" />
-                <EuiCallOut
-                  title="Version Change"
-                  color="warning"
-                  iconType="warning"
-                >
+                <EuiCallOut title="Version Change" color="warning" iconType="warning">
                   <EuiText size="s">
-                    Upgrading from{' '}
-                    <EuiCode>{originalSpec.spec.version}</EuiCode> to{' '}
-                    <EuiCode>{formData.version}</EuiCode> will trigger a rolling
-                    restart of all nodes.
+                    Upgrading from <EuiCode>{originalSpec.spec.version}</EuiCode> to{' '}
+                    <EuiCode>{formData.version}</EuiCode> will trigger a rolling restart of all
+                    nodes.
                   </EuiText>
                 </EuiCallOut>
               </>
@@ -493,9 +468,9 @@ export function ElasticsearchEditPage() {
           { text: 'Edit' },
         ]}
         description={`Modify the configuration of ${name} in namespace ${namespace}`}
-        rightSideItems={[
-          isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>,
-        ].filter(Boolean)}
+        rightSideItems={[isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>].filter(
+          Boolean
+        )}
       />
 
       <EuiPageTemplate.Section>

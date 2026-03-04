@@ -27,15 +27,8 @@ import {
   EuiText,
 } from '@elastic/eui';
 import type { EuiComboBoxOptionOption } from '@elastic/eui';
-import {
-  useCreateLogstash,
-  useNamespaces,
-  useElasticsearchList,
-} from '../../hooks/useResources';
-import type {
-  Logstash,
-  ElasticsearchCluster,
-} from '../../types/resources';
+import { useCreateLogstash, useNamespaces, useElasticsearchList } from '../../hooks/useResources';
+import type { Logstash, ElasticsearchCluster } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
 // Version options
@@ -109,16 +102,17 @@ function buildLogstashSpec(data: FormData): Logstash {
       version: data.version,
       count: data.count,
       elasticsearchRefs: data.elasticsearchRefs.length > 0 ? data.elasticsearchRefs : undefined,
-      pipelines: data.pipelines.length > 0
-        ? data.pipelines.map((p) => ({
-            pipeline: {
-              id: p.id,
-              config: {
-                string: p.config,
+      pipelines:
+        data.pipelines.length > 0
+          ? data.pipelines.map((p) => ({
+              pipeline: {
+                id: p.id,
+                config: {
+                  string: p.config,
+                },
               },
-            },
-          }))
-        : undefined,
+            }))
+          : undefined,
     },
   };
 
@@ -223,9 +217,7 @@ export function LogstashCreatePage() {
   const updatePipeline = (index: number, field: keyof Pipeline, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      pipelines: prev.pipelines.map((p, i) =>
-        i === index ? { ...p, [field]: value } : p
-      ),
+      pipelines: prev.pipelines.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
     }));
     // Clear pipeline-specific errors
     const errorKey = `pipeline_${index}_${field}`;
@@ -380,11 +372,7 @@ export function LogstashCreatePage() {
                 </EuiTitle>
               </EuiFlexItem>
               <EuiFlexItem grow={false}>
-                <EuiButton
-                  size="s"
-                  iconType="plusInCircle"
-                  onClick={addPipeline}
-                >
+                <EuiButton size="s" iconType="plusInCircle" onClick={addPipeline}>
                   Add Pipeline
                 </EuiButton>
               </EuiFlexItem>

@@ -115,7 +115,8 @@ export function EnterpriseSearchDetailPage() {
     {
       title: 'Nodes',
       description:
-        instance.status?.availableNodes !== undefined && instance.status?.expectedNodes !== undefined
+        instance.status?.availableNodes !== undefined &&
+        instance.status?.expectedNodes !== undefined
           ? `${instance.status.availableNodes} / ${instance.status.expectedNodes}`
           : '-',
     },
@@ -227,9 +228,7 @@ export function EnterpriseSearchDetailPage() {
           ) : (
             <EuiCallOut title="No custom configuration" color="primary" iconType="iInCircle">
               <EuiText size="s">
-                <p>
-                  This Enterprise Search instance is using the default configuration.
-                </p>
+                <p>This Enterprise Search instance is using the default configuration.</p>
               </EuiText>
             </EuiCallOut>
           )}

@@ -81,7 +81,10 @@ export const DEFAULT_ELASTICSEARCH_CONFIG: ElasticsearchConfig = {
   auth: true,
 };
 
-export const PRESET_CONFIGS: Record<string, Omit<ElasticsearchConfig, 'enabled' | 'name' | 'namespace' | 'version' | 'preset'>> = {
+export const PRESET_CONFIGS: Record<
+  string,
+  Omit<ElasticsearchConfig, 'enabled' | 'name' | 'namespace' | 'version' | 'preset'>
+> = {
   development: {
     nodes: [
       {
@@ -211,4 +214,4 @@ export const WIZARD_STEPS = [
   { id: 'review', title: 'Review', subtitle: 'Confirm and deploy' },
 ] as const;
 
-export type WizardStepId = typeof WIZARD_STEPS[number]['id'];
+export type WizardStepId = (typeof WIZARD_STEPS)[number]['id'];

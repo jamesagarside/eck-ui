@@ -24,10 +24,20 @@ import { AgentListPage, AgentDetailPage, AgentCreatePage, AgentEditPage } from '
 import { BeatListPage, BeatDetailPage, BeatCreatePage, BeatEditPage } from './pages/beats';
 
 // Logstash pages
-import { LogstashListPage, LogstashDetailPage, LogstashCreatePage, LogstashEditPage } from './pages/logstash';
+import {
+  LogstashListPage,
+  LogstashDetailPage,
+  LogstashCreatePage,
+  LogstashEditPage,
+} from './pages/logstash';
 
 // Enterprise Search pages
-import { EnterpriseSearchListPage, EnterpriseSearchDetailPage, EnterpriseSearchCreatePage, EnterpriseSearchEditPage } from './pages/enterprise-search';
+import {
+  EnterpriseSearchListPage,
+  EnterpriseSearchDetailPage,
+  EnterpriseSearchCreatePage,
+  EnterpriseSearchEditPage,
+} from './pages/enterprise-search';
 
 // Elastic Maps Server pages
 import { MapsListPage, MapsDetailPage, MapsCreatePage, MapsEditPage } from './pages/maps';
@@ -69,8 +79,14 @@ function App() {
                   {/* Elasticsearch routes */}
                   <Route path="/elasticsearch" element={<ElasticsearchListPage />} />
                   <Route path="/elasticsearch/create" element={<ElasticsearchCreatePage />} />
-                  <Route path="/elasticsearch/:namespace/:name" element={<ElasticsearchDetailPage />} />
-                  <Route path="/elasticsearch/:namespace/:name/edit" element={<ElasticsearchEditPage />} />
+                  <Route
+                    path="/elasticsearch/:namespace/:name"
+                    element={<ElasticsearchDetailPage />}
+                  />
+                  <Route
+                    path="/elasticsearch/:namespace/:name/edit"
+                    element={<ElasticsearchEditPage />}
+                  />
                   {/* Kibana routes */}
                   <Route path="/kibana" element={<KibanaListPage />} />
                   <Route path="/kibana/create" element={<KibanaCreatePage />} />
@@ -100,9 +116,18 @@ function App() {
                   <Route path="/logstash/:namespace/:name/edit" element={<LogstashEditPage />} />
                   {/* Enterprise Search routes */}
                   <Route path="/enterprise-search" element={<EnterpriseSearchListPage />} />
-                  <Route path="/enterprise-search/create" element={<EnterpriseSearchCreatePage />} />
-                  <Route path="/enterprise-search/:namespace/:name" element={<EnterpriseSearchDetailPage />} />
-                  <Route path="/enterprise-search/:namespace/:name/edit" element={<EnterpriseSearchEditPage />} />
+                  <Route
+                    path="/enterprise-search/create"
+                    element={<EnterpriseSearchCreatePage />}
+                  />
+                  <Route
+                    path="/enterprise-search/:namespace/:name"
+                    element={<EnterpriseSearchDetailPage />}
+                  />
+                  <Route
+                    path="/enterprise-search/:namespace/:name/edit"
+                    element={<EnterpriseSearchEditPage />}
+                  />
                   {/* Elastic Maps Server routes */}
                   <Route path="/maps" element={<MapsListPage />} />
                   <Route path="/maps/create" element={<MapsCreatePage />} />
@@ -111,7 +136,10 @@ function App() {
                   {/* Wizard route */}
                   <Route path="/wizard" element={<WizardPage />} />
                   {/* Placeholder routes */}
-                  <Route path="/organizations" element={<PlaceholderPage title="Organizations" />} />
+                  <Route
+                    path="/organizations"
+                    element={<PlaceholderPage title="Organizations" />}
+                  />
                   <Route path="/audit" element={<PlaceholderPage title="Audit Logs" />} />
                   <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

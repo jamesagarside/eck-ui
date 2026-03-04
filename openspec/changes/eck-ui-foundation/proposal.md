@@ -69,20 +69,20 @@ _(None - greenfield project)_
 
 Based on ECK operator v3 (from `../../Elastic/cloud-on-k8s/`):
 
-| CRD | API Group | Purpose |
-|-----|-----------|---------|
-| Elasticsearch | elasticsearch.k8s.elastic.co/v1 | Cluster deployment with NodeSets, HTTP/transport config |
-| Kibana | kibana.k8s.elastic.co/v1 | Kibana deployment with ES association |
-| ApmServer | apm.k8s.elastic.co/v1 | APM Server instances |
-| Agent | agent.k8s.elastic.co/v1 | Fleet-managed Elastic Agent |
-| Beat | beat.k8s.elastic.co/v1 | Filebeat, Metricbeat, etc. |
-| Logstash | logstash.k8s.elastic.co/v1 | Logstash pipelines |
-| EnterpriseSearch | enterprisesearch.k8s.elastic.co/v1 | Enterprise Search deployment |
-| ElasticMapsServer | maps.k8s.elastic.co/v1 | Maps server |
-| PackageRegistry | packageregistry.k8s.elastic.co/v1 | EPR for air-gapped |
-| StackConfigPolicy | stackconfigpolicy.k8s.elastic.co/v1 | Cross-cluster config |
-| ElasticsearchAutoscaler | autoscaling.k8s.elastic.co/v1 | Autoscaling policies |
-| AutoOpsAgentPolicy | autoops.k8s.elastic.co/v1 | AutoOps integration |
+| CRD                     | API Group                           | Purpose                                                 |
+| ----------------------- | ----------------------------------- | ------------------------------------------------------- |
+| Elasticsearch           | elasticsearch.k8s.elastic.co/v1     | Cluster deployment with NodeSets, HTTP/transport config |
+| Kibana                  | kibana.k8s.elastic.co/v1            | Kibana deployment with ES association                   |
+| ApmServer               | apm.k8s.elastic.co/v1               | APM Server instances                                    |
+| Agent                   | agent.k8s.elastic.co/v1             | Fleet-managed Elastic Agent                             |
+| Beat                    | beat.k8s.elastic.co/v1              | Filebeat, Metricbeat, etc.                              |
+| Logstash                | logstash.k8s.elastic.co/v1          | Logstash pipelines                                      |
+| EnterpriseSearch        | enterprisesearch.k8s.elastic.co/v1  | Enterprise Search deployment                            |
+| ElasticMapsServer       | maps.k8s.elastic.co/v1              | Maps server                                             |
+| PackageRegistry         | packageregistry.k8s.elastic.co/v1   | EPR for air-gapped                                      |
+| StackConfigPolicy       | stackconfigpolicy.k8s.elastic.co/v1 | Cross-cluster config                                    |
+| ElasticsearchAutoscaler | autoscaling.k8s.elastic.co/v1       | Autoscaling policies                                    |
+| AutoOpsAgentPolicy      | autoops.k8s.elastic.co/v1           | AutoOps integration                                     |
 
 ### Deployment Model
 

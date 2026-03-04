@@ -115,16 +115,16 @@ make coverage
 
 ECK UI is configured via environment variables:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ECK_UI_PORT` | HTTP server port | `8080` |
-| `ECK_UI_ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | `*` |
-| `ECK_UI_RATE_LIMIT` | Requests per second limit | `100` |
-| `ECK_UI_SESSION_SECRET` | Cookie encryption secret | `change-me-in-production` |
-| `ECK_UI_SYSTEM_NAMESPACE` | Namespace for system resources | `elastic-system` |
-| `ECK_UI_OIDC_ISSUER` | OIDC provider URL (optional) | - |
-| `ECK_UI_OIDC_CLIENT_ID` | OIDC client ID | - |
-| `ECK_UI_OIDC_CLIENT_SECRET` | OIDC client secret | - |
+| Variable                    | Description                            | Default                   |
+| --------------------------- | -------------------------------------- | ------------------------- |
+| `ECK_UI_PORT`               | HTTP server port                       | `8080`                    |
+| `ECK_UI_ALLOWED_ORIGINS`    | CORS allowed origins (comma-separated) | `*`                       |
+| `ECK_UI_RATE_LIMIT`         | Requests per second limit              | `100`                     |
+| `ECK_UI_SESSION_SECRET`     | Cookie encryption secret               | `change-me-in-production` |
+| `ECK_UI_SYSTEM_NAMESPACE`   | Namespace for system resources         | `elastic-system`          |
+| `ECK_UI_OIDC_ISSUER`        | OIDC provider URL (optional)           | -                         |
+| `ECK_UI_OIDC_CLIENT_ID`     | OIDC client ID                         | -                         |
+| `ECK_UI_OIDC_CLIENT_SECRET` | OIDC client secret                     | -                         |
 
 ## Architecture
 
@@ -181,12 +181,12 @@ The API follows REST conventions and returns JSON responses.
 
 ### Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/elasticsearch` | List Elasticsearch clusters |
-| POST | `/elasticsearch` | Create Elasticsearch cluster |
-| GET | `/elasticsearch/{name}` | Get Elasticsearch cluster |
-| PUT | `/elasticsearch/{name}` | Update Elasticsearch cluster |
+| Method | Path                    | Description                  |
+| ------ | ----------------------- | ---------------------------- |
+| GET    | `/elasticsearch`        | List Elasticsearch clusters  |
+| POST   | `/elasticsearch`        | Create Elasticsearch cluster |
+| GET    | `/elasticsearch/{name}` | Get Elasticsearch cluster    |
+| PUT    | `/elasticsearch/{name}` | Update Elasticsearch cluster |
 | DELETE | `/elasticsearch/{name}` | Delete Elasticsearch cluster |
 
 Similar patterns for `/kibana`, `/apmserver`, `/agent`, `/beat`, `/logstash`, `/enterprisesearch`, `/elasticmapsserver`.

@@ -82,9 +82,11 @@ export function EnterpriseSearchListPage() {
       health: instance.status?.health || 'unknown',
       phase: instance.status?.phase || 'Unknown',
       count: instance.spec.count || 1,
-      nodes: instance.status?.availableNodes !== undefined && instance.status?.expectedNodes !== undefined
-        ? `${instance.status.availableNodes}/${instance.status.expectedNodes}`
-        : '-',
+      nodes:
+        instance.status?.availableNodes !== undefined &&
+        instance.status?.expectedNodes !== undefined
+          ? `${instance.status.availableNodes}/${instance.status.expectedNodes}`
+          : '-',
       esRef: instance.spec.elasticsearchRef?.name || 'Not configured',
       createdAt: instance.metadata.creationTimestamp,
     }));
@@ -168,21 +170,18 @@ export function EnterpriseSearchListPage() {
       field: 'esRef',
       name: 'Elasticsearch',
       sortable: true,
-      render: (esRef: string) => (
+      render: (esRef: string) =>
         esRef !== 'Not configured' ? (
-          <EuiLink onClick={() => navigate(`/elasticsearch?search=${esRef}`)}>
-            {esRef}
-          </EuiLink>
+          <EuiLink onClick={() => navigate(`/elasticsearch?search=${esRef}`)}>{esRef}</EuiLink>
         ) : (
           <span style={{ color: '#999' }}>{esRef}</span>
-        )
-      ),
+        ),
     },
     {
       field: 'createdAt',
       name: 'Created',
       sortable: true,
-      render: (timestamp: string | undefined) => timestamp ? formatRelativeTime(timestamp) : '-',
+      render: (timestamp: string | undefined) => (timestamp ? formatRelativeTime(timestamp) : '-'),
     },
   ];
 
@@ -195,9 +194,7 @@ export function EnterpriseSearchListPage() {
 
   const toggleHealth = (health: HealthStatus) => {
     setSelectedHealth((prev) =>
-      prev.includes(health)
-        ? prev.filter((h) => h !== health)
-        : [...prev, health]
+      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health]
     );
   };
 

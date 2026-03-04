@@ -28,10 +28,7 @@ import {
   useUpdateEnterpriseSearch,
   useElasticsearchList,
 } from '../../hooks/useResources';
-import type {
-  EnterpriseSearch,
-  ElasticsearchCluster,
-} from '../../types/resources';
+import type { EnterpriseSearch, ElasticsearchCluster } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
 // Version options
@@ -85,10 +82,11 @@ export function EnterpriseSearchEditPage() {
   const navigate = useNavigate();
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
 
-  const { data: entsearchData, isLoading, error: fetchError } = useEnterpriseSearchDetail(
-    namespace!,
-    name!
-  );
+  const {
+    data: entsearchData,
+    isLoading,
+    error: fetchError,
+  } = useEnterpriseSearchDetail(namespace!, name!);
   const { data: esData } = useElasticsearchList();
   const updateMutation = useUpdateEnterpriseSearch();
 
@@ -202,12 +200,10 @@ export function EnterpriseSearchEditPage() {
     return (
       <EuiPageTemplate>
         <EuiPageTemplate.Section>
-          <EuiCallOut
-            title="Error loading Enterprise Search"
-            color="danger"
-            iconType="error"
-          >
-            <p>{fetchError instanceof Error ? fetchError.message : 'Enterprise Search not found'}</p>
+          <EuiCallOut title="Error loading Enterprise Search" color="danger" iconType="error">
+            <p>
+              {fetchError instanceof Error ? fetchError.message : 'Enterprise Search not found'}
+            </p>
           </EuiCallOut>
         </EuiPageTemplate.Section>
       </EuiPageTemplate>
@@ -298,9 +294,7 @@ export function EnterpriseSearchEditPage() {
 
           <EuiFlexGroup justifyContent="flexEnd">
             <EuiFlexItem grow={false}>
-              <EuiButtonEmpty
-                onClick={() => navigate(`/enterprise-search/${namespace}/${name}`)}
-              >
+              <EuiButtonEmpty onClick={() => navigate(`/enterprise-search/${namespace}/${name}`)}>
                 Cancel
               </EuiButtonEmpty>
             </EuiFlexItem>

@@ -20,53 +20,56 @@ interface KubernetesNamespace {
 export const queryKeys = {
   all: ['resources'] as const,
   namespaces: () => [...queryKeys.all, 'namespaces'] as const,
-  
-  elasticsearch: (orgId: string, ns: string) => [...queryKeys.all, 'elasticsearch', orgId, ns] as const,
-  elasticsearchList: (orgId: string, ns: string, params?: ListParams) => 
+
+  elasticsearch: (orgId: string, ns: string) =>
+    [...queryKeys.all, 'elasticsearch', orgId, ns] as const,
+  elasticsearchList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.elasticsearch(orgId, ns), 'list', params] as const,
-  elasticsearchDetail: (orgId: string, ns: string, name: string) => 
+  elasticsearchDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.elasticsearch(orgId, ns), 'detail', name] as const,
-  
+
   kibana: (orgId: string, ns: string) => [...queryKeys.all, 'kibana', orgId, ns] as const,
-  kibanaList: (orgId: string, ns: string, params?: ListParams) => 
+  kibanaList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.kibana(orgId, ns), 'list', params] as const,
-  kibanaDetail: (orgId: string, ns: string, name: string) => 
+  kibanaDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.kibana(orgId, ns), 'detail', name] as const,
 
   apm: (orgId: string, ns: string) => [...queryKeys.all, 'apm', orgId, ns] as const,
-  apmList: (orgId: string, ns: string, params?: ListParams) => 
+  apmList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.apm(orgId, ns), 'list', params] as const,
-  apmDetail: (orgId: string, ns: string, name: string) => 
+  apmDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.apm(orgId, ns), 'detail', name] as const,
 
   agent: (orgId: string, ns: string) => [...queryKeys.all, 'agent', orgId, ns] as const,
-  agentList: (orgId: string, ns: string, params?: ListParams) => 
+  agentList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.agent(orgId, ns), 'list', params] as const,
-  agentDetail: (orgId: string, ns: string, name: string) => 
+  agentDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.agent(orgId, ns), 'detail', name] as const,
 
   beat: (orgId: string, ns: string) => [...queryKeys.all, 'beat', orgId, ns] as const,
-  beatList: (orgId: string, ns: string, params?: ListParams) => 
+  beatList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.beat(orgId, ns), 'list', params] as const,
-  beatDetail: (orgId: string, ns: string, name: string) => 
+  beatDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.beat(orgId, ns), 'detail', name] as const,
 
   logstash: (orgId: string, ns: string) => [...queryKeys.all, 'logstash', orgId, ns] as const,
-  logstashList: (orgId: string, ns: string, params?: ListParams) => 
+  logstashList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.logstash(orgId, ns), 'list', params] as const,
-  logstashDetail: (orgId: string, ns: string, name: string) => 
+  logstashDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.logstash(orgId, ns), 'detail', name] as const,
 
-  enterpriseSearch: (orgId: string, ns: string) => [...queryKeys.all, 'enterprisesearch', orgId, ns] as const,
-  enterpriseSearchList: (orgId: string, ns: string, params?: ListParams) => 
+  enterpriseSearch: (orgId: string, ns: string) =>
+    [...queryKeys.all, 'enterprisesearch', orgId, ns] as const,
+  enterpriseSearchList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.enterpriseSearch(orgId, ns), 'list', params] as const,
-  enterpriseSearchDetail: (orgId: string, ns: string, name: string) => 
+  enterpriseSearchDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.enterpriseSearch(orgId, ns), 'detail', name] as const,
 
-  elasticMapsServer: (orgId: string, ns: string) => [...queryKeys.all, 'elasticmapsserver', orgId, ns] as const,
-  elasticMapsServerList: (orgId: string, ns: string, params?: ListParams) => 
+  elasticMapsServer: (orgId: string, ns: string) =>
+    [...queryKeys.all, 'elasticmapsserver', orgId, ns] as const,
+  elasticMapsServerList: (orgId: string, ns: string, params?: ListParams) =>
     [...queryKeys.elasticMapsServer(orgId, ns), 'list', params] as const,
-  elasticMapsServerDetail: (orgId: string, ns: string, name: string) => 
+  elasticMapsServerDetail: (orgId: string, ns: string, name: string) =>
     [...queryKeys.elasticMapsServer(orgId, ns), 'detail', name] as const,
 };
 
@@ -101,7 +104,9 @@ function createListHook<T>(
       queryKey: queryKeyFn(orgId, namespace, params),
       queryFn: async () => {
         const resources = apiClient.resources(orgId, namespace);
-        const resourceApi = resources[resourceType] as { list: (p?: ListParams) => Promise<{ data: T[] }> };
+        const resourceApi = resources[resourceType] as {
+          list: (p?: ListParams) => Promise<{ data: T[] }>;
+        };
         return resourceApi.list(params);
       },
       enabled: !!orgId && !!namespace,
@@ -119,7 +124,7 @@ function createDetailHook<T>(
   return function useResourceDetail(namespaceOrName: string, name?: string) {
     const { currentOrganization } = useOrganization();
     const orgId = currentOrganization?.id ?? '';
-    
+
     // Support both (name) and (namespace, name) signatures
     const actualNamespace = name ? namespaceOrName : (currentOrganization?.namespace ?? '');
     const actualName = name ?? namespaceOrName;
@@ -186,7 +191,15 @@ function createUpdateHook<T>(
     const defaultNamespace = currentOrganization?.namespace ?? '';
 
     return useMutation({
-      mutationFn: async ({ namespace, name, data }: { namespace?: string; name: string; data: T }) => {
+      mutationFn: async ({
+        namespace,
+        name,
+        data,
+      }: {
+        namespace?: string;
+        name: string;
+        data: T;
+      }) => {
         const ns = namespace || defaultNamespace;
         const resources = apiClient.resources(orgId, ns);
         const resourceApi = resources[resourceType] as { update: (n: string, d: T) => Promise<T> };
@@ -263,10 +276,25 @@ function createDeleteHook(
 
 // Elasticsearch hooks
 export const useElasticsearchList = createListHook('elasticsearch', queryKeys.elasticsearchList);
-export const useElasticsearchDetail = createDetailHook('elasticsearch', queryKeys.elasticsearchDetail);
-export const useCreateElasticsearch = createCreateHook('elasticsearch', queryKeys.elasticsearch, 'Elasticsearch');
-export const useUpdateElasticsearch = createUpdateHook('elasticsearch', queryKeys.elasticsearchDetail, 'Elasticsearch');
-export const useDeleteElasticsearch = createDeleteHook('elasticsearch', queryKeys.elasticsearch, 'Elasticsearch');
+export const useElasticsearchDetail = createDetailHook(
+  'elasticsearch',
+  queryKeys.elasticsearchDetail
+);
+export const useCreateElasticsearch = createCreateHook(
+  'elasticsearch',
+  queryKeys.elasticsearch,
+  'Elasticsearch'
+);
+export const useUpdateElasticsearch = createUpdateHook(
+  'elasticsearch',
+  queryKeys.elasticsearchDetail,
+  'Elasticsearch'
+);
+export const useDeleteElasticsearch = createDeleteHook(
+  'elasticsearch',
+  queryKeys.elasticsearch,
+  'Elasticsearch'
+);
 
 // Kibana hooks
 export const useKibanaList = createListHook('kibana', queryKeys.kibanaList);
@@ -304,18 +332,51 @@ export const useUpdateLogstash = createUpdateHook('logstash', queryKeys.logstash
 export const useDeleteLogstash = createDeleteHook('logstash', queryKeys.logstash, 'Logstash');
 
 // Enterprise Search hooks
-export const useEnterpriseSearchList = createListHook('enterpriseSearch', queryKeys.enterpriseSearchList);
-export const useEnterpriseSearchDetail = createDetailHook('enterpriseSearch', queryKeys.enterpriseSearchDetail);
-export const useCreateEnterpriseSearch = createCreateHook('enterpriseSearch', queryKeys.enterpriseSearch, 'EnterpriseSearch');
-export const useUpdateEnterpriseSearch = createUpdateHook('enterpriseSearch', queryKeys.enterpriseSearchDetail, 'EnterpriseSearch');
-export const useDeleteEnterpriseSearch = createDeleteHook('enterpriseSearch', queryKeys.enterpriseSearch, 'EnterpriseSearch');
+export const useEnterpriseSearchList = createListHook(
+  'enterpriseSearch',
+  queryKeys.enterpriseSearchList
+);
+export const useEnterpriseSearchDetail = createDetailHook(
+  'enterpriseSearch',
+  queryKeys.enterpriseSearchDetail
+);
+export const useCreateEnterpriseSearch = createCreateHook(
+  'enterpriseSearch',
+  queryKeys.enterpriseSearch,
+  'EnterpriseSearch'
+);
+export const useUpdateEnterpriseSearch = createUpdateHook(
+  'enterpriseSearch',
+  queryKeys.enterpriseSearchDetail,
+  'EnterpriseSearch'
+);
+export const useDeleteEnterpriseSearch = createDeleteHook(
+  'enterpriseSearch',
+  queryKeys.enterpriseSearch,
+  'EnterpriseSearch'
+);
 
 // Elastic Maps Server hooks
 export const useElasticMapsServerList = createListHook('maps', queryKeys.elasticMapsServerList);
-export const useElasticMapsServerDetail = createDetailHook('maps', queryKeys.elasticMapsServerDetail);
-export const useCreateElasticMapsServer = createCreateHook('maps', queryKeys.elasticMapsServer, 'ElasticMapsServer');
-export const useUpdateElasticMapsServer = createUpdateHook('maps', queryKeys.elasticMapsServerDetail, 'ElasticMapsServer');
-export const useDeleteElasticMapsServer = createDeleteHook('maps', queryKeys.elasticMapsServer, 'ElasticMapsServer');
+export const useElasticMapsServerDetail = createDetailHook(
+  'maps',
+  queryKeys.elasticMapsServerDetail
+);
+export const useCreateElasticMapsServer = createCreateHook(
+  'maps',
+  queryKeys.elasticMapsServer,
+  'ElasticMapsServer'
+);
+export const useUpdateElasticMapsServer = createUpdateHook(
+  'maps',
+  queryKeys.elasticMapsServerDetail,
+  'ElasticMapsServer'
+);
+export const useDeleteElasticMapsServer = createDeleteHook(
+  'maps',
+  queryKeys.elasticMapsServer,
+  'ElasticMapsServer'
+);
 
 // Invalidate all resource caches (useful after org switch)
 export function useInvalidateAllResources() {

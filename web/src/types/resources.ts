@@ -3,8 +3,8 @@
 export interface ResourceMetadata {
   name: string;
   namespace: string;
-  uid?: string;  // Optional - not present when creating
-  creationTimestamp?: string;  // Optional - not present when creating
+  uid?: string; // Optional - not present when creating
+  creationTimestamp?: string; // Optional - not present when creating
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
   resourceVersion?: string;
@@ -19,7 +19,7 @@ export interface ElasticsearchCluster {
   kind?: string;
   metadata: ResourceMetadata;
   spec: ElasticsearchSpec;
-  status?: ElasticsearchStatus;  // Optional - not present when creating
+  status?: ElasticsearchStatus; // Optional - not present when creating
 }
 
 export interface ElasticsearchSpec {

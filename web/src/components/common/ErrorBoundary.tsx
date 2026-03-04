@@ -36,10 +36,10 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.setState({ errorInfo });
-    
+
     // Report to error tracking service
     console.error('Uncaught error:', error, errorInfo);
-    
+
     // Call optional error handler
     this.props.onError?.(error, errorInfo);
   }
@@ -68,18 +68,12 @@ export class AppErrorBoundary extends Component<Props, State> {
               <EuiText>
                 <p>An unexpected error occurred. Please try refreshing the page.</p>
               </EuiText>
-              
+
               {this.state.error && (
                 <>
                   <EuiSpacer size="m" />
-                  <EuiAccordion
-                    id="error-details"
-                    buttonContent="Error details"
-                    paddingSize="m"
-                  >
-                    <EuiCode>
-                      {this.state.error.message}
-                    </EuiCode>
+                  <EuiAccordion id="error-details" buttonContent="Error details" paddingSize="m">
+                    <EuiCode>{this.state.error.message}</EuiCode>
                     {this.state.errorInfo?.componentStack && (
                       <>
                         <EuiSpacer size="s" />
@@ -96,19 +90,10 @@ export class AppErrorBoundary extends Component<Props, State> {
             </>
           }
           actions={[
-            <EuiButton
-              key="refresh"
-              color="primary"
-              fill
-              onClick={this.handleRefresh}
-            >
+            <EuiButton key="refresh" color="primary" fill onClick={this.handleRefresh}>
               Refresh page
             </EuiButton>,
-            <EuiButton
-              key="retry"
-              color="primary"
-              onClick={this.handleRetry}
-            >
+            <EuiButton key="retry" color="primary" onClick={this.handleRetry}>
               Try again
             </EuiButton>,
           ]}
@@ -181,11 +166,7 @@ export function QueryErrorFallback({
   resetErrorBoundary?: () => void;
 }): JSX.Element {
   return (
-    <EuiCallOut
-      title="Failed to load data"
-      color="danger"
-      iconType="alert"
-    >
+    <EuiCallOut title="Failed to load data" color="danger" iconType="alert">
       <EuiText size="s">
         <p>{error.message}</p>
       </EuiText>
@@ -223,9 +204,7 @@ export function NotFoundError({
           <p>{message}</p>
         </EuiText>
       }
-      actions={
-        <EuiButton href={backUrl}>{backLabel}</EuiButton>
-      }
+      actions={<EuiButton href={backUrl}>{backLabel}</EuiButton>}
     />
   );
 }
@@ -252,9 +231,7 @@ export function PermissionDeniedError({
           <p>Contact your administrator if you believe this is an error.</p>
         </EuiText>
       }
-      actions={
-        <EuiButton href="/">Return to home</EuiButton>
-      }
+      actions={<EuiButton href="/">Return to home</EuiButton>}
     />
   );
 }

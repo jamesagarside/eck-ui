@@ -26,11 +26,7 @@ import {
   EuiComboBox,
 } from '@elastic/eui';
 import type { EuiComboBoxOptionOption } from '@elastic/eui';
-import {
-  useKibanaDetail,
-  useUpdateKibana,
-  useElasticsearchList,
-} from '../../hooks/useResources';
+import { useKibanaDetail, useUpdateKibana, useElasticsearchList } from '../../hooks/useResources';
 import type { KibanaInstance, ElasticsearchCluster } from '../../types/resources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
 import jsYaml from 'js-yaml';
@@ -72,10 +68,7 @@ function validateForm(data: FormData): ValidationErrors {
   return errors;
 }
 
-function buildUpdatedSpec(
-  original: KibanaInstance,
-  data: FormData
-): KibanaInstance {
+function buildUpdatedSpec(original: KibanaInstance, data: FormData): KibanaInstance {
   return {
     ...original,
     spec: {
@@ -105,11 +98,7 @@ export function KibanaEditPage() {
   const { namespace = '', name = '' } = useParams();
   const navigate = useNavigate();
 
-  const {
-    data: rawInstance,
-    isLoading,
-    error: loadError,
-  } = useKibanaDetail(namespace, name);
+  const { data: rawInstance, isLoading, error: loadError } = useKibanaDetail(namespace, name);
   const updateMutation = useUpdateKibana();
   const { data: esData } = useElasticsearchList();
 
@@ -133,8 +122,7 @@ export function KibanaEditPage() {
   // Initialize form data when instance loads
   useEffect(() => {
     if (instance && !formData) {
-      const tlsDisabled =
-        instance.spec.http?.tls?.selfSignedCertificate?.disabled ?? false;
+      const tlsDisabled = instance.spec.http?.tls?.selfSignedCertificate?.disabled ?? false;
 
       setFormData({
         version: instance.spec.version,
@@ -228,12 +216,8 @@ export function KibanaEditPage() {
   const updatedSpec = originalSpec ? buildUpdatedSpec(originalSpec, formData) : null;
   const isDirty = originalSpec && updatedSpec && hasChanges(originalSpec.spec, updatedSpec.spec);
 
-  const originalYaml = originalSpec
-    ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 })
-    : '';
-  const updatedYaml = updatedSpec
-    ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 })
-    : '';
+  const originalYaml = originalSpec ? jsYaml.dump(originalSpec, { indent: 2, lineWidth: -1 }) : '';
+  const updatedYaml = updatedSpec ? jsYaml.dump(updatedSpec, { indent: 2, lineWidth: -1 }) : '';
 
   const diffItems = [];
   if (originalSpec && formData) {
@@ -242,8 +226,7 @@ export function KibanaEditPage() {
         title: 'Version',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.version}</EuiCode> →{' '}
-            <EuiCode>{formData.version}</EuiCode>
+            <EuiCode>{originalSpec.spec.version}</EuiCode> → <EuiCode>{formData.version}</EuiCode>
           </>
         ),
       });
@@ -253,8 +236,7 @@ export function KibanaEditPage() {
         title: 'Replicas',
         description: (
           <>
-            <EuiCode>{originalSpec.spec.count || 1}</EuiCode> →{' '}
-            <EuiCode>{formData.count}</EuiCode>
+            <EuiCode>{originalSpec.spec.count || 1}</EuiCode> → <EuiCode>{formData.count}</EuiCode>
           </>
         ),
       });
@@ -310,10 +292,7 @@ export function KibanaEditPage() {
 
             <EuiFlexGroup>
               <EuiFlexItem>
-                <EuiFormRow
-                  label="Version"
-                  helpText="Changing version will trigger an upgrade"
-                >
+                <EuiFormRow label="Version" helpText="Changing version will trigger an upgrade">
                   <EuiSelect
                     options={versionOptions}
                     value={formData.version}
@@ -342,16 +321,10 @@ export function KibanaEditPage() {
             {originalSpec && formData.version !== originalSpec.spec.version && (
               <>
                 <EuiSpacer size="m" />
-                <EuiCallOut
-                  title="Version Change"
-                  color="warning"
-                  iconType="warning"
-                >
+                <EuiCallOut title="Version Change" color="warning" iconType="warning">
                   <EuiText size="s">
-                    Upgrading from{' '}
-                    <EuiCode>{originalSpec.spec.version}</EuiCode> to{' '}
-                    <EuiCode>{formData.version}</EuiCode> will trigger a rolling
-                    restart.
+                    Upgrading from <EuiCode>{originalSpec.spec.version}</EuiCode> to{' '}
+                    <EuiCode>{formData.version}</EuiCode> will trigger a rolling restart.
                   </EuiText>
                 </EuiCallOut>
               </>
@@ -512,9 +485,9 @@ export function KibanaEditPage() {
           { text: 'Edit' },
         ]}
         description={`Modify the configuration of ${name} in namespace ${namespace}`}
-        rightSideItems={[
-          isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>,
-        ].filter(Boolean)}
+        rightSideItems={[isDirty && <EuiBadge color="warning">Unsaved changes</EuiBadge>].filter(
+          Boolean
+        )}
       />
 
       <EuiPageTemplate.Section>

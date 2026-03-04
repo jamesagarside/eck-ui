@@ -27,10 +27,7 @@ import {
   useNamespaces,
   useElasticsearchList,
 } from '../../hooks/useResources';
-import type {
-  ElasticMapsServer,
-  ElasticsearchCluster,
-} from '../../types/resources';
+import type { ElasticMapsServer, ElasticsearchCluster } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
 // Version options
@@ -187,7 +184,11 @@ export function MapsCreatePage() {
         <EuiForm component="form" onSubmit={handleSubmit}>
           {submitError && (
             <>
-              <EuiCallOut title="Error creating Elastic Maps Server" color="danger" iconType="error">
+              <EuiCallOut
+                title="Error creating Elastic Maps Server"
+                color="danger"
+                iconType="error"
+              >
                 <p>{submitError}</p>
               </EuiCallOut>
               <EuiSpacer size="m" />

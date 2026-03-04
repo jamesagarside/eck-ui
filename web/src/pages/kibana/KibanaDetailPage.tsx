@@ -53,7 +53,7 @@ export function KibanaDetailPage() {
   const { namespace = '', name = '' } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  
+
   const { data: rawInstance, isLoading, error } = useKibanaDetail(namespace, name);
   const deleteMutation = useDeleteKibana();
 
@@ -84,7 +84,7 @@ export function KibanaDetailPage() {
   };
 
   // Get Kibana URL from service
-  const kibanaUrl = instance.status?.availableNodes 
+  const kibanaUrl = instance.status?.availableNodes
     ? `https://${name}-kb-http.${namespace}.svc:5601`
     : null;
 
@@ -129,7 +129,12 @@ export function KibanaDetailPage() {
                 {
                   title: 'Status',
                   description: (
-                    <EuiBadge color={associationColors[instance.status?.associationStatus || 'Unknown'] || 'default'}>
+                    <EuiBadge
+                      color={
+                        associationColors[instance.status?.associationStatus || 'Unknown'] ||
+                        'default'
+                      }
+                    >
                       {instance.status?.associationStatus || 'Unknown'}
                     </EuiBadge>
                   ),
@@ -307,9 +312,7 @@ export function KibanaDetailPage() {
       <EuiPageHeader
         pageTitle={
           <EuiFlexGroup alignItems="center" gutterSize="m">
-            <EuiFlexItem grow={false}>
-              {instance.metadata.name}
-            </EuiFlexItem>
+            <EuiFlexItem grow={false}>{instance.metadata.name}</EuiFlexItem>
             <EuiFlexItem grow={false}>
               <EuiHealth color={healthColors[instance.status?.health || 'unknown']}>
                 {instance.status?.health || 'unknown'}
@@ -325,26 +328,14 @@ export function KibanaDetailPage() {
         description={`Version ${instance.spec.version} • ${instance.metadata.namespace}`}
         rightSideItems={[
           kibanaUrl && instance.status?.availableNodes ? (
-            <EuiButton
-              key="open"
-              iconType="popout"
-              href={kibanaUrl}
-              target="_blank"
-            >
+            <EuiButton key="open" iconType="popout" href={kibanaUrl} target="_blank">
               Open Kibana
             </EuiButton>
           ) : null,
-          <EuiButton
-            key="edit"
-            onClick={() => navigate(`/kibana/${namespace}/${name}/edit`)}
-          >
+          <EuiButton key="edit" onClick={() => navigate(`/kibana/${namespace}/${name}/edit`)}>
             Edit
           </EuiButton>,
-          <EuiButtonEmpty
-            key="delete"
-            color="danger"
-            onClick={() => setShowDeleteModal(true)}
-          >
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDeleteModal(true)}>
             Delete
           </EuiButtonEmpty>,
         ].filter(Boolean)}
@@ -361,11 +352,7 @@ export function KibanaDetailPage() {
         ]}
       />
 
-      <EuiTabbedContent
-        tabs={tabs}
-        initialSelectedTab={tabs[0]}
-        autoFocus="selected"
-      />
+      <EuiTabbedContent tabs={tabs} initialSelectedTab={tabs[0]} autoFocus="selected" />
 
       {showDeleteModal && (
         <EuiConfirmModal
@@ -379,8 +366,8 @@ export function KibanaDetailPage() {
           isLoading={deleteMutation.isPending}
         >
           <p>
-            Are you sure you want to delete the Kibana instance{' '}
-            <strong>{name}</strong>? This action cannot be undone.
+            Are you sure you want to delete the Kibana instance <strong>{name}</strong>? This action
+            cannot be undone.
           </p>
         </EuiConfirmModal>
       )}

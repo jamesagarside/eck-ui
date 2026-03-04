@@ -175,12 +175,12 @@ kubectl auth can-i create elasticsearches \
 
 For a more restrictive setup, you can limit ECK UI to specific actions:
 
-| Action | Required Verbs |
-|--------|----------------|
-| View resources | `get`, `list`, `watch` |
-| Create resources | `create` |
-| Edit resources | `update`, `patch` |
-| Delete resources | `delete` |
+| Action           | Required Verbs         |
+| ---------------- | ---------------------- |
+| View resources   | `get`, `list`, `watch` |
+| Create resources | `create`               |
+| Edit resources   | `update`, `patch`      |
+| Delete resources | `delete`               |
 
 ## Troubleshooting
 

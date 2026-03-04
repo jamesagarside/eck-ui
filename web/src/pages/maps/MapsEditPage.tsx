@@ -28,10 +28,7 @@ import {
   useUpdateElasticMapsServer,
   useElasticsearchList,
 } from '../../hooks/useResources';
-import type {
-  ElasticMapsServer,
-  ElasticsearchCluster,
-} from '../../types/resources';
+import type { ElasticMapsServer, ElasticsearchCluster } from '../../types/resources';
 import jsYaml from 'js-yaml';
 
 // Version options
@@ -85,10 +82,11 @@ export function MapsEditPage() {
   const navigate = useNavigate();
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
 
-  const { data: mapsData, isLoading, error: fetchError } = useElasticMapsServerDetail(
-    namespace!,
-    name!
-  );
+  const {
+    data: mapsData,
+    isLoading,
+    error: fetchError,
+  } = useElasticMapsServerDetail(namespace!, name!);
   const { data: esData } = useElasticsearchList();
   const updateMutation = useUpdateElasticMapsServer();
 
@@ -202,12 +200,10 @@ export function MapsEditPage() {
     return (
       <EuiPageTemplate>
         <EuiPageTemplate.Section>
-          <EuiCallOut
-            title="Error loading Elastic Maps Server"
-            color="danger"
-            iconType="error"
-          >
-            <p>{fetchError instanceof Error ? fetchError.message : 'Elastic Maps Server not found'}</p>
+          <EuiCallOut title="Error loading Elastic Maps Server" color="danger" iconType="error">
+            <p>
+              {fetchError instanceof Error ? fetchError.message : 'Elastic Maps Server not found'}
+            </p>
           </EuiCallOut>
         </EuiPageTemplate.Section>
       </EuiPageTemplate>
@@ -226,7 +222,11 @@ export function MapsEditPage() {
         <EuiForm component="form" onSubmit={handleSubmit}>
           {submitError && (
             <>
-              <EuiCallOut title="Error updating Elastic Maps Server" color="danger" iconType="error">
+              <EuiCallOut
+                title="Error updating Elastic Maps Server"
+                color="danger"
+                iconType="error"
+              >
                 <p>{submitError}</p>
               </EuiCallOut>
               <EuiSpacer size="m" />
@@ -298,9 +298,7 @@ export function MapsEditPage() {
 
           <EuiFlexGroup justifyContent="flexEnd">
             <EuiFlexItem grow={false}>
-              <EuiButtonEmpty
-                onClick={() => navigate(`/maps/${namespace}/${name}`)}
-              >
+              <EuiButtonEmpty onClick={() => navigate(`/maps/${namespace}/${name}`)}>
                 Cancel
               </EuiButtonEmpty>
             </EuiFlexItem>

@@ -39,7 +39,7 @@ function getHealthColor(health: HealthStatus): string {
 
 function formatRelativeTime(dateString?: string): string {
   if (!dateString) return '-';
-  
+
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -213,8 +213,7 @@ export function MapsListPage() {
     },
     {
       name: 'Created',
-      render: (item: ElasticMapsServer) =>
-        formatRelativeTime(item.metadata.creationTimestamp),
+      render: (item: ElasticMapsServer) => formatRelativeTime(item.metadata.creationTimestamp),
     },
   ];
 
@@ -261,11 +260,7 @@ export function MapsListPage() {
     return (
       <EuiPageTemplate>
         <EuiPageTemplate.Section>
-          <EuiCallOut
-            title="Error loading Elastic Maps Servers"
-            color="danger"
-            iconType="error"
-          >
+          <EuiCallOut title="Error loading Elastic Maps Servers" color="danger" iconType="error">
             <p>{error instanceof Error ? error.message : 'An unknown error occurred'}</p>
           </EuiCallOut>
         </EuiPageTemplate.Section>
@@ -279,12 +274,7 @@ export function MapsListPage() {
         pageTitle="Elastic Maps Server"
         description="Manage Elastic Maps Server instances for map visualizations"
         rightSideItems={[
-          <EuiButton
-            key="create"
-            fill
-            iconType="plus"
-            onClick={() => navigate('/maps/create')}
-          >
+          <EuiButton key="create" fill iconType="plus" onClick={() => navigate('/maps/create')}>
             Create Maps Server
           </EuiButton>,
         ]}
@@ -327,7 +317,7 @@ export function MapsListPage() {
                   {(['green', 'yellow', 'red', 'unknown'] as HealthStatus[]).map((health) => (
                     <EuiFilterSelectItem
                       key={health}
-                      checked={healthFilters.has(health) ? 'on' as const : undefined}
+                      checked={healthFilters.has(health) ? ('on' as const) : undefined}
                       onClick={() => toggleHealthFilter(health)}
                     >
                       <EuiHealth color={getHealthColor(health)}>{health}</EuiHealth>

@@ -38,21 +38,21 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
   const refreshOrganizations = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch('/api/v1/orgs');
       if (!response.ok) {
         throw new Error(`Failed to fetch organizations: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       const orgs: Organization[] = data.organizations || [];
       setOrganizations(orgs);
-      
+
       // Restore previously selected org or default to first
       const storedOrgId = localStorage.getItem(SELECTED_ORG_KEY);
       const storedOrg = orgs.find((o) => o.id === storedOrgId);
-      
+
       if (storedOrg) {
         setCurrentOrgState(storedOrg);
       } else if (orgs.length > 0) {
@@ -78,20 +78,26 @@ export function OrganizationProvider({ children }: OrganizationProviderProps) {
     refreshOrganizations();
   }, [refreshOrganizations]);
 
-  const value = useMemo(() => ({
-    organizations,
-    currentOrganization,
-    setCurrentOrganization,
-    isLoading,
-    error,
-    refreshOrganizations,
-  }), [organizations, currentOrganization, setCurrentOrganization, isLoading, error, refreshOrganizations]);
-
-  return (
-    <OrganizationContext.Provider value={value}>
-      {children}
-    </OrganizationContext.Provider>
+  const value = useMemo(
+    () => ({
+      organizations,
+      currentOrganization,
+      setCurrentOrganization,
+      isLoading,
+      error,
+      refreshOrganizations,
+    }),
+    [
+      organizations,
+      currentOrganization,
+      setCurrentOrganization,
+      isLoading,
+      error,
+      refreshOrganizations,
+    ]
   );
+
+  return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
 }
 
 export function useOrganization() {

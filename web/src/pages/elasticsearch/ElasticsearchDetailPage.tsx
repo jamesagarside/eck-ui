@@ -47,7 +47,7 @@ export function ElasticsearchDetailPage() {
   const { namespace = '', name = '' } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  
+
   const { data: cluster, isLoading, error } = useElasticsearchDetail(namespace, name);
   const deleteMutation = useDeleteElasticsearch();
 
@@ -196,9 +196,7 @@ export function ElasticsearchDetailPage() {
         field: 'podTemplate',
         name: 'Memory',
         render: (podTemplate: NodeSet['podTemplate']) => {
-          const container = podTemplate?.spec?.containers?.find(
-            (c) => c.name === 'elasticsearch'
-          );
+          const container = podTemplate?.spec?.containers?.find((c) => c.name === 'elasticsearch');
           return container?.resources?.limits?.memory || 'default';
         },
       },
@@ -210,10 +208,7 @@ export function ElasticsearchDetailPage() {
           <h3>Node Sets ({typedCluster.spec.nodeSets.length})</h3>
         </EuiTitle>
         <EuiSpacer size="m" />
-        <EuiBasicTable
-          items={typedCluster.spec.nodeSets}
-          columns={nodeSetColumns}
-        />
+        <EuiBasicTable items={typedCluster.spec.nodeSets} columns={nodeSetColumns} />
       </EuiPanel>
     );
   };
@@ -225,12 +220,7 @@ export function ElasticsearchDetailPage() {
         <h3>Resource YAML</h3>
       </EuiTitle>
       <EuiSpacer size="m" />
-      <EuiCodeBlock
-        language="yaml"
-        fontSize="m"
-        paddingSize="m"
-        isCopyable
-      >
+      <EuiCodeBlock language="yaml" fontSize="m" paddingSize="m" isCopyable>
         {formatAsYaml(typedCluster)}
       </EuiCodeBlock>
     </EuiPanel>
@@ -297,9 +287,7 @@ export function ElasticsearchDetailPage() {
       <EuiPageHeader
         pageTitle={
           <EuiFlexGroup alignItems="center" gutterSize="m">
-            <EuiFlexItem grow={false}>
-              {typedCluster.metadata.name}
-            </EuiFlexItem>
+            <EuiFlexItem grow={false}>{typedCluster.metadata.name}</EuiFlexItem>
             <EuiFlexItem grow={false}>
               <EuiHealth color={healthColors[typedCluster.status?.health || 'unknown']}>
                 {typedCluster.status?.health || 'unknown'}
@@ -320,21 +308,13 @@ export function ElasticsearchDetailPage() {
           >
             Edit
           </EuiButton>,
-          <EuiButtonEmpty
-            key="delete"
-            color="danger"
-            onClick={() => setShowDeleteModal(true)}
-          >
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDeleteModal(true)}>
             Delete
           </EuiButtonEmpty>,
         ]}
       />
 
-      <EuiTabbedContent
-        tabs={tabs}
-        initialSelectedTab={tabs[0]}
-        autoFocus="selected"
-      />
+      <EuiTabbedContent tabs={tabs} initialSelectedTab={tabs[0]} autoFocus="selected" />
 
       {showDeleteModal && (
         <EuiConfirmModal
@@ -347,8 +327,8 @@ export function ElasticsearchDetailPage() {
           defaultFocusedButton="cancel"
         >
           <p>
-            This will permanently delete the Elasticsearch cluster and all
-            associated resources. This action cannot be undone.
+            This will permanently delete the Elasticsearch cluster and all associated resources.
+            This action cannot be undone.
           </p>
         </EuiConfirmModal>
       )}
@@ -359,27 +339,30 @@ export function ElasticsearchDetailPage() {
 // Simple YAML formatter (basic implementation)
 function formatAsYaml(obj: unknown, indent = 0): string {
   const spaces = '  '.repeat(indent);
-  
+
   if (obj === null || obj === undefined) {
     return 'null';
   }
-  
+
   if (typeof obj === 'string') {
     if (obj.includes('\n') || obj.includes(':')) {
-      return `|-\n${obj.split('\n').map(line => spaces + '  ' + line).join('\n')}`;
+      return `|-\n${obj
+        .split('\n')
+        .map((line) => spaces + '  ' + line)
+        .join('\n')}`;
     }
     return obj;
   }
-  
+
   if (typeof obj === 'number' || typeof obj === 'boolean') {
     return String(obj);
   }
-  
+
   if (Array.isArray(obj)) {
     if (obj.length === 0) return '[]';
-    return obj.map(item => `${spaces}- ${formatAsYaml(item, indent + 1).trimStart()}`).join('\n');
+    return obj.map((item) => `${spaces}- ${formatAsYaml(item, indent + 1).trimStart()}`).join('\n');
   }
-  
+
   if (typeof obj === 'object') {
     const entries = Object.entries(obj);
     if (entries.length === 0) return '{}';
@@ -393,6 +376,6 @@ function formatAsYaml(obj: unknown, indent = 0): string {
       })
       .join('\n');
   }
-  
+
   return String(obj);
 }

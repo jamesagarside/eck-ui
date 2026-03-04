@@ -63,7 +63,8 @@ export function DashboardPage() {
   const { data: beatData, isLoading: beatLoading } = useBeatList();
   const { data: logstashData, isLoading: logstashLoading } = useLogstashList();
 
-  const isLoading = esLoading || kibanaLoading || apmLoading || agentLoading || beatLoading || logstashLoading;
+  const isLoading =
+    esLoading || kibanaLoading || apmLoading || agentLoading || beatLoading || logstashLoading;
 
   // Calculate health summaries
   const healthSummary = useMemo(() => {
@@ -86,14 +87,17 @@ export function DashboardPage() {
   }, [esData, kibanaData, apmData, agentData, beatData, logstashData]);
 
   // Resource counts by type
-  const resourceCounts = useMemo(() => ({
-    elasticsearch: (esData?.data || []).length,
-    kibana: (kibanaData?.data || []).length,
-    apm: (apmData?.data || []).length,
-    agent: (agentData?.data || []).length,
-    beat: (beatData?.data || []).length,
-    logstash: (logstashData?.data || []).length,
-  }), [esData, kibanaData, apmData, agentData, beatData, logstashData]);
+  const resourceCounts = useMemo(
+    () => ({
+      elasticsearch: (esData?.data || []).length,
+      kibana: (kibanaData?.data || []).length,
+      apm: (apmData?.data || []).length,
+      agent: (agentData?.data || []).length,
+      beat: (beatData?.data || []).length,
+      logstash: (logstashData?.data || []).length,
+    }),
+    [esData, kibanaData, apmData, agentData, beatData, logstashData]
+  );
 
   const totalResources = Object.values(resourceCounts).reduce((a, b) => a + b, 0);
 
@@ -104,12 +108,36 @@ export function DashboardPage() {
       status?: { health?: string };
     }
     const allResources: Array<{ resource: ResourceWithMeta; type: string; path: string }> = [
-      ...((esData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Elasticsearch', path: '/elasticsearch' })),
-      ...((kibanaData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Kibana', path: '/kibana' })),
-      ...((apmData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'APM', path: '/apm' })),
-      ...((agentData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Agent', path: '/agent' })),
-      ...((beatData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Beat', path: '/beats' })),
-      ...((logstashData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Logstash', path: '/logstash' })),
+      ...((esData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Elasticsearch',
+        path: '/elasticsearch',
+      })),
+      ...((kibanaData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Kibana',
+        path: '/kibana',
+      })),
+      ...((apmData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'APM',
+        path: '/apm',
+      })),
+      ...((agentData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Agent',
+        path: '/agent',
+      })),
+      ...((beatData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Beat',
+        path: '/beats',
+      })),
+      ...((logstashData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Logstash',
+        path: '/logstash',
+      })),
     ];
 
     return allResources
@@ -135,12 +163,36 @@ export function DashboardPage() {
       status?: { health?: string };
     }
     const allResources: Array<{ resource: ResourceWithMeta; type: string; path: string }> = [
-      ...((esData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Elasticsearch', path: '/elasticsearch' })),
-      ...((kibanaData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Kibana', path: '/kibana' })),
-      ...((apmData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'APM', path: '/apm' })),
-      ...((agentData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Agent', path: '/agent' })),
-      ...((beatData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Beat', path: '/beats' })),
-      ...((logstashData?.data || []) as ResourceWithMeta[]).map((r) => ({ resource: r, type: 'Logstash', path: '/logstash' })),
+      ...((esData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Elasticsearch',
+        path: '/elasticsearch',
+      })),
+      ...((kibanaData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Kibana',
+        path: '/kibana',
+      })),
+      ...((apmData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'APM',
+        path: '/apm',
+      })),
+      ...((agentData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Agent',
+        path: '/agent',
+      })),
+      ...((beatData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Beat',
+        path: '/beats',
+      })),
+      ...((logstashData?.data || []) as ResourceWithMeta[]).map((r) => ({
+        resource: r,
+        type: 'Logstash',
+        path: '/logstash',
+      })),
     ];
 
     return allResources
@@ -162,9 +214,7 @@ export function DashboardPage() {
       field: 'name',
       name: 'Name',
       render: (name: string, item: ResourceSummary) => (
-        <EuiLink onClick={() => navigate(`${item.path}/${item.namespace}/${name}`)}>
-          {name}
-        </EuiLink>
+        <EuiLink onClick={() => navigate(`${item.path}/${item.namespace}/${name}`)}>{name}</EuiLink>
       ),
     },
     {
@@ -252,9 +302,7 @@ export function DashboardPage() {
               color="warning"
               iconType="warning"
             >
-              <p>
-                Some resources are in a degraded state. Click below to view details.
-              </p>
+              <p>Some resources are in a degraded state. Click below to view details.</p>
             </EuiCallOut>
             <EuiSpacer size="l" />
           </>
