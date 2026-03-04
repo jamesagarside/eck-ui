@@ -50,13 +50,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const session = await apiClient.post<SessionResponse>('/auth/login', {
         token,
       });
+      const orgs = session.organizations || [];
       const activeOrg =
-        session.organizations.find(
+        orgs.find(
           (o) => o.name === session.activeOrganization,
-        ) || session.organizations[0] || null;
+        ) || orgs[0] || null;
       set({
         user: session.user,
-        orgs: session.organizations,
+        orgs,
         activeOrg,
         isAuthenticated: true,
         isLoading: false,
@@ -97,13 +98,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const session = await apiClient.get<SessionResponse>('/auth/session');
+      const orgs = session.organizations || [];
       const activeOrg =
-        session.organizations.find(
+        orgs.find(
           (o) => o.name === session.activeOrganization,
-        ) || session.organizations[0] || null;
+        ) || orgs[0] || null;
       set({
         user: session.user,
-        orgs: session.organizations,
+        orgs,
         activeOrg,
         isAuthenticated: true,
         isLoading: false,

@@ -19,6 +19,7 @@ import (
 	"github.com/jamesagarside/eck-ui/pkg/handlers/static"
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
 	"github.com/jamesagarside/eck-ui/pkg/middleware"
+	"github.com/jamesagarside/eck-ui/pkg/organization"
 	"github.com/jamesagarside/eck-ui/pkg/resources"
 )
 
@@ -66,6 +67,12 @@ func main() {
 	// Initialize auth service
 	authService := auth.NewService(k8sClient, cfg.SessionSecret, cfg.TokenCacheTTL)
 
+	// Initialize organization store
+	orgStore := organization.NewStore()
+	if err := orgStore.LoadFromConfigMaps(context.Background(), k8sClient.Clientset, "default"); err != nil {
+		slog.Warn("failed to load organizations from configmaps", "error", err)
+	}
+
 	// Initialize resource handler
 	resourceHandler := resources.NewHandler(k8sClient)
 
@@ -77,9 +84,9 @@ func main() {
 	r.HandleFunc("/readyz", handlers.ReadyzHandler(k8sClient)).Methods("GET")
 
 	// Auth endpoints
-	r.HandleFunc("/api/v1/auth/login", handlers.LoginHandler(authService)).Methods("POST")
+	r.HandleFunc("/api/v1/auth/login", handlers.LoginHandler(authService, orgStore)).Methods("POST")
 	r.HandleFunc("/api/v1/auth/session", handlers.LogoutHandler(authService)).Methods("DELETE")
-	r.HandleFunc("/api/v1/auth/session", handlers.SessionHandler(authService)).Methods("GET")
+	r.HandleFunc("/api/v1/auth/session", handlers.SessionHandler(authService, orgStore)).Methods("GET")
 
 	// OpenAPI spec
 	r.HandleFunc("/api/v1/openapi.yaml", handlers.OpenAPIYAMLHandler).Methods("GET")

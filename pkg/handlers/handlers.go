@@ -7,6 +7,7 @@ import (
 	"github.com/jamesagarside/eck-ui/pkg/auth"
 	apierrors "github.com/jamesagarside/eck-ui/pkg/errors"
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
+	"github.com/jamesagarside/eck-ui/pkg/organization"
 )
 
 // loginRequest is the expected JSON body for POST /api/v1/auth/login.
@@ -14,17 +15,26 @@ type loginRequest struct {
 	Token string `json:"token"`
 }
 
+// orgResponse is a simplified organization for API responses.
+type orgResponse struct {
+	Name       string   `json:"name"`
+	Namespaces []string `json:"namespaces"`
+}
+
 // loginResponse is the JSON body returned after successful authentication.
 type loginResponse struct {
-	User    *auth.UserInfo `json:"user"`
-	Session string         `json:"session"`
+	User               *auth.UserInfo `json:"user"`
+	Session            string         `json:"session"`
+	Organizations      []orgResponse  `json:"organizations"`
+	ActiveOrganization string         `json:"activeOrganization"`
 }
 
 // sessionResponse is the JSON body returned by GET /api/v1/auth/session.
 type sessionResponse struct {
-	User         *auth.UserInfo `json:"user"`
-	Organization string         `json:"organization,omitempty"`
-	ExpiresAt    string         `json:"expiresAt"`
+	User               *auth.UserInfo `json:"user"`
+	Organizations      []orgResponse  `json:"organizations"`
+	ActiveOrganization string         `json:"activeOrganization"`
+	ExpiresAt          string         `json:"expiresAt"`
 }
 
 // HealthzHandler returns 200 OK unconditionally, indicating the process is alive.
@@ -56,7 +66,7 @@ func ReadyzHandler(k8sClient *k8s.Client) http.HandlerFunc {
 
 // LoginHandler returns a handler that validates a bearer token via the Kubernetes
 // TokenReview API, creates a session, and sets the session cookie.
-func LoginHandler(authService *auth.Service) http.HandlerFunc {
+func LoginHandler(authService *auth.Service, orgStore *organization.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req loginRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -99,11 +109,30 @@ func LoginHandler(authService *auth.Service) http.HandlerFunc {
 
 		auth.SetCookie(w, session)
 
+		// Build organizations list for the user.
+		orgs := orgStore.GetUserOrganizations(userInfo.Username)
+		orgList := make([]orgResponse, 0, len(orgs))
+		for _, o := range orgs {
+			orgList = append(orgList, orgResponse{
+				Name:       o.Name,
+				Namespaces: o.Namespaces,
+			})
+		}
+
+		// If no orgs configured, provide a default org with all-namespace access.
+		activeOrg := ""
+		if len(orgList) == 0 {
+			orgList = []orgResponse{{Name: "default", Namespaces: []string{"*"}}}
+		}
+		activeOrg = orgList[0].Name
+
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(loginResponse{
-			User:    userInfo,
-			Session: session.ID,
+			User:               userInfo,
+			Session:            session.ID,
+			Organizations:      orgList,
+			ActiveOrganization: activeOrg,
 		})
 	}
 }
@@ -127,7 +156,7 @@ func LogoutHandler(authService *auth.Service) http.HandlerFunc {
 
 // SessionHandler returns a handler that retrieves the current session information
 // from the session cookie.
-func SessionHandler(authService *auth.Service) http.HandlerFunc {
+func SessionHandler(authService *auth.Service, orgStore *organization.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session := authService.Sessions().GetFromRequest(r)
 		if session == nil {
@@ -135,12 +164,29 @@ func SessionHandler(authService *auth.Service) http.HandlerFunc {
 			return
 		}
 
+		orgs := orgStore.GetUserOrganizations(session.User.Username)
+		orgList := make([]orgResponse, 0, len(orgs))
+		for _, o := range orgs {
+			orgList = append(orgList, orgResponse{
+				Name:       o.Name,
+				Namespaces: o.Namespaces,
+			})
+		}
+		if len(orgList) == 0 {
+			orgList = []orgResponse{{Name: "default", Namespaces: []string{"*"}}}
+		}
+		activeOrg := session.Organization
+		if activeOrg == "" {
+			activeOrg = orgList[0].Name
+		}
+
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(sessionResponse{
-			User:         session.User,
-			Organization: session.Organization,
-			ExpiresAt:    session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+			User:               session.User,
+			Organizations:      orgList,
+			ActiveOrganization: activeOrg,
+			ExpiresAt:          session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
 }
