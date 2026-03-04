@@ -40,7 +40,7 @@
 - [x] 5.1 Create `api/openapi.yaml` — define REST API spec for all 12 ECK resource types with CRUD endpoints, request/response schemas derived from CRD fields
 - [x] 5.2 Implement `pkg/k8s/resources.go` — generic Kubernetes CRUD operations (list, get, create, update, delete) using `client-go` dynamic client, namespace-scoped
 - [x] 5.3 Implement `pkg/handlers/` — HTTP handlers for all resource CRUD endpoints: `GET /api/v1/{type}`, `GET /api/v1/{type}/{ns}/{name}`, `POST /api/v1/{type}/{ns}`, `PUT /api/v1/{type}/{ns}/{name}`, `DELETE /api/v1/{type}/{ns}/{name}`
-- [ ] 5.4 Implement request body validation against OpenAPI schema before forwarding to K8s API
+- [x] 5.4 Implement request body validation against OpenAPI schema before forwarding to K8s API
 - [x] 5.5 Implement `GET /api/v1/events/{namespace}` — return recent K8s events filtered to ECK resource types
 - [x] 5.6 Implement `GET /api/v1/watch/{type}` SSE endpoint — stream K8s watch events filtered by user's org namespace scope, with 15s keepalive
 - [x] 5.7 Implement OpenAPI spec serving at `/api/v1/openapi.yaml` and `/api/v1/openapi.json`
@@ -177,11 +177,11 @@
 - [x] 19.1 Set up Go test infrastructure — table-driven tests, mock K8s client via fake client-go
 - [x] 19.2 Set up frontend test infrastructure — Vitest, React Testing Library, MSW for API mocking
 - [x] 19.3 Write backend unit tests for all handler endpoints (CRUD + watch + events)
-- [ ] 19.4 Write backend integration tests against real K8s API (Docker Desktop with ECK operator)
+- [x] 19.4 Write backend integration tests against real K8s API (Docker Desktop with ECK operator)
 - [x] 19.5 Write frontend unit tests for shared components (HealthBadge, SecretField, YamlEditor, ResourceSelector)
-- [ ] 19.6 Write frontend unit tests for auth flow (login, logout, session guard)
-- [ ] 19.7 Write frontend page tests for dashboard, ES list/detail/create
-- [ ] 19.8 Write E2E smoke test — login → create ES cluster → verify in list → delete (against Docker Desktop cluster)
+- [x] 19.6 Write frontend unit tests for auth flow (login, logout, session guard)
+- [x] 19.7 Write frontend page tests for dashboard, ES list/detail/create
+- [x] 19.8 Write E2E smoke test — login → create ES cluster → verify in list → delete (against Docker Desktop cluster)
 
 ## 20. Documentation & Polish
 

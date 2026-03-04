@@ -85,6 +85,17 @@ func (h *Handler) Create(resourceType string) http.HandlerFunc {
 			))
 			return
 		}
+
+		// Validate the request body before forwarding to the Kubernetes API.
+		if err := ValidateResourceRequest(obj.Object, info.Kind); err != nil {
+			apierrors.WriteError(w, apierrors.New(
+				http.StatusBadRequest,
+				"BadRequest",
+				"Validation failed: "+err.Error(),
+			))
+			return
+		}
+
 		if obj.GetAPIVersion() == "" {
 			obj.SetAPIVersion(info.Group + "/" + info.Version)
 		}
@@ -120,6 +131,27 @@ func (h *Handler) Update(resourceType string) http.HandlerFunc {
 				http.StatusBadRequest,
 				"BadRequest",
 				"Invalid request body: "+err.Error(),
+			))
+			return
+		}
+
+		// Resolve the expected Kind for validation.
+		info, err := GetResourceTypeInfo(resourceType)
+		if err != nil {
+			apierrors.WriteError(w, apierrors.New(
+				http.StatusBadRequest,
+				"BadRequest",
+				err.Error(),
+			))
+			return
+		}
+
+		// Validate the request body before forwarding to the Kubernetes API.
+		if err := ValidateResourceRequest(obj.Object, info.Kind); err != nil {
+			apierrors.WriteError(w, apierrors.New(
+				http.StatusBadRequest,
+				"BadRequest",
+				"Validation failed: "+err.Error(),
 			))
 			return
 		}
