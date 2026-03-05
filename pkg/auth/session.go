@@ -95,29 +95,38 @@ func (ss *SessionStore) GetFromRequest(r *http.Request) *Session {
 }
 
 // SetCookie writes the session cookie to the response. The cookie is configured
-// with HTTP-only, Secure, SameSite=Strict, and path=/ for security.
-func SetCookie(w http.ResponseWriter, session *Session) {
+// with HTTP-only, SameSite=Lax, and path=/ for security. Secure flag is set
+// based on the request scheme (HTTPS only).
+func SetCookie(w http.ResponseWriter, session *Session, secure bool) {
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteStrictMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    session.ID,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Secure:   secure,
+		SameSite: sameSite,
 		Expires:  session.ExpiresAt,
 	})
 }
 
 // ClearCookie removes the session cookie from the response by setting it to
 // an expired value.
-func ClearCookie(w http.ResponseWriter) {
+func ClearCookie(w http.ResponseWriter, secure bool) {
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteStrictMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Secure:   secure,
+		SameSite: sameSite,
 		MaxAge:   -1,
 	})
 }

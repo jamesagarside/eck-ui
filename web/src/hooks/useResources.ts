@@ -10,8 +10,26 @@ import type {
   BaseResource,
 } from '../types/resources';
 
+// Map frontend resource type names to backend API route names.
+const BACKEND_TYPE_MAP: Record<ResourceType, string> = {
+  elasticsearch: 'elasticsearch',
+  kibana: 'kibana',
+  apm: 'apmserver',
+  beat: 'beat',
+  agent: 'agent',
+  logstash: 'logstash',
+  'enterprise-search': 'enterprisesearch',
+  maps: 'elasticmapsserver',
+  stackconfigpolicy: 'stackconfigpolicy',
+  elasticsearchautoscaler: 'elasticsearchautoscaler',
+};
+
+function backendType(type: ResourceType): string {
+  return BACKEND_TYPE_MAP[type] || type;
+}
+
 function resourcePath(type: ResourceType): string {
-  return `/resources/${type}`;
+  return `/${backendType(type)}`;
 }
 
 function resourceItemPath(
@@ -19,7 +37,7 @@ function resourceItemPath(
   namespace: string,
   name: string,
 ): string {
-  return `/resources/${type}/${namespace}/${name}`;
+  return `/${backendType(type)}/${namespace}/${name}`;
 }
 
 export function useResourceList<T extends BaseResource = BaseResource>(
@@ -52,8 +70,11 @@ export function useCreateResource(type: ResourceType) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (resource: unknown) =>
-      apiClient.post(resourcePath(type), resource),
+    mutationFn: (resource: Record<string, unknown>) => {
+      const metadata = resource.metadata as { namespace?: string } | undefined;
+      const namespace = metadata?.namespace || 'default';
+      return apiClient.post(`/${backendType(type)}/${namespace}`, resource);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['resources', type] });
     },

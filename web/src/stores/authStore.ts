@@ -73,7 +73,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   logout: async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await apiClient.del('/auth/session');
     } catch {
       // Proceed with local logout even if server call fails
     }

@@ -107,7 +107,8 @@ func LoginHandler(authService *auth.Service, orgStore *organization.Store) http.
 			return
 		}
 
-		auth.SetCookie(w, session)
+		secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+		auth.SetCookie(w, session, secure)
 
 		// Build organizations list for the user.
 		orgs := orgStore.GetUserOrganizations(userInfo.Username)
@@ -146,7 +147,8 @@ func LogoutHandler(authService *auth.Service) http.HandlerFunc {
 			authService.Sessions().Delete(session.ID)
 		}
 
-		auth.ClearCookie(w)
+		secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+		auth.ClearCookie(w, secure)
 
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
