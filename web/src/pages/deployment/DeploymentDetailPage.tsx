@@ -24,7 +24,6 @@ import { useDeployment } from '../../hooks/useDeployments';
 import { useEvents, useDeleteResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
 import { routePath } from '../../utils/routePaths';
-import type { DeploymentComponent } from '../../types/deployment';
 import type { HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {

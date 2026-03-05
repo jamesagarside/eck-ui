@@ -1,4 +1,4 @@
-.PHONY: build dev test lint docker-build clean generate web-build web-dev go-dev help
+.PHONY: build dev test lint docker-build clean generate web-build web-dev go-dev deploy help
 
 APP_NAME := eck-ui
 VERSION := $(shell cat VERSION 2>/dev/null || echo "0.0.0")
@@ -36,6 +36,20 @@ lint:
 ## docker-build: Build Docker image
 docker-build:
 	docker build -t $(DOCKER_TAG) -t $(APP_NAME):latest .
+
+HELM_RELEASE := eck-ui
+HELM_NAMESPACE := default
+
+## deploy: Build image and redeploy to local Kubernetes
+deploy: docker-build
+	helm upgrade --install $(HELM_RELEASE) deploy/helm/eck-ui \
+		--namespace $(HELM_NAMESPACE) \
+		--reuse-values \
+		--set image.repository=$(APP_NAME) \
+		--set image.tag=latest \
+		--set image.pullPolicy=Never
+	kubectl rollout restart deployment/$(HELM_RELEASE) -n $(HELM_NAMESPACE)
+	kubectl rollout status deployment/$(HELM_RELEASE) -n $(HELM_NAMESPACE) --timeout=120s
 
 ## clean: Remove build artifacts
 clean:
