@@ -1,5 +1,6 @@
+import { createElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { EuiSideNav, type EuiSideNavItemType } from '@elastic/eui';
+import { EuiSideNav, EuiIcon, type EuiSideNavItemType } from '@elastic/eui';
 
 function createItem(
   name: string,
@@ -13,7 +14,7 @@ function createItem(
     name,
     isSelected: currentPath === path || currentPath.startsWith(`${path}/`),
     onClick: () => navigate(path),
-    icon: icon ? undefined : undefined,
+    icon: icon ? createElement(EuiIcon, { type: icon, size: 's' }) : undefined,
   };
 }
 
@@ -30,6 +31,7 @@ export function Sidebar() {
       isSelected: currentPath === '/',
       items: [],
     },
+    createItem('Deployments', '/deployments', currentPath, navigate, 'layers'),
     {
       id: 'resources',
       name: 'Resources',
@@ -55,13 +57,6 @@ export function Sidebar() {
       items: [
         createItem('Config Policies', '/stackconfigpolicy', currentPath, navigate),
         createItem('Autoscalers', '/elasticsearchautoscaler', currentPath, navigate),
-      ],
-    },
-    {
-      id: 'tools',
-      name: 'Tools',
-      items: [
-        createItem('Stack Wizard', '/wizard', currentPath, navigate),
       ],
     },
   ];

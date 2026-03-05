@@ -1,8 +1,9 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthGuard } from './components/auth/AuthGuard';
 import { LoginPage } from './pages/login/LoginPage';
 import { DashboardPage } from './pages/dashboard';
+import { DeploymentListPage, DeploymentCreatePage, DeploymentDetailPage, DeploymentEditPage } from './pages/deployment';
 import { ElasticsearchListPage } from './pages/elasticsearch/ElasticsearchListPage';
 import { ElasticsearchDetailPage } from './pages/elasticsearch/ElasticsearchDetailPage';
 import { ElasticsearchCreatePage } from './pages/elasticsearch/ElasticsearchCreatePage';
@@ -14,12 +15,15 @@ import { AgentListPage, AgentDetailPage, AgentCreatePage, AgentEditPage } from '
 import { LogstashListPage, LogstashDetailPage, LogstashCreatePage, LogstashEditPage } from './pages/logstash';
 import { EnterpriseSearchListPage, EnterpriseSearchDetailPage, EnterpriseSearchCreatePage, EnterpriseSearchEditPage } from './pages/enterprise-search';
 import { MapsListPage, MapsDetailPage, MapsCreatePage, MapsEditPage } from './pages/maps';
-import { WizardPage } from './pages/wizard';
 import {
   StackConfigPolicyListPage,
   StackConfigPolicyCreatePage,
+  StackConfigPolicyDetailPage,
+  StackConfigPolicyEditPage,
   AutoscalerListPage,
   AutoscalerCreatePage,
+  AutoscalerDetailPage,
+  AutoscalerEditPage,
 } from './pages/stack';
 import './App.css';
 
@@ -34,6 +38,12 @@ function App() {
         <Route element={<AppShell />}>
           {/* Dashboard */}
           <Route path="/" element={<DashboardPage />} />
+
+          {/* Deployments */}
+          <Route path="/deployments" element={<DeploymentListPage />} />
+          <Route path="/deployments/create" element={<DeploymentCreatePage />} />
+          <Route path="/deployments/:namespace/:name" element={<DeploymentDetailPage />} />
+          <Route path="/deployments/:namespace/:name/edit" element={<DeploymentEditPage />} />
 
           {/* Elasticsearch */}
           <Route path="/elasticsearch" element={<ElasticsearchListPage />} />
@@ -86,13 +96,17 @@ function App() {
           {/* Stack Config Policies */}
           <Route path="/stackconfigpolicy" element={<StackConfigPolicyListPage />} />
           <Route path="/stackconfigpolicy/create" element={<StackConfigPolicyCreatePage />} />
+          <Route path="/stackconfigpolicy/:namespace/:name" element={<StackConfigPolicyDetailPage />} />
+          <Route path="/stackconfigpolicy/:namespace/:name/edit" element={<StackConfigPolicyEditPage />} />
 
           {/* Elasticsearch Autoscalers */}
           <Route path="/elasticsearchautoscaler" element={<AutoscalerListPage />} />
           <Route path="/elasticsearchautoscaler/create" element={<AutoscalerCreatePage />} />
+          <Route path="/elasticsearchautoscaler/:namespace/:name" element={<AutoscalerDetailPage />} />
+          <Route path="/elasticsearchautoscaler/:namespace/:name/edit" element={<AutoscalerEditPage />} />
 
-          {/* Stack Wizard */}
-          <Route path="/wizard" element={<WizardPage />} />
+          {/* Wizard redirect */}
+          <Route path="/wizard" element={<Navigate to="/deployments/create" replace />} />
         </Route>
       </Route>
     </Routes>
