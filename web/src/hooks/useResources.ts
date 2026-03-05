@@ -108,6 +108,19 @@ export function useUpdateResource(type: ResourceType) {
   });
 }
 
+export function useEvents(namespace: string) {
+  return useQuery<{ items: import('../types/resources').ResourceEvent[] }>({
+    queryKey: ['events', namespace],
+    queryFn: () =>
+      apiClient.get<{ items: import('../types/resources').ResourceEvent[] }>(
+        `/events/${namespace}`,
+      ),
+    enabled: Boolean(namespace),
+    refetchInterval: 15000,
+    staleTime: 5000,
+  });
+}
+
 export function useDeleteResource(type: ResourceType) {
   const queryClient = useQueryClient();
 

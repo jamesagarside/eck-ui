@@ -20,6 +20,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
+import { routePath } from '../../utils/routePaths';
 import type {
   Elasticsearch,
   Kibana,
@@ -97,10 +98,6 @@ function countByPhase(
     counts[phase] = (counts[phase] || 0) + 1;
   }
   return counts;
-}
-
-function resourceTypeToPath(type: ResourceType): string {
-  return `/${type}`;
 }
 
 export function DashboardPage() {
@@ -364,7 +361,7 @@ export function DashboardPage() {
       render: (name: string, item: ProblemResource) => (
         <EuiLink
           onClick={() =>
-            navigate(`${resourceTypeToPath(item.type)}/${item.namespace}/${name}`)
+            navigate(`${routePath(item.type)}/${item.namespace}/${name}`)
           }
         >
           {name}
@@ -497,7 +494,7 @@ export function DashboardPage() {
         items={summaryRows.filter((r) => r.total > 0)}
         columns={summaryColumns}
         rowProps={(item: ResourceSummaryRow) => ({
-          onClick: () => navigate(`/${item.type}`),
+          onClick: () => navigate(routePath(item.type)),
           style: { cursor: 'pointer' },
         })}
         noItemsMessage="No resources found"
@@ -523,7 +520,7 @@ export function DashboardPage() {
         rowProps={(item: RecentResource) => ({
           onClick: () =>
             navigate(
-              `/${item.type}/${item.namespace}/${item.name}`,
+              `${routePath(item.type)}/${item.namespace}/${item.name}`,
             ),
           style: { cursor: 'pointer' },
         })}

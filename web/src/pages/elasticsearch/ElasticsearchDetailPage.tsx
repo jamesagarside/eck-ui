@@ -21,7 +21,7 @@ import {
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
 } from '@elastic/eui';
-import { useResource, useDeleteResource } from '../../hooks/useResources';
+import { useResource, useDeleteResource, useEvents } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
 import { VersionUpgrade } from '../../components/elasticsearch/VersionUpgrade';
 import { CredentialsDisplay } from '../../components/elasticsearch/CredentialsDisplay';
@@ -52,6 +52,7 @@ export function ElasticsearchDetailPage() {
   );
 
   const deleteMutation = useDeleteResource('elasticsearch');
+  const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
 
@@ -127,7 +128,7 @@ export function ElasticsearchDetailPage() {
     },
   ];
 
-  const mockEvents: ResourceEvent[] = [];
+  const events = eventsQuery.data?.items || [];
 
   const eventColumns: EuiBasicTableColumn<ResourceEvent>[] = [
     { field: 'type', name: 'Type', width: '80px' },
@@ -215,7 +216,7 @@ export function ElasticsearchDetailPage() {
         <>
           <EuiSpacer size="l" />
           <EuiBasicTable
-            items={mockEvents}
+            items={events}
             columns={eventColumns}
             noItemsMessage="No events"
           />

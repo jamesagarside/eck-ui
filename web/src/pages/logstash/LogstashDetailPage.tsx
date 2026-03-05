@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader, EuiSpacer, EuiTabbedContent, EuiDescriptionList, EuiHealth, EuiBadge, EuiPanel,
-  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiCallOut, EuiText, EuiTitle,
-  type EuiTabbedContentTab,
+  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiCallOut, EuiBasicTable, EuiText, EuiTitle,
+  type EuiTabbedContentTab, type EuiBasicTableColumn,
 } from '@elastic/eui';
-import { useResource, useDeleteResource } from '../../hooks/useResources';
+import { useResource, useDeleteResource, useEvents } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
-import type { Logstash, HealthStatus } from '../../types/resources';
+import type { Logstash, HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = { green: 'success', yellow: 'warning', red: 'danger', unknown: 'subdued' };
 
@@ -17,6 +17,7 @@ export function LogstashDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const { data: resource, isLoading, error } = useResource<Logstash>('logstash', namespace || '', name || '');
   const deleteMutation = useDeleteResource('logstash');
+  const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
   if (error || !resource) return <EuiCallOut title="Failed to load Logstash" color="danger" iconType="error">{error?.message || 'Not found'}</EuiCallOut>;
@@ -35,8 +36,18 @@ export function LogstashDetailPage() {
     { title: 'Created', description: new Date(resource.metadata.creationTimestamp).toLocaleString() },
   ];
 
+  const events = eventsQuery.data?.items || [];
+  const eventColumns: EuiBasicTableColumn<ResourceEvent>[] = [
+    { field: 'type', name: 'Type', width: '80px' },
+    { field: 'reason', name: 'Reason', width: '160px' },
+    { field: 'message', name: 'Message', truncateText: true },
+    { field: 'lastTimestamp', name: 'Last Seen', width: '180px', render: (ts: string) => (ts ? new Date(ts).toLocaleString() : '-') },
+    { field: 'count', name: 'Count', width: '60px' },
+  ];
+
   const tabs: EuiTabbedContentTab[] = [
     { id: 'overview', name: 'Overview', content: <><EuiSpacer size="l" /><EuiPanel><EuiDescriptionList type="column" listItems={overviewItems} compressed /></EuiPanel></> },
+    { id: 'events', name: 'Events', content: <><EuiSpacer size="l" /><EuiBasicTable items={events} columns={eventColumns} noItemsMessage="No events" /></> },
     { id: 'settings', name: 'Settings', content: <><EuiSpacer size="l" /><EuiPanel><EuiTitle size="xs"><h3>Specification</h3></EuiTitle><EuiSpacer size="m" /><EuiText size="s"><pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(resource.spec, null, 2)}</pre></EuiText></EuiPanel></> },
   ];
 

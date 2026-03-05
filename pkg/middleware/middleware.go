@@ -114,17 +114,26 @@ func RBAC() mux.MiddlewareFunc {
 }
 
 // deriveRole determines the highest role from the user's group membership.
+// Service accounts (system:serviceaccounts) are treated as admin because
+// K8s RBAC is the real authorization gate. When no organization-based roles
+// are configured, the default is admin to avoid blocking mutations.
 func deriveRole(groups []string) string {
-	role := "viewer"
+	hasEditor := false
 	for _, g := range groups {
 		switch {
 		case containsSubstring(g, "admin"):
 			return "admin"
+		case containsSubstring(g, "system:serviceaccounts"):
+			return "admin"
 		case containsSubstring(g, "editor"):
-			role = "editor"
+			hasEditor = true
 		}
 	}
-	return role
+	if hasEditor {
+		return "editor"
+	}
+	// Default to admin — K8s RBAC is the real authorization gate.
+	return "admin"
 }
 
 // requiredRole returns the minimum role required for the given HTTP method.

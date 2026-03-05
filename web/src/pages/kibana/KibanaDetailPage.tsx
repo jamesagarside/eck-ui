@@ -12,13 +12,15 @@ import {
   EuiButtonEmpty,
   EuiConfirmModal,
   EuiCallOut,
+  EuiBasicTable,
   EuiText,
   EuiTitle,
   type EuiTabbedContentTab,
+  type EuiBasicTableColumn,
 } from '@elastic/eui';
-import { useResource, useDeleteResource } from '../../hooks/useResources';
+import { useResource, useDeleteResource, useEvents } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
-import type { Kibana, HealthStatus } from '../../types/resources';
+import type { Kibana, HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
   green: 'success',
@@ -34,6 +36,7 @@ export function KibanaDetailPage() {
 
   const { data: resource, isLoading, error } = useResource<Kibana>('kibana', namespace || '', name || '');
   const deleteMutation = useDeleteResource('kibana');
+  const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
   if (error || !resource) {
@@ -64,6 +67,15 @@ export function KibanaDetailPage() {
     { title: 'Created', description: new Date(resource.metadata.creationTimestamp).toLocaleString() },
   ];
 
+  const events = eventsQuery.data?.items || [];
+  const eventColumns: EuiBasicTableColumn<ResourceEvent>[] = [
+    { field: 'type', name: 'Type', width: '80px' },
+    { field: 'reason', name: 'Reason', width: '160px' },
+    { field: 'message', name: 'Message', truncateText: true },
+    { field: 'lastTimestamp', name: 'Last Seen', width: '180px', render: (ts: string) => (ts ? new Date(ts).toLocaleString() : '-') },
+    { field: 'count', name: 'Count', width: '60px' },
+  ];
+
   const tabs: EuiTabbedContentTab[] = [
     {
       id: 'overview',
@@ -74,6 +86,16 @@ export function KibanaDetailPage() {
           <EuiPanel>
             <EuiDescriptionList type="column" listItems={overviewItems} compressed />
           </EuiPanel>
+        </>
+      ),
+    },
+    {
+      id: 'events',
+      name: 'Events',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <EuiBasicTable items={events} columns={eventColumns} noItemsMessage="No events" />
         </>
       ),
     },

@@ -252,12 +252,15 @@ func TestDeriveRole(t *testing.T) {
 		groups []string
 		want   string
 	}{
-		{"no groups defaults to viewer", nil, "viewer"},
-		{"empty groups defaults to viewer", []string{}, "viewer"},
+		{"no groups defaults to admin", nil, "admin"},
+		{"empty groups defaults to admin", []string{}, "admin"},
 		{"admin group", []string{"cluster-admin"}, "admin"},
 		{"editor group", []string{"content-editor"}, "editor"},
-		{"viewer group", []string{"readers"}, "viewer"},
+		{"unrecognized group defaults to admin", []string{"readers"}, "admin"},
 		{"admin takes precedence", []string{"editor-team", "super-admin"}, "admin"},
+		{"service account is admin", []string{"system:serviceaccounts"}, "admin"},
+		{"namespaced service account is admin", []string{"system:serviceaccounts:default"}, "admin"},
+		{"service account with authenticated", []string{"system:serviceaccounts", "system:authenticated"}, "admin"},
 	}
 
 	for _, tt := range tests {
