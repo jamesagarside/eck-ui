@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
 	"path"
@@ -59,11 +60,25 @@ func (h *SPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.fileServer.ServeHTTP(w, r)
 }
 
-// serveIndex serves the index.html file for SPA fallback routing.
+// serveIndex serves the index.html file directly for SPA fallback routing.
+// We read the file ourselves instead of delegating to http.FileServer, which
+// would 301-redirect /index.html to "/" and cause redirect loops on deep links.
 func (h *SPAHandler) serveIndex(w http.ResponseWriter, r *http.Request) {
-	r.URL.Path = "/index.html"
+	f, err := h.fileSystem.Open("/index.html")
+	if err != nil {
+		http.Error(w, "index.html not found", http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		http.Error(w, "failed to stat index.html", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.fileServer.ServeHTTP(w, r)
+	http.ServeContent(w, r, "index.html", stat.ModTime(), f.(io.ReadSeeker))
 }
 
 // setContentTypeHeader sets the Content-Type header based on file extension.
