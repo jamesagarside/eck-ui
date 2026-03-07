@@ -156,6 +156,99 @@ const BACKEND_TYPE_MAP: Record<string, string> = {
 };
 
 export const handlers = [
+  // Versions
+  http.get(`${BASE_URL}/versions`, () => {
+    return HttpResponse.json({
+      operatorVersion: '3.3.1',
+      defaultVersion: '9.3.1',
+      source: 'artifacts-api',
+      versions: [
+        { value: '9.3.1', label: '9.3.1' },
+        { value: '9.3.0', label: '9.3.0' },
+        { value: '9.2.1', label: '9.2.1' },
+        { value: '9.1.0', label: '9.1.0' },
+        { value: '9.0.1', label: '9.0.1' },
+        { value: '8.18.0', label: '8.18.0' },
+        { value: '8.17.4', label: '8.17.4' },
+        { value: '8.16.6', label: '8.16.6' },
+        { value: '8.15.5', label: '8.15.5' },
+        { value: '8.14.3', label: '8.14.3' },
+        { value: '7.17.27', label: '7.17.27 (legacy)' },
+      ],
+    });
+  }),
+
+  http.put(`${BASE_URL}/versions`, () => {
+    return HttpResponse.json({ status: 'saved' });
+  }),
+
+  http.post(`${BASE_URL}/versions/sync`, () => {
+    return HttpResponse.json({ status: 'synced', count: '15', default: '9.3.1' });
+  }),
+
+  // Resource types discovery
+  http.get(`${BASE_URL}/resource-types`, () => {
+    return HttpResponse.json({
+      source: 'crd-discovery',
+      resourceTypes: [
+        { name: 'elasticsearch', apiVersion: 'elasticsearch.k8s.elastic.co/v1', kind: 'Elasticsearch', specFields: ['version', 'nodeSets'] },
+        { name: 'kibana', apiVersion: 'kibana.k8s.elastic.co/v1', kind: 'Kibana', specFields: ['version', 'count', 'elasticsearchRef'] },
+        { name: 'apmserver', apiVersion: 'apm.k8s.elastic.co/v1', kind: 'ApmServer', specFields: ['version', 'count', 'elasticsearchRef', 'kibanaRef'] },
+        { name: 'beat', apiVersion: 'beat.k8s.elastic.co/v1beta1', kind: 'Beat', specFields: ['version', 'type', 'deployment', 'elasticsearchRef'] },
+        { name: 'agent', apiVersion: 'agent.k8s.elastic.co/v1alpha1', kind: 'Agent', specFields: ['version', 'mode', 'deployment', 'elasticsearchRefs', 'kibanaRef'] },
+        { name: 'logstash', apiVersion: 'logstash.k8s.elastic.co/v1alpha1', kind: 'Logstash', specFields: ['version', 'count', 'elasticsearchRefs'] },
+        { name: 'enterprisesearch', apiVersion: 'enterprisesearch.k8s.elastic.co/v1', kind: 'EnterpriseSearch', specFields: ['version', 'count', 'elasticsearchRef'] },
+        { name: 'elasticmapsserver', apiVersion: 'maps.k8s.elastic.co/v1alpha1', kind: 'ElasticMapsServer', specFields: ['version', 'count', 'elasticsearchRef'] },
+      ],
+      beatTypes: ['filebeat', 'metricbeat', 'heartbeat', 'auditbeat', 'packetbeat'],
+      agentModes: ['standalone', 'fleet'],
+    });
+  }),
+
+  // Deployment intent endpoints
+  http.post(`${BASE_URL}/deployments/:namespace`, async ({ request, params }) => {
+    const body = (await request.json()) as { name: string; components: Record<string, { enabled: boolean }> };
+    const results = Object.entries(body.components || {})
+      .filter(([, v]) => v.enabled)
+      .map(([type]) => ({
+        type,
+        name: `${body.name}-${type}`,
+        status: 'created',
+      }));
+    return HttpResponse.json({
+      name: body.name,
+      namespace: params.namespace,
+      results,
+    }, { status: 201 });
+  }),
+
+  http.put(`${BASE_URL}/deployments/:namespace/:name`, async ({ request, params }) => {
+    const body = (await request.json()) as { components: Record<string, { enabled: boolean }> };
+    const results = Object.entries(body.components || {})
+      .filter(([, v]) => v.enabled)
+      .map(([type]) => ({
+        type,
+        name: `${params.name}-${type}`,
+        status: 'updated',
+      }));
+    return HttpResponse.json({
+      name: params.name,
+      namespace: params.namespace,
+      results,
+    });
+  }),
+
+  http.delete(`${BASE_URL}/deployments/:namespace/:name`, ({ params }) => {
+    return HttpResponse.json({
+      name: params.name,
+      namespace: params.namespace,
+      results: [
+        { type: 'elasticsearch', name: `${params.name}-es`, status: 'deleted' },
+        { type: 'kibana', name: `${params.name}-kb`, status: 'deleted' },
+      ],
+    });
+  }),
+
   // Auth
   http.get(`${BASE_URL}/auth/session`, () => {
     return HttpResponse.json({

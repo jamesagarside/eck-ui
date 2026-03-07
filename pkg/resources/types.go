@@ -3,6 +3,7 @@ package resources
 import (
 	"fmt"
 
+	"github.com/jamesagarside/eck-ui/pkg/k8s"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -107,9 +108,32 @@ var resourceTypes = map[string]ResourceTypeInfo{
 	},
 }
 
+// crdRegistry is an optional CRD registry for dynamic type info resolution.
+var crdRegistry *k8s.CRDRegistry
+
+// SetCRDRegistry installs a CRD registry for dynamic resource type info
+// resolution. When set, GetResourceTypeInfo checks the registry first.
+func SetCRDRegistry(registry *k8s.CRDRegistry) {
+	crdRegistry = registry
+}
+
 // GetResourceTypeInfo returns the ResourceTypeInfo for the given resource type name.
-// Returns an error if the resource type is not recognized.
+// If a CRD registry has been set, it is checked first.
 func GetResourceTypeInfo(name string) (ResourceTypeInfo, error) {
+	// Check CRD registry first
+	if crdRegistry != nil {
+		if meta, ok := crdRegistry.Lookup(name); ok {
+			return ResourceTypeInfo{
+				Name:     meta.Name,
+				Group:    meta.Group,
+				Version:  meta.Version,
+				Resource: meta.Resource,
+				Kind:     meta.Kind,
+			}, nil
+		}
+	}
+
+	// Fall back to hardcoded map
 	info, ok := resourceTypes[name]
 	if !ok {
 		return ResourceTypeInfo{}, fmt.Errorf("unknown resource type: %s", name)

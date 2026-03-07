@@ -65,8 +65,32 @@ var gvrMap = map[string]schema.GroupVersionResource{
 	},
 }
 
+// defaultRegistry is an optional CRD registry for dynamic GVR resolution.
+// Set via SetDefaultRegistry during startup.
+var defaultRegistry *CRDRegistry
+
+// SetDefaultRegistry installs a CRD registry for dynamic GVR resolution.
+// When set, ResolveGVR checks the registry first before falling back to
+// the hardcoded gvrMap.
+func SetDefaultRegistry(r *CRDRegistry) {
+	defaultRegistry = r
+}
+
 // ResolveGVR returns the GroupVersionResource for a given resource type string.
+// If a CRD registry has been set, it is checked first.
 func ResolveGVR(resourceType string) (schema.GroupVersionResource, error) {
+	// Check CRD registry first
+	if defaultRegistry != nil {
+		if meta, ok := defaultRegistry.Lookup(resourceType); ok {
+			return schema.GroupVersionResource{
+				Group:    meta.Group,
+				Version:  meta.Version,
+				Resource: meta.Resource,
+			}, nil
+		}
+	}
+
+	// Fall back to hardcoded map
 	gvr, ok := gvrMap[resourceType]
 	if !ok {
 		return schema.GroupVersionResource{}, fmt.Errorf("unknown resource type: %s", resourceType)

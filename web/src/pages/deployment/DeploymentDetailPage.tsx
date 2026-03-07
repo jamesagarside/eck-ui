@@ -21,7 +21,8 @@ import {
   type EuiBasicTableColumn,
 } from '@elastic/eui';
 import { useDeployment } from '../../hooks/useDeployments';
-import { useEvents, useDeleteResource } from '../../hooks/useResources';
+import { useEvents } from '../../hooks/useResources';
+import { useDeleteDeployment } from '../../hooks/useDeploymentMutations';
 import { DetailSkeleton } from '../../components/common/Skeletons';
 import { routePath } from '../../utils/routePaths';
 import type { HealthStatus, ResourceEvent } from '../../types/resources';
@@ -64,27 +65,7 @@ export function DeploymentDetailPage() {
 
   const { deployment, isLoading, isError } = useDeployment(namespace || '', name || '');
   const eventsQuery = useEvents(namespace || '');
-
-  // We need delete mutations for each possible type
-  const deleteEs = useDeleteResource('elasticsearch');
-  const deleteKb = useDeleteResource('kibana');
-  const deleteApm = useDeleteResource('apm');
-  const deleteBeat = useDeleteResource('beat');
-  const deleteAgent = useDeleteResource('agent');
-  const deleteLogstash = useDeleteResource('logstash');
-  const deleteEntSearch = useDeleteResource('enterprise-search');
-  const deleteMaps = useDeleteResource('maps');
-
-  const deleteMutationMap: Record<string, ReturnType<typeof useDeleteResource>> = {
-    elasticsearch: deleteEs,
-    kibana: deleteKb,
-    apm: deleteApm,
-    beat: deleteBeat,
-    agent: deleteAgent,
-    logstash: deleteLogstash,
-    'enterprise-search': deleteEntSearch,
-    maps: deleteMaps,
-  };
+  const deleteDeployment = useDeleteDeployment();
 
   if (isLoading) return <DetailSkeleton />;
   if (isError || !deployment) {
@@ -99,14 +80,10 @@ export function DeploymentDetailPage() {
     setDeleteError('');
     setIsDeleting(true);
     try {
-      // Delete all components
-      const promises = deployment.components.map((c) =>
-        deleteMutationMap[c.type]?.mutateAsync({
-          namespace: c.resource.metadata.namespace,
-          name: c.resource.metadata.name,
-        }),
-      );
-      await Promise.all(promises);
+      await deleteDeployment.mutateAsync({
+        namespace: namespace!,
+        name: name!,
+      });
       navigate('/deployments');
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Delete failed');
@@ -128,7 +105,7 @@ export function DeploymentDetailPage() {
           const resourcePath = `${routePath(c.type)}/${c.resource.metadata.namespace}/${c.resource.metadata.name}`;
 
           return (
-            <EuiFlexItem key={c.type} grow={false} style={{ minWidth: 280 }}>
+            <EuiFlexItem key={c.resource.metadata.name} grow={false} style={{ minWidth: 280 }}>
               <EuiPanel
                 paddingSize="m"
                 hasBorder
@@ -141,7 +118,11 @@ export function DeploymentDetailPage() {
                     <EuiIcon type={TYPE_ICONS[c.type] || 'apps'} size="l" />
                   </EuiFlexItem>
                   <EuiFlexItem>
-                    <EuiTitle size="xxs"><h4>{TYPE_LABELS[c.type] || c.type}</h4></EuiTitle>
+                    <EuiTitle size="xxs"><h4>
+                      {TYPE_LABELS[c.type] || c.type}
+                      {c.type === 'beat' && c.resource.spec?.type ? ` (${c.resource.spec.type})` : ''}
+                      {c.type === 'agent' && c.resource.spec?.mode ? ` (${c.resource.spec.mode})` : ''}
+                    </h4></EuiTitle>
                     <EuiText size="xs" color="subdued">{c.resource.metadata.name}</EuiText>
                   </EuiFlexItem>
                 </EuiFlexGroup>
@@ -187,9 +168,9 @@ export function DeploymentDetailPage() {
     <>
       <EuiSpacer size="l" />
       {deployment.components.map((c) => (
-        <div key={c.type} style={{ marginBottom: 16 }}>
+        <div key={c.resource.metadata.name} style={{ marginBottom: 16 }}>
           <EuiPanel>
-            <EuiTitle size="xs"><h3>{TYPE_LABELS[c.type] || c.type}</h3></EuiTitle>
+            <EuiTitle size="xs"><h3>{TYPE_LABELS[c.type] || c.type}: {c.resource.metadata.name}</h3></EuiTitle>
             <EuiSpacer size="m" />
             <EuiText size="s">
               <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -263,7 +244,7 @@ export function DeploymentDetailPage() {
           <p>This will permanently delete all {deployment.components.length} components:</p>
           <ul>
             {deployment.components.map((c) => (
-              <li key={c.type}>
+              <li key={c.resource.metadata.name}>
                 <strong>{TYPE_LABELS[c.type]}</strong>: {c.resource.metadata.name}
               </li>
             ))}

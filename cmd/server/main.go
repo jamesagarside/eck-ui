@@ -73,6 +73,13 @@ func main() {
 		slog.Warn("failed to load organizations from configmaps", "error", err)
 	}
 
+	// Initialize CRD registry for dynamic resource discovery
+	crdRegistry := k8s.NewCRDRegistry(k8sClient)
+
+	// Install the CRD registry for GVR and type info resolution
+	k8s.SetDefaultRegistry(crdRegistry)
+	resources.SetCRDRegistry(crdRegistry)
+
 	// Initialize resource handler
 	resourceHandler := resources.NewHandler(k8sClient)
 
@@ -97,6 +104,24 @@ func main() {
 	api.Use(middleware.Auth(authService))
 	api.Use(middleware.RBAC())
 	api.Use(audit.Middleware(auditLogger, cfg.AuditReadRequests))
+
+	// Versions endpoints: list, update, and sync from Elastic artifacts API.
+	// The versions ConfigMap lives in the same namespace as the eck-ui deployment.
+	versionsNS := os.Getenv("POD_NAMESPACE")
+	if versionsNS == "" {
+		versionsNS = "default"
+	}
+	api.HandleFunc("/versions", handlers.VersionsHandler(k8sClient, versionsNS)).Methods("GET")
+	api.HandleFunc("/versions", handlers.VersionsUpdateHandler(k8sClient, versionsNS)).Methods("PUT")
+	api.HandleFunc("/versions/sync", handlers.VersionsSyncHandler(k8sClient, versionsNS)).Methods("POST")
+
+	// Resource types discovery endpoint
+	api.HandleFunc("/resource-types", handlers.ResourceTypesHandler(crdRegistry)).Methods("GET")
+
+	// Deployment intent endpoints (backend-assembled K8s resources)
+	api.HandleFunc("/deployments/{namespace}", handlers.DeploymentCreateHandler(k8sClient, crdRegistry)).Methods("POST")
+	api.HandleFunc("/deployments/{namespace}/{name}", handlers.DeploymentUpdateHandler(k8sClient, crdRegistry)).Methods("PUT")
+	api.HandleFunc("/deployments/{namespace}/{name}", handlers.DeploymentDeleteHandler(k8sClient, crdRegistry)).Methods("DELETE")
 
 	// Resource CRUD endpoints for all ECK resource types
 	resourceTypes := []string{

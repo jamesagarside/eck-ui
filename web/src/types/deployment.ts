@@ -52,6 +52,16 @@ export function buildComponentName(deploymentName: string, type: DeployableResou
   return `${deploymentName}${COMPONENT_SUFFIX[type]}`;
 }
 
+/** Build the resource name for a Beat instance: {deployment}-{beatType} */
+export function buildBeatName(deploymentName: string, beatType: string): string {
+  return `${deploymentName}-${beatType}`;
+}
+
+/** Build the resource name for an Agent instance: {deployment}-agent or {deployment}-agent-{n} */
+export function buildAgentName(deploymentName: string, index: number): string {
+  return index === 0 ? `${deploymentName}-agent` : `${deploymentName}-agent-${index}`;
+}
+
 /** Compute the worst-of health across all components */
 const HEALTH_PRIORITY: Record<HealthStatus, number> = {
   red: 3,

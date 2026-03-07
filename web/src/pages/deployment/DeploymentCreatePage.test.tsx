@@ -50,7 +50,6 @@ describe('DeploymentCreatePage', () => {
     expect(screen.getByText('Elasticsearch')).toBeInTheDocument();
     expect(screen.getByText('Kibana')).toBeInTheDocument();
     expect(screen.getByText('APM Server')).toBeInTheDocument();
-    expect(screen.getByText('Fleet Server')).toBeInTheDocument();
     expect(screen.getByText('Beats')).toBeInTheDocument();
     expect(screen.getByText('Elastic Agent')).toBeInTheDocument();
     expect(screen.getByText('Logstash')).toBeInTheDocument();

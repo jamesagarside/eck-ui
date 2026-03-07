@@ -10,6 +10,7 @@ import {
   EuiPanel,
   EuiButton,
   EuiButtonEmpty,
+  EuiButtonIcon,
   EuiCallOut,
   EuiAccordion,
   EuiSwitch,
@@ -21,49 +22,45 @@ import {
   EuiConfirmModal,
 } from '@elastic/eui';
 import { useDeployment } from '../../hooks/useDeployments';
-import { useCreateResource, useUpdateResource, useDeleteResource } from '../../hooks/useResources';
+import { useVersions } from '../../hooks/useVersions';
+import { useResourceTypes } from '../../hooks/useResourceTypes';
+import { useUpdateDeployment, type DeploymentIntent, type ComponentResult } from '../../hooks/useDeploymentMutations';
 import {
   NodeSetEditor,
-  nodeSetConfigsToSpec,
   specToNodeSetConfigs,
   type NodeSetConfig,
 } from '../../components/elasticsearch/NodeSetEditor';
 import { DetailSkeleton } from '../../components/common/Skeletons';
-import {
-  buildComponentName,
-  DEPLOYMENT_LABEL,
-  type DeployableResourceType,
-} from '../../types/deployment';
 
-const BEAT_TYPES = [
-  { value: 'filebeat', text: 'Filebeat' },
-  { value: 'metricbeat', text: 'Metricbeat' },
-  { value: 'heartbeat', text: 'Heartbeat' },
-  { value: 'auditbeat', text: 'Auditbeat' },
-  { value: 'packetbeat', text: 'Packetbeat' },
-];
+interface BeatInstance {
+  id: string;
+  beatType: string;
+  count: number;
+  existed: boolean;
+}
 
-const AGENT_MODES = [
-  { value: 'standalone', text: 'Standalone' },
-  { value: 'fleet', text: 'Fleet' },
-];
+interface AgentInstance {
+  id: string;
+  mode: 'standalone' | 'fleet';
+  count: number;
+  existed: boolean;
+}
 
 interface ComponentEditState {
   enabled: boolean;
-  existed: boolean; // was it present when we loaded?
+  existed: boolean;
   count: number;
   nodeSets: NodeSetConfig[];
-  beatType: string;
-  agentMode: 'standalone' | 'fleet';
+  beatInstances: BeatInstance[];
+  agentInstances: AgentInstance[];
 }
 
-type ComponentKey = 'elasticsearch' | 'kibana' | 'apm' | 'fleet' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
+type ComponentKey = 'elasticsearch' | 'kibana' | 'apm' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
 
 const COMPONENT_ORDER: { key: ComponentKey; label: string }[] = [
   { key: 'elasticsearch', label: 'Elasticsearch' },
   { key: 'kibana', label: 'Kibana' },
   { key: 'apm', label: 'APM Server' },
-  { key: 'fleet', label: 'Fleet Server' },
   { key: 'beat', label: 'Beats' },
   { key: 'agent', label: 'Elastic Agent' },
   { key: 'logstash', label: 'Logstash' },
@@ -77,8 +74,8 @@ function defaultState(): ComponentEditState {
     existed: false,
     count: 1,
     nodeSets: [{ name: 'default', count: 3, roles: ['master', 'data', 'ingest'], memoryRequest: '2Gi', cpuRequest: '1', memoryLimit: '2Gi', cpuLimit: '1', storageSize: '10Gi', storageClass: '' }],
-    beatType: 'filebeat',
-    agentMode: 'standalone',
+    beatInstances: [{ id: crypto.randomUUID(), beatType: 'filebeat', count: 1, existed: false }],
+    agentInstances: [{ id: crypto.randomUUID(), mode: 'standalone', count: 1, existed: false }],
   };
 }
 
@@ -86,17 +83,38 @@ export function DeploymentEditPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
   const { deployment, isLoading } = useDeployment(namespace || '', name || '');
+  const { versions, isLoading: versionsLoading } = useVersions();
+  const { beatTypes, agentModes } = useResourceTypes();
+
+  const updateDeployment = useUpdateDeployment();
+
+  const beatTypeOptions = beatTypes.map((t) => ({
+    value: t,
+    text: t.charAt(0).toUpperCase() + t.slice(1),
+  }));
+  const agentModeOptions = agentModes.map((m) => ({
+    value: m,
+    text: m.charAt(0).toUpperCase() + m.slice(1),
+  }));
 
   const [version, setVersion] = useState('');
-  const [components, setComponents] = useState<Record<ComponentKey, ComponentEditState> | null>(null);
+  const [initialized, setInitialized] = useState(false);
+  const [components, setComponents] = useState<Record<ComponentKey, ComponentEditState>>(() => {
+    const state: Record<string, ComponentEditState> = {};
+    for (const c of COMPONENT_ORDER) {
+      state[c.key] = defaultState();
+    }
+    return state as Record<ComponentKey, ComponentEditState>;
+  });
   const [saveError, setSaveError] = useState('');
+  const [saveErrors, setSaveErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [removals, setRemovals] = useState<ComponentKey[]>([]);
+  const [pendingRemovals, setPendingRemovals] = useState<string[]>([]);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   // Initialize form from deployment data
   useEffect(() => {
-    if (!deployment || components) return;
+    if (!deployment || initialized) return;
     setVersion(deployment.version);
 
     const state: Record<string, ComponentEditState> = {};
@@ -104,63 +122,53 @@ export function DeploymentEditPage() {
       state[c.key] = defaultState();
     }
 
-    for (const comp of deployment.components) {
-      // Map agent type to fleet or agent based on mode
-      let key: ComponentKey = comp.type as ComponentKey;
-      const spec = comp.resource.spec as Record<string, unknown> | undefined;
-      if (comp.type === 'agent' && spec?.mode === 'fleet') {
-        key = 'fleet';
-      }
+    const beatInstances: BeatInstance[] = [];
+    const agentInstances: AgentInstance[] = [];
 
-      state[key] = {
-        ...state[key],
-        enabled: true,
-        existed: true,
-        count: (spec?.count as number) || (spec?.deployment as { replicas?: number })?.replicas || 1,
-        nodeSets: comp.type === 'elasticsearch' && spec?.nodeSets
-          ? specToNodeSetConfigs(spec.nodeSets as Parameters<typeof specToNodeSetConfigs>[0])
-          : state[key].nodeSets,
-        beatType: comp.type === 'beat' ? (spec?.type as string) || 'filebeat' : state[key].beatType,
-        agentMode: comp.type === 'agent' ? (spec?.mode as 'standalone' | 'fleet') || 'standalone' : state[key].agentMode,
-      };
+    for (const comp of deployment.components) {
+      const spec = comp.resource.spec as Record<string, unknown> | undefined;
+
+      if (comp.type === 'beat') {
+        beatInstances.push({
+          id: crypto.randomUUID(),
+          beatType: (spec?.type as string) || 'filebeat',
+          count: (spec?.deployment as { replicas?: number })?.replicas || 1,
+          existed: true,
+        });
+      } else if (comp.type === 'agent') {
+        agentInstances.push({
+          id: crypto.randomUUID(),
+          mode: (spec?.mode as 'standalone' | 'fleet') || 'standalone',
+          count: (spec?.deployment as { replicas?: number })?.replicas || 1,
+          existed: true,
+        });
+      } else {
+        const key = comp.type as ComponentKey;
+        state[key] = {
+          ...state[key],
+          enabled: true,
+          existed: true,
+          count: (spec?.count as number) || (spec?.deployment as { replicas?: number })?.replicas || 1,
+          nodeSets: comp.type === 'elasticsearch' && spec?.nodeSets
+            ? specToNodeSetConfigs(spec.nodeSets as Parameters<typeof specToNodeSetConfigs>[0])
+            : state[key].nodeSets,
+        };
+      }
+    }
+
+    if (beatInstances.length > 0) {
+      state.beat = { ...state.beat, enabled: true, existed: true, beatInstances };
+    }
+
+    if (agentInstances.length > 0) {
+      state.agent = { ...state.agent, enabled: true, existed: true, agentInstances };
     }
 
     setComponents(state as Record<ComponentKey, ComponentEditState>);
-  }, [deployment, components]);
+    setInitialized(true);
+  }, [deployment, initialized]);
 
-  // Mutations
-  const createEs = useCreateResource('elasticsearch');
-  const createKb = useCreateResource('kibana');
-  const createApm = useCreateResource('apm');
-  const createBeat = useCreateResource('beat');
-  const createAgent = useCreateResource('agent');
-  const createLogstash = useCreateResource('logstash');
-  const createEntSearch = useCreateResource('enterprise-search');
-  const createMaps = useCreateResource('maps');
-
-  const updateEs = useUpdateResource('elasticsearch');
-  const updateKb = useUpdateResource('kibana');
-  const updateApm = useUpdateResource('apm');
-  const updateBeat = useUpdateResource('beat');
-  const updateAgent = useUpdateResource('agent');
-  const updateLogstash = useUpdateResource('logstash');
-  const updateEntSearch = useUpdateResource('enterprise-search');
-  const updateMaps = useUpdateResource('maps');
-
-  const deleteEs = useDeleteResource('elasticsearch');
-  const deleteKb = useDeleteResource('kibana');
-  const deleteApm = useDeleteResource('apm');
-  const deleteBeat = useDeleteResource('beat');
-  const deleteAgent = useDeleteResource('agent');
-  const deleteLogstash = useDeleteResource('logstash');
-  const deleteEntSearch = useDeleteResource('enterprise-search');
-  const deleteMaps = useDeleteResource('maps');
-
-  const createMap: Record<string, ReturnType<typeof useCreateResource>> = { elasticsearch: createEs, kibana: createKb, apm: createApm, beat: createBeat, agent: createAgent, logstash: createLogstash, 'enterprise-search': createEntSearch, maps: createMaps };
-  const updateMap: Record<string, ReturnType<typeof useUpdateResource>> = { elasticsearch: updateEs, kibana: updateKb, apm: updateApm, beat: updateBeat, agent: updateAgent, logstash: updateLogstash, 'enterprise-search': updateEntSearch, maps: updateMaps };
-  const deleteMap: Record<string, ReturnType<typeof useDeleteResource>> = { elasticsearch: deleteEs, kibana: deleteKb, apm: deleteApm, beat: deleteBeat, agent: deleteAgent, logstash: deleteLogstash, 'enterprise-search': deleteEntSearch, maps: deleteMaps };
-
-  if (isLoading || !components) return <DetailSkeleton />;
+  if (isLoading || !initialized) return <DetailSkeleton />;
   if (!deployment) {
     return <EuiCallOut title="Deployment not found" color="danger" iconType="error" />;
   }
@@ -169,73 +177,150 @@ export function DeploymentEditPage() {
     setComponents((prev) => prev ? { ...prev, [key]: { ...prev[key], ...updates } } : prev);
   };
 
-  function buildResource(key: ComponentKey): Record<string, unknown> {
-    const comp = components![key];
-    const esName = buildComponentName(name!, 'elasticsearch');
-    const kbName = buildComponentName(name!, 'kibana');
-    const hasEs = components!.elasticsearch.enabled;
-    const hasKb = components!.kibana.enabled;
-    const labels = { [DEPLOYMENT_LABEL]: name! };
+  // Beat instance helpers
+  const addBeatInstance = () => {
+    const usedTypes = components.beat.beatInstances.map((b) => b.beatType);
+    const nextType = beatTypes.find((t) => !usedTypes.includes(t)) || 'filebeat';
+    updateComponent('beat', {
+      beatInstances: [...components.beat.beatInstances, { id: crypto.randomUUID(), beatType: nextType, count: 1, existed: false }],
+    });
+  };
 
-    const base: Record<string, unknown> = {};
-    switch (key) {
-      case 'elasticsearch':
-        return { ...base, apiVersion: 'elasticsearch.k8s.elastic.co/v1', kind: 'Elasticsearch', metadata: { name: esName, namespace, labels }, spec: { version, nodeSets: nodeSetConfigsToSpec(comp.nodeSets) } };
-      case 'kibana':
-        return { ...base, apiVersion: 'kibana.k8s.elastic.co/v1', kind: 'Kibana', metadata: { name: kbName, namespace, labels }, spec: { version, count: comp.count, ...(hasEs ? { elasticsearchRef: { name: esName } } : {}) } };
-      case 'apm':
-        return { ...base, apiVersion: 'apm.k8s.elastic.co/v1', kind: 'ApmServer', metadata: { name: buildComponentName(name!, 'apm'), namespace, labels }, spec: { version, count: comp.count, ...(hasEs ? { elasticsearchRef: { name: esName } } : {}), ...(hasKb ? { kibanaRef: { name: kbName } } : {}) } };
-      case 'fleet':
-        return { ...base, apiVersion: 'agent.k8s.elastic.co/v1alpha1', kind: 'Agent', metadata: { name: buildComponentName(name!, 'agent'), namespace, labels }, spec: { version, mode: 'fleet', ...(hasEs ? { elasticsearchRefs: [{ name: esName }] } : {}), ...(hasKb ? { kibanaRef: { name: kbName } } : {}), deployment: { replicas: 1 } } };
-      case 'beat':
-        return { ...base, apiVersion: 'beat.k8s.elastic.co/v1beta1', kind: 'Beat', metadata: { name: buildComponentName(name!, 'beat'), namespace, labels }, spec: { type: comp.beatType, version, ...(hasEs ? { elasticsearchRef: { name: esName } } : {}), deployment: { replicas: comp.count } } };
-      case 'agent':
-        return { ...base, apiVersion: 'agent.k8s.elastic.co/v1alpha1', kind: 'Agent', metadata: { name: buildComponentName(name!, 'agent'), namespace, labels }, spec: { version, mode: comp.agentMode, ...(hasEs ? { elasticsearchRefs: [{ name: esName }] } : {}), ...(hasKb ? { kibanaRef: { name: kbName } } : {}), deployment: { replicas: comp.count } } };
-      case 'logstash':
-        return { ...base, apiVersion: 'logstash.k8s.elastic.co/v1alpha1', kind: 'Logstash', metadata: { name: buildComponentName(name!, 'logstash'), namespace, labels }, spec: { version, count: comp.count, ...(hasEs ? { elasticsearchRefs: [{ name: esName }] } : {}) } };
-      case 'enterprise-search':
-        return { ...base, apiVersion: 'enterprisesearch.k8s.elastic.co/v1', kind: 'EnterpriseSearch', metadata: { name: buildComponentName(name!, 'enterprise-search'), namespace, labels }, spec: { version, count: comp.count, ...(hasEs ? { elasticsearchRef: { name: esName } } : {}) } };
-      case 'maps':
-        return { ...base, apiVersion: 'maps.k8s.elastic.co/v1alpha1', kind: 'ElasticMapsServer', metadata: { name: buildComponentName(name!, 'maps'), namespace, labels }, spec: { version, count: comp.count, ...(hasEs ? { elasticsearchRef: { name: esName } } : {}) } };
-      default: return {};
+  const updateBeatInstance = (id: string, updates: Partial<BeatInstance>) => {
+    updateComponent('beat', {
+      beatInstances: components.beat.beatInstances.map((b) => (b.id === id ? { ...b, ...updates } : b)),
+    });
+  };
+
+  const removeBeatInstance = (id: string) => {
+    updateComponent('beat', {
+      beatInstances: components.beat.beatInstances.filter((b) => b.id !== id),
+    });
+  };
+
+  // Agent instance helpers
+  const addAgentInstance = () => {
+    updateComponent('agent', {
+      agentInstances: [...components.agent.agentInstances, { id: crypto.randomUUID(), mode: 'standalone', count: 1, existed: false }],
+    });
+  };
+
+  const updateAgentInstance = (id: string, updates: Partial<AgentInstance>) => {
+    updateComponent('agent', {
+      agentInstances: components.agent.agentInstances.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+    });
+  };
+
+  const removeAgentInstance = (id: string) => {
+    updateComponent('agent', {
+      agentInstances: components.agent.agentInstances.filter((a) => a.id !== id),
+    });
+  };
+
+  function buildIntent(): DeploymentIntent {
+    const intentComponents: DeploymentIntent['components'] = {};
+
+    for (const c of COMPONENT_ORDER) {
+      const comp = components[c.key];
+
+      if (c.key === 'elasticsearch') {
+        intentComponents.elasticsearch = {
+          enabled: comp.enabled,
+          nodeSets: comp.nodeSets.map((ns) => ({
+            name: ns.name,
+            count: ns.count,
+            roles: ns.roles,
+            memoryRequest: ns.memoryRequest,
+            cpuRequest: ns.cpuRequest,
+            memoryLimit: ns.memoryLimit,
+            cpuLimit: ns.cpuLimit,
+            storageSize: ns.storageSize,
+            storageClass: ns.storageClass,
+          })),
+        };
+      } else if (c.key === 'beat') {
+        intentComponents.beat = {
+          enabled: comp.enabled,
+          instances: comp.enabled
+            ? comp.beatInstances.map((b) => ({
+                type: b.beatType,
+                replicas: b.count,
+              }))
+            : [],
+        };
+      } else if (c.key === 'agent') {
+        intentComponents.agent = {
+          enabled: comp.enabled,
+          instances: comp.enabled
+            ? comp.agentInstances.map((a) => ({
+                mode: a.mode,
+                replicas: a.mode === 'fleet' ? 1 : a.count,
+              }))
+            : [],
+        };
+      } else {
+        intentComponents[c.key] = {
+          enabled: comp.enabled,
+          replicas: comp.count,
+        };
+      }
     }
+
+    return { name: name!, version, components: intentComponents };
+  }
+
+  // Collect all removals for confirmation
+  function collectRemovals(): string[] {
+    const removals: string[] = [];
+
+    for (const c of COMPONENT_ORDER) {
+      if (c.key === 'beat' || c.key === 'agent') continue;
+      if (components[c.key].existed && !components[c.key].enabled) {
+        removals.push(c.label);
+      }
+    }
+
+    if (components.beat.existed && !components.beat.enabled) {
+      removals.push('All Beat instances');
+    }
+
+    if (components.agent.existed && !components.agent.enabled) {
+      removals.push('All Agent instances');
+    }
+
+    return removals;
   }
 
   async function handleSave() {
-    // Check for removals first
-    const toRemove = COMPONENT_ORDER.filter((c) => components![c.key].existed && !components![c.key].enabled).map((c) => c.key);
-    if (toRemove.length > 0 && !showRemoveConfirm) {
-      setRemovals(toRemove);
+    const removals = collectRemovals();
+    if (removals.length > 0 && !showRemoveConfirm) {
+      setPendingRemovals(removals);
       setShowRemoveConfirm(true);
       return;
     }
 
     setSaveError('');
+    setSaveErrors([]);
     setIsSaving(true);
     setShowRemoveConfirm(false);
 
     try {
-      const promises: Promise<unknown>[] = [];
+      const intent = buildIntent();
+      const response = await updateDeployment.mutateAsync({
+        namespace: namespace!,
+        name: name!,
+        intent,
+      });
 
-      for (const c of COMPONENT_ORDER) {
-        const comp = components![c.key];
-        const resourceType = (c.key === 'fleet' ? 'agent' : c.key) as DeployableResourceType;
-        const compName = buildComponentName(name!, resourceType);
+      const failedResults = response.results.filter((r: ComponentResult) => r.status === 'error');
 
-        if (comp.enabled && !comp.existed) {
-          // Create new
-          promises.push(createMap[resourceType]?.mutateAsync(buildResource(c.key)));
-        } else if (comp.enabled && comp.existed) {
-          // Update existing
-          promises.push(updateMap[resourceType]?.mutateAsync({ namespace: namespace!, name: compName, resource: buildResource(c.key) }));
-        } else if (!comp.enabled && comp.existed) {
-          // Delete removed
-          promises.push(deleteMap[resourceType]?.mutateAsync({ namespace: namespace!, name: compName }));
-        }
+      if (failedResults.length > 0) {
+        const errorMessages = failedResults.map((r: ComponentResult) => `${r.type} (${r.name}): ${r.error}`);
+        setSaveErrors(errorMessages);
+        setSaveError(`${failedResults.length} component(s) failed to update`);
+      } else {
+        navigate(`/deployments/${namespace}/${name}`);
       }
-
-      await Promise.all(promises);
-      navigate(`/deployments/${namespace}/${name}`);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -254,7 +339,16 @@ export function DeploymentEditPage() {
 
       {saveError && (
         <>
-          <EuiCallOut title="Save failed" color="danger" iconType="error">{saveError}</EuiCallOut>
+          <EuiCallOut title="Save failed" color="danger" iconType="error">
+            {saveError}
+            {saveErrors.length > 0 && (
+              <ul>
+                {saveErrors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            )}
+          </EuiCallOut>
           <EuiSpacer size="m" />
         </>
       )}
@@ -276,7 +370,18 @@ export function DeploymentEditPage() {
             </EuiFlexItem>
             <EuiFlexItem>
               <EuiFormRow label="Version" helpText="Applied to all components">
-                <EuiFieldText value={version} onChange={(e) => setVersion(e.target.value)} />
+                <EuiSelect
+                  options={(() => {
+                    const opts = versions.map((v) => ({ value: v.value, text: v.label }));
+                    if (version && !opts.some((o) => o.value === version)) {
+                      opts.unshift({ value: version, text: `${version} (current)` });
+                    }
+                    return opts.length > 0 ? opts : [{ value: version, text: version }];
+                  })()}
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                  isLoading={versionsLoading}
+                />
               </EuiFormRow>
             </EuiFlexItem>
           </EuiFlexGroup>
@@ -319,18 +424,110 @@ export function DeploymentEditPage() {
                   <EuiFieldNumber value={components[c.key].count} onChange={(e) => updateComponent(c.key, { count: parseInt(e.target.value, 10) || 1 })} min={1} />
                 </EuiFormRow>
               )}
-              {c.key === 'fleet' && <p>Fleet Server: Agent in fleet mode with 1 replica.</p>}
+
+              {/* Beats — multi-instance */}
               {c.key === 'beat' && (
-                <EuiFlexGroup>
-                  <EuiFlexItem><EuiFormRow label="Beat Type"><EuiSelect options={BEAT_TYPES} value={components.beat.beatType} onChange={(e) => updateComponent('beat', { beatType: e.target.value })} /></EuiFormRow></EuiFlexItem>
-                  <EuiFlexItem><EuiFormRow label="Replicas"><EuiFieldNumber value={components.beat.count} onChange={(e) => updateComponent('beat', { count: parseInt(e.target.value, 10) || 1 })} min={1} /></EuiFormRow></EuiFlexItem>
-                </EuiFlexGroup>
+                <>
+                  {components.beat.beatInstances.map((inst) => {
+                    const usedTypes = components.beat.beatInstances
+                      .filter((b) => b.id !== inst.id)
+                      .map((b) => b.beatType);
+                    const availableTypes = beatTypeOptions.filter(
+                      (t) => t.value === inst.beatType || !usedTypes.includes(t.value),
+                    );
+
+                    return (
+                      <div key={inst.id} style={{ marginBottom: 8 }}>
+                        <EuiFlexGroup alignItems="flexEnd" gutterSize="m">
+                          <EuiFlexItem>
+                            <EuiFormRow label="Beat Type">
+                              <EuiSelect
+                                options={availableTypes}
+                                value={inst.beatType}
+                                onChange={(e) => updateBeatInstance(inst.id, { beatType: e.target.value })}
+                              />
+                            </EuiFormRow>
+                          </EuiFlexItem>
+                          <EuiFlexItem>
+                            <EuiFormRow label="Replicas">
+                              <EuiFieldNumber
+                                value={inst.count}
+                                onChange={(e) => updateBeatInstance(inst.id, { count: parseInt(e.target.value, 10) || 1 })}
+                                min={1}
+                              />
+                            </EuiFormRow>
+                          </EuiFlexItem>
+                          <EuiFlexItem grow={false}>
+                            <EuiButtonIcon
+                              iconType="trash"
+                              color="danger"
+                              aria-label="Remove beat instance"
+                              onClick={() => removeBeatInstance(inst.id)}
+                              isDisabled={components.beat.beatInstances.length <= 1}
+                            />
+                          </EuiFlexItem>
+                        </EuiFlexGroup>
+                      </div>
+                    );
+                  })}
+                  <EuiSpacer size="s" />
+                  <EuiButtonEmpty
+                    size="s"
+                    iconType="plusInCircle"
+                    onClick={addBeatInstance}
+                    isDisabled={components.beat.beatInstances.length >= beatTypes.length}
+                  >
+                    Add Beat
+                  </EuiButtonEmpty>
+                </>
               )}
+
+              {/* Elastic Agent — multi-instance */}
               {c.key === 'agent' && (
-                <EuiFlexGroup>
-                  <EuiFlexItem><EuiFormRow label="Mode"><EuiSelect options={AGENT_MODES} value={components.agent.agentMode} onChange={(e) => updateComponent('agent', { agentMode: e.target.value as 'standalone' | 'fleet' })} /></EuiFormRow></EuiFlexItem>
-                  <EuiFlexItem><EuiFormRow label="Replicas"><EuiFieldNumber value={components.agent.count} onChange={(e) => updateComponent('agent', { count: parseInt(e.target.value, 10) || 1 })} min={1} /></EuiFormRow></EuiFlexItem>
-                </EuiFlexGroup>
+                <>
+                  {components.agent.agentInstances.map((inst) => (
+                    <div key={inst.id} style={{ marginBottom: 8 }}>
+                      <EuiFlexGroup alignItems="flexEnd" gutterSize="m">
+                        <EuiFlexItem>
+                          <EuiFormRow label="Mode">
+                            <EuiSelect
+                              options={agentModeOptions}
+                              value={inst.mode}
+                              onChange={(e) => updateAgentInstance(inst.id, { mode: e.target.value as 'standalone' | 'fleet' })}
+                            />
+                          </EuiFormRow>
+                        </EuiFlexItem>
+                        <EuiFlexItem>
+                          <EuiFormRow label="Replicas" helpText={inst.mode === 'fleet' ? 'Fleet mode is fixed at 1 replica' : undefined}>
+                            <EuiFieldNumber
+                              value={inst.mode === 'fleet' ? 1 : inst.count}
+                              onChange={(e) => updateAgentInstance(inst.id, { count: parseInt(e.target.value, 10) || 1 })}
+                              min={1}
+                              disabled={inst.mode === 'fleet'}
+                            />
+                          </EuiFormRow>
+                        </EuiFlexItem>
+                        <EuiFlexItem grow={false}>
+                          <EuiButtonIcon
+                            iconType="trash"
+                            color="danger"
+                            aria-label="Remove agent instance"
+                            onClick={() => removeAgentInstance(inst.id)}
+                            isDisabled={components.agent.agentInstances.length <= 1}
+                          />
+                        </EuiFlexItem>
+                      </EuiFlexGroup>
+                    </div>
+                  ))}
+                  <EuiSpacer size="s" />
+                  <EuiButtonEmpty
+                    size="s"
+                    iconType="plusInCircle"
+                    onClick={addAgentInstance}
+                  >
+                    Add Agent
+                  </EuiButtonEmpty>
+                </>
               )}
             </EuiAccordion>
           </div>
@@ -350,7 +547,7 @@ export function DeploymentEditPage() {
       {showRemoveConfirm && (
         <EuiConfirmModal
           title="Remove components?"
-          onCancel={() => { setShowRemoveConfirm(false); setRemovals([]); }}
+          onCancel={() => { setShowRemoveConfirm(false); setPendingRemovals([]); }}
           onConfirm={handleSave}
           cancelButtonText="Cancel"
           confirmButtonText="Remove and Save"
@@ -358,8 +555,8 @@ export function DeploymentEditPage() {
         >
           <p>The following components will be permanently deleted:</p>
           <ul>
-            {removals.map((key) => (
-              <li key={key}><strong>{COMPONENT_ORDER.find((c) => c.key === key)?.label}</strong></li>
+            {pendingRemovals.map((label) => (
+              <li key={label}><strong>{label}</strong></li>
             ))}
           </ul>
         </EuiConfirmModal>

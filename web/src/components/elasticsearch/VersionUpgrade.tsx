@@ -16,17 +16,8 @@ import {
   type EuiStepProps,
 } from '@elastic/eui';
 import { useUpdateResource, useResource } from '../../hooks/useResources';
+import { useVersions } from '../../hooks/useVersions';
 import type { Elasticsearch } from '../../types/resources';
-
-const AVAILABLE_VERSIONS = [
-  { value: '8.17.0', text: '8.17.0' },
-  { value: '8.16.1', text: '8.16.1' },
-  { value: '8.15.4', text: '8.15.4' },
-  { value: '8.14.3', text: '8.14.3' },
-  { value: '8.13.4', text: '8.13.4' },
-  { value: '8.12.2', text: '8.12.2' },
-  { value: '7.17.25', text: '7.17.25 (legacy)' },
-];
 
 type UpgradeStatus = 'idle' | 'confirming' | 'upgrading' | 'complete' | 'error';
 
@@ -53,10 +44,12 @@ export function VersionUpgrade({
     namespace,
     resourceName,
   );
+  const { versions, isLoading: versionsLoading } = useVersions();
 
-  const availableUpgrades = AVAILABLE_VERSIONS.filter(
-    (v) => v.value !== currentVersion,
-  );
+  const availableUpgrades = (versions.length > 0
+    ? versions.map((v) => ({ value: v.value, text: v.label }))
+    : [{ value: '8.17.0', text: '8.17.0' }]
+  ).filter((v) => v.value !== currentVersion);
 
   const isUpgradeValid = targetVersion !== '' && targetVersion !== currentVersion;
 
@@ -136,6 +129,7 @@ export function VersionUpgrade({
             value={targetVersion}
             onChange={(e) => setTargetVersion(e.target.value)}
             disabled={status !== 'idle'}
+            isLoading={versionsLoading}
             aria-label="Select target Elasticsearch version"
           />
         </EuiFormRow>

@@ -222,13 +222,13 @@ export function DashboardPage() {
           title={<h2>No resources found</h2>}
           body={
             <p>
-              Get started by deploying your first Elastic Stack using the Stack Wizard,
+              Get started by creating your first deployment,
               or create individual resources from the sidebar navigation.
             </p>
           }
           actions={
-            <EuiButton fill iconType="plusInCircle" onClick={() => navigate('/wizard')}>
-              Launch Stack Wizard
+            <EuiButton fill iconType="plusInCircle" onClick={() => navigate('/deployments/create')}>
+              Create Deployment
             </EuiButton>
           }
         />

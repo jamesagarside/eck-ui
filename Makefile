@@ -1,4 +1,4 @@
-.PHONY: build dev test lint docker-build clean generate web-build web-dev go-dev deploy help
+.PHONY: build dev test lint docker-build clean generate web-build web-dev go-dev deploy serve help
 
 APP_NAME := eck-ui
 VERSION := $(shell cat VERSION 2>/dev/null || echo "0.0.0")
@@ -44,12 +44,21 @@ HELM_NAMESPACE := default
 deploy: docker-build
 	helm upgrade --install $(HELM_RELEASE) deploy/helm/eck-ui \
 		--namespace $(HELM_NAMESPACE) \
-		--reuse-values \
+		--reset-then-reuse-values \
 		--set image.repository=$(APP_NAME) \
 		--set image.tag=latest \
-		--set image.pullPolicy=Never
+		--set image.pullPolicy=Never \
+		--set config.sessionSecret=$${SESSION_SECRET:-dev-secret-do-not-use-in-prod} \
+		--set ingress.enabled=true
 	kubectl rollout restart deployment/$(HELM_RELEASE) -n $(HELM_NAMESPACE)
 	kubectl rollout status deployment/$(HELM_RELEASE) -n $(HELM_NAMESPACE) --timeout=120s
+
+## serve: Deploy and port-forward to localhost:8090 (for Docker Desktop)
+serve: deploy
+	@echo ""
+	@echo "eck-ui available at http://localhost:8090"
+	@echo "Press Ctrl+C to stop"
+	kubectl port-forward svc/$(HELM_RELEASE) 8090:8080 -n $(HELM_NAMESPACE)
 
 ## clean: Remove build artifacts
 clean:
@@ -73,3 +82,7 @@ web-dev:
 ## go-dev: Start Go backend server
 go-dev:
 	go run ./cmd/server
+
+## token: Generate a 2h admin login token for the UI
+token:
+	kubectl create token eck-ui-admin -n $(HELM_NAMESPACE) --duration=2h

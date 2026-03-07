@@ -18,6 +18,33 @@ metadata:
     app.kubernetes.io/name: eck-ui
 automountServiceAccountToken: true
 ---
+# Admin ServiceAccount — for generating login tokens (make token)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eck-ui-admin
+  namespace: eck-ui
+  labels:
+    app.kubernetes.io/name: eck-ui
+    app.kubernetes.io/component: admin
+---
+# Admin ClusterRoleBinding — grants cluster-admin for UI login
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: eck-ui-admin
+  labels:
+    app.kubernetes.io/name: eck-ui
+    app.kubernetes.io/component: admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: eck-ui-admin
+    namespace: eck-ui
+---
 # ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -42,6 +69,14 @@ rules:
       - "*"
     verbs:
       - "*"
+  # CRD metadata - read-only for dynamic resource discovery
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
   # Core Kubernetes resources - read-only
   - apiGroups:
       - ""
@@ -50,11 +85,30 @@ rules:
       - events
       - secrets
       - services
+    verbs:
+      - get
+      - list
+      - watch
+  # ConfigMaps - read + write for eck-ui-versions management
+  - apiGroups:
+      - ""
+    resources:
       - configmaps
     verbs:
       - get
       - list
       - watch
+      - create
+      - update
+  # Apps API - read-only for operator version detection
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - statefulsets
+    verbs:
+      - get
+      - list
   # Authentication - token review for auth delegation
   - apiGroups:
       - authentication.k8s.io
@@ -78,6 +132,32 @@ subjects:
   - kind: ServiceAccount
     name: eck-ui
     namespace: eck-ui
+---
+# Versions ConfigMap - available Elastic Stack versions for the UI dropdown.
+# Update via the UI or POST /api/v1/versions/sync, or edit directly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eck-ui-versions
+  namespace: eck-ui
+  labels:
+    app.kubernetes.io/name: eck-ui
+    app.kubernetes.io/component: versions
+    app.kubernetes.io/managed-by: eck-ui
+data:
+  versions.json: |
+    {
+      "defaultVersion": "9.3.1",
+      "versions": [
+        "9.3.1", "9.3.0",
+        "9.2.6", "9.2.5", "9.2.4", "9.2.3", "9.2.2", "9.2.1", "9.2.0",
+        "9.1.11", "9.1.10", "9.1.9", "9.1.8", "9.1.7", "9.1.6", "9.1.5", "9.1.4",
+        "9.0.9", "9.0.8", "9.0.7",
+        "8.19.12", "8.19.11", "8.19.10", "8.19.9", "8.19.8", "8.19.7", "8.19.6", "8.19.5", "8.19.4",
+        "8.18.9", "8.18.8", "8.18.7",
+        "7.17.30"
+      ]
+    }
 ---
 # Deployment
 apiVersion: apps/v1
@@ -112,6 +192,10 @@ spec:
               containerPort: 8080
               protocol: TCP
           env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: LOG_LEVEL
               value: "info"
           livenessProbe:
