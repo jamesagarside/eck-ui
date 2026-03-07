@@ -389,6 +389,30 @@ export const handlers = [
     });
   }),
 
+  // Pods
+  http.get(`${BASE_URL}/pods/:namespace`, () => {
+    return HttpResponse.json([
+      {
+        name: 'my-es-default-0',
+        namespace: 'default',
+        phase: 'Running',
+        ready: '1/1',
+        restarts: 0,
+        node: 'node-1',
+        createdAt: new Date().toISOString(),
+        containers: [{ name: 'elasticsearch', ready: true, state: 'running' }],
+        componentType: 'elasticsearch',
+        componentName: 'my-es',
+      },
+    ]);
+  }),
+
+  http.get(`${BASE_URL}/pods/:namespace/:pod/logs`, () => {
+    return new HttpResponse('data: log line 1\n\ndata: log line 2\n\nevent: done\ndata: \n\n', {
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  }),
+
   // Generic resource handlers for remaining types
   ...(['apm', 'beat', 'agent', 'logstash', 'enterprise-search', 'maps'] as const).flatMap((type) => {
     const backendType = BACKEND_TYPE_MAP[type] || type;

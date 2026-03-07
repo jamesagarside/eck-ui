@@ -66,12 +66,12 @@ describe('AutoscalerDetailPage', () => {
     expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument();
   });
 
-  it('shows Overview, Policies, and Specification tabs', async () => {
+  it('shows Overview, Policies, and Manifest tabs', async () => {
     renderWithRoute('/elasticsearchautoscaler/default/my-autoscaler');
     await waitForDataLoad();
     expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /policies/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /specification/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /manifest/i })).toBeInTheDocument();
   });
 
   it('displays target ES cluster info in overview', async () => {

@@ -12,12 +12,11 @@ import {
   EuiButtonEmpty,
   EuiConfirmModal,
   EuiCallOut,
-  EuiText,
-  EuiTitle,
   type EuiTabbedContentTab,
 } from '@elastic/eui';
 import { useResource, useDeleteResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ManifestViewer } from '../../components/common/ManifestViewer';
 import type { BaseResource, ResourceStatus, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -123,22 +122,12 @@ export function StackConfigPolicyDetailPage() {
       ),
     },
     {
-      id: 'spec',
-      name: 'Specification',
+      id: 'manifest',
+      name: 'Manifest',
       content: (
         <>
           <EuiSpacer size="l" />
-          <EuiPanel>
-            <EuiTitle size="xs">
-              <h3>Policy Specification</h3>
-            </EuiTitle>
-            <EuiSpacer size="m" />
-            <EuiText size="s">
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {JSON.stringify(resource.spec, null, 2)}
-              </pre>
-            </EuiText>
-          </EuiPanel>
+          <ManifestViewer resource={resource} />
         </>
       ),
     },

@@ -13,13 +13,15 @@ import {
   EuiConfirmModal,
   EuiCallOut,
   EuiBasicTable,
-  EuiText,
-  EuiTitle,
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
 } from '@elastic/eui';
-import { useResource, useDeleteResource, useEvents } from '../../hooks/useResources';
+import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ManifestViewer } from '../../components/common/ManifestViewer';
+import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
+import { PodTable } from '../../components/common/PodLogsViewer';
+import { usePods, buildECKLabelSelector } from '../../hooks/usePods';
 import type { Kibana, HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -36,6 +38,8 @@ export function KibanaDetailPage() {
 
   const { data: resource, isLoading, error } = useResource<Kibana>('kibana', namespace || '', name || '');
   const deleteMutation = useDeleteResource('kibana');
+  const updateMutation = useUpdateResource('kibana');
+  const podsQuery = usePods(namespace || '', buildECKLabelSelector('kibana', name || ''));
   const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
@@ -105,15 +109,38 @@ export function KibanaDetailPage() {
       content: (
         <>
           <EuiSpacer size="l" />
-          <EuiPanel>
-            <EuiTitle size="xs"><h3>Specification</h3></EuiTitle>
-            <EuiSpacer size="m" />
-            <EuiText size="s">
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {JSON.stringify(resource.spec, null, 2)}
-              </pre>
-            </EuiText>
-          </EuiPanel>
+          <UserSettingsEditor
+            config={(resource.spec.config as Record<string, unknown>) || {}}
+            onSave={async (config) => {
+              const updated = JSON.parse(JSON.stringify(resource));
+              updated.spec.config = config;
+              await updateMutation.mutateAsync({
+                namespace: resource.metadata.namespace,
+                name: resource.metadata.name,
+                resource: updated,
+              });
+            }}
+          />
+        </>
+      ),
+    },
+    {
+      id: 'pods',
+      name: 'Pods',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <PodTable pods={podsQuery.data || []} />
+        </>
+      ),
+    },
+    {
+      id: 'manifest',
+      name: 'Manifest',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <ManifestViewer resource={resource} />
         </>
       ),
     },

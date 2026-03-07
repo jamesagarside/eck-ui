@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader, EuiSpacer, EuiTabbedContent, EuiDescriptionList, EuiHealth, EuiBadge, EuiPanel,
-  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiCallOut, EuiBasicTable, EuiText, EuiTitle,
+  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiCallOut, EuiBasicTable,
   type EuiTabbedContentTab, type EuiBasicTableColumn,
 } from '@elastic/eui';
-import { useResource, useDeleteResource, useEvents } from '../../hooks/useResources';
+import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ManifestViewer } from '../../components/common/ManifestViewer';
+import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
+import { PodTable } from '../../components/common/PodLogsViewer';
+import { usePods, buildECKLabelSelector } from '../../hooks/usePods';
 import type { Logstash, HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = { green: 'success', yellow: 'warning', red: 'danger', unknown: 'subdued' };
@@ -17,6 +21,8 @@ export function LogstashDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const { data: resource, isLoading, error } = useResource<Logstash>('logstash', namespace || '', name || '');
   const deleteMutation = useDeleteResource('logstash');
+  const updateMutation = useUpdateResource('logstash');
+  const podsQuery = usePods(namespace || '', buildECKLabelSelector('logstash', name || ''));
   const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
@@ -48,7 +54,38 @@ export function LogstashDetailPage() {
   const tabs: EuiTabbedContentTab[] = [
     { id: 'overview', name: 'Overview', content: <><EuiSpacer size="l" /><EuiPanel><EuiDescriptionList type="column" listItems={overviewItems} compressed /></EuiPanel></> },
     { id: 'events', name: 'Events', content: <><EuiSpacer size="l" /><EuiBasicTable items={events} columns={eventColumns} noItemsMessage="No events" /></> },
-    { id: 'settings', name: 'Settings', content: <><EuiSpacer size="l" /><EuiPanel><EuiTitle size="xs"><h3>Specification</h3></EuiTitle><EuiSpacer size="m" /><EuiText size="s"><pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(resource.spec, null, 2)}</pre></EuiText></EuiPanel></> },
+    {
+      id: 'settings',
+      name: 'Settings',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <UserSettingsEditor
+            config={(resource.spec.config as Record<string, unknown>) || {}}
+            onSave={async (config) => {
+              const updated = JSON.parse(JSON.stringify(resource));
+              updated.spec.config = config;
+              await updateMutation.mutateAsync({
+                namespace: resource.metadata.namespace,
+                name: resource.metadata.name,
+                resource: updated,
+              });
+            }}
+          />
+        </>
+      ),
+    },
+    {
+      id: 'pods',
+      name: 'Pods',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <PodTable pods={podsQuery.data || []} />
+        </>
+      ),
+    },
+    { id: 'manifest', name: 'Manifest', content: <><EuiSpacer size="l" /><ManifestViewer resource={resource} /></> },
   ];
 
   return (

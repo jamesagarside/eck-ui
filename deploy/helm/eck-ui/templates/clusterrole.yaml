@@ -41,6 +41,13 @@ rules:
       - get
       - list
       - watch
+  # Pod logs - read-only for log streaming
+  - apiGroups:
+      - ""
+    resources:
+      - pods/log
+    verbs:
+      - get
   # ConfigMaps - read + write for eck-ui-versions management
   - apiGroups:
       - ""

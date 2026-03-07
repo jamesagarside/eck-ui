@@ -137,6 +137,10 @@ func main() {
 		api.HandleFunc("/"+rt+"/{namespace}/{name}", resourceHandler.Delete(rt)).Methods("DELETE")
 	}
 
+	// Pod listing and log streaming
+	api.HandleFunc("/pods/{namespace}", handlers.PodListHandler(k8sClient)).Methods("GET")
+	api.HandleFunc("/pods/{namespace}/{pod}/logs", handlers.PodLogsHandler(k8sClient)).Methods("GET")
+
 	// Events and watch endpoints
 	api.HandleFunc("/events/{namespace}", resourceHandler.Events()).Methods("GET")
 	api.HandleFunc("/watch/{type}", resourceHandler.Watch()).Methods("GET")

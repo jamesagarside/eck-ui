@@ -16,13 +16,16 @@ import {
   EuiFlyout,
   EuiFlyoutBody,
   EuiFlyoutHeader,
-  EuiText,
   EuiTitle,
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
 } from '@elastic/eui';
-import { useResource, useDeleteResource, useEvents } from '../../hooks/useResources';
+import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ManifestViewer } from '../../components/common/ManifestViewer';
+import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
+import { PodTable } from '../../components/common/PodLogsViewer';
+import { usePods, buildECKLabelSelector } from '../../hooks/usePods';
 import { VersionUpgrade } from '../../components/elasticsearch/VersionUpgrade';
 import { CredentialsDisplay } from '../../components/elasticsearch/CredentialsDisplay';
 import { MonitoringConfig } from '../../components/elasticsearch/MonitoringConfig';
@@ -52,7 +55,12 @@ export function ElasticsearchDetailPage() {
   );
 
   const deleteMutation = useDeleteResource('elasticsearch');
+  const updateMutation = useUpdateResource('elasticsearch');
   const eventsQuery = useEvents(namespace || '');
+  const podsQuery = usePods(
+    namespace || '',
+    buildECKLabelSelector('elasticsearch', name || ''),
+  );
 
   if (isLoading) return <DetailSkeleton />;
 
@@ -229,17 +237,43 @@ export function ElasticsearchDetailPage() {
       content: (
         <>
           <EuiSpacer size="l" />
-          <EuiPanel>
-            <EuiTitle size="xs">
-              <h3>Specification</h3>
-            </EuiTitle>
-            <EuiSpacer size="m" />
-            <EuiText size="s">
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {JSON.stringify(resource.spec, null, 2)}
-              </pre>
-            </EuiText>
-          </EuiPanel>
+          {(resource.spec.nodeSets || []).map((ns: NodeSet, i: number) => (
+            <div key={ns.name} style={{ marginBottom: 16 }}>
+              <UserSettingsEditor
+                title={`Node Set: ${ns.name}`}
+                config={(ns.config as Record<string, unknown>) || {}}
+                onSave={async (config) => {
+                  const updated = JSON.parse(JSON.stringify(resource));
+                  updated.spec.nodeSets[i].config = config;
+                  await updateMutation.mutateAsync({
+                    namespace: resource.metadata.namespace,
+                    name: resource.metadata.name,
+                    resource: updated,
+                  });
+                }}
+              />
+            </div>
+          ))}
+        </>
+      ),
+    },
+    {
+      id: 'pods',
+      name: 'Pods',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <PodTable pods={podsQuery.data || []} />
+        </>
+      ),
+    },
+    {
+      id: 'manifest',
+      name: 'Manifest',
+      content: (
+        <>
+          <EuiSpacer size="l" />
+          <ManifestViewer resource={resource} />
         </>
       ),
     },

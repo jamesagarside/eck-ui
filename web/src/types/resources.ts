@@ -123,6 +123,7 @@ export interface KibanaSpec {
   elasticsearchRef: { name: string; namespace?: string };
   http?: Record<string, unknown>;
   podTemplate?: Record<string, unknown>;
+  config?: Record<string, unknown>;
   image?: string;
 }
 
@@ -142,6 +143,7 @@ export interface ApmServerSpec {
   kibanaRef?: { name: string; namespace?: string };
   http?: Record<string, unknown>;
   podTemplate?: Record<string, unknown>;
+  config?: Record<string, unknown>;
   image?: string;
 }
 

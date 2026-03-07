@@ -66,10 +66,10 @@ describe('StackConfigPolicyDetailPage', () => {
     expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument();
   });
 
-  it('shows Overview and Specification tabs', async () => {
+  it('shows Overview and Manifest tabs', async () => {
     renderWithRoute('/stackconfigpolicy/default/my-policy');
     await waitForDataLoad();
     expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /specification/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /manifest/i })).toBeInTheDocument();
   });
 });

@@ -20,11 +20,17 @@ import {
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
 } from '@elastic/eui';
+import { useQuery } from '@tanstack/react-query';
 import { useDeployment } from '../../hooks/useDeployments';
 import { useEvents } from '../../hooks/useResources';
 import { useDeleteDeployment } from '../../hooks/useDeploymentMutations';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ManifestViewer } from '../../components/common/ManifestViewer';
+import { PodTable } from '../../components/common/PodLogsViewer';
+import { buildECKLabelSelector } from '../../hooks/usePods';
+import type { PodSummary } from '../../hooks/usePods';
 import { routePath } from '../../utils/routePaths';
+import apiClient from '../../api/client';
 import type { HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -66,6 +72,23 @@ export function DeploymentDetailPage() {
   const { deployment, isLoading, isError } = useDeployment(namespace || '', name || '');
   const eventsQuery = useEvents(namespace || '');
   const deleteDeployment = useDeleteDeployment();
+
+  // Aggregate pods across all deployment components
+  const allPodsQuery = useQuery<PodSummary[]>({
+    queryKey: ['deployment-pods', namespace, name, deployment?.components.map(c => c.resource.metadata.name).join(',')],
+    queryFn: async () => {
+      if (!deployment || !namespace) return [];
+      const results: PodSummary[] = [];
+      for (const c of deployment.components) {
+        const selector = buildECKLabelSelector(c.type, c.resource.metadata.name);
+        const pods = await apiClient.get<PodSummary[]>(`/pods/${namespace}?labelSelector=${encodeURIComponent(selector)}`);
+        results.push(...pods);
+      }
+      return results;
+    },
+    enabled: !!deployment && !!namespace,
+    refetchInterval: 10_000,
+  });
 
   if (isLoading) return <DetailSkeleton />;
   if (isError || !deployment) {
@@ -169,23 +192,27 @@ export function DeploymentDetailPage() {
       <EuiSpacer size="l" />
       {deployment.components.map((c) => (
         <div key={c.resource.metadata.name} style={{ marginBottom: 16 }}>
-          <EuiPanel>
-            <EuiTitle size="xs"><h3>{TYPE_LABELS[c.type] || c.type}: {c.resource.metadata.name}</h3></EuiTitle>
-            <EuiSpacer size="m" />
-            <EuiText size="s">
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {JSON.stringify(c.resource, null, 2)}
-              </pre>
-            </EuiText>
-          </EuiPanel>
+          <ManifestViewer
+            resource={c.resource}
+            title={`${TYPE_LABELS[c.type] || c.type}: ${c.resource.metadata.name}`}
+          />
         </div>
       ))}
+    </>
+  );
+
+  // Pods tab: aggregated across all components
+  const podsContent = (
+    <>
+      <EuiSpacer size="l" />
+      <PodTable pods={allPodsQuery.data || []} showComponent />
     </>
   );
 
   const tabs: EuiTabbedContentTab[] = [
     { id: 'overview', name: 'Overview', content: overviewContent },
     { id: 'events', name: 'Events', content: eventsContent },
+    { id: 'pods', name: 'Pods', content: podsContent },
     { id: 'specification', name: 'Specification', content: specContent },
   ];
 
