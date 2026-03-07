@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
@@ -100,6 +101,11 @@ func PodLogsHandler(client *k8s.Client) http.HandlerFunc {
 			http.Error(w, "streaming not supported", http.StatusInternalServerError)
 			return
 		}
+
+		// Clear the write deadline so the SSE stream isn't killed by
+		// the server's WriteTimeout (default 60s).
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Time{})
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")

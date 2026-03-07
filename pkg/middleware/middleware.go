@@ -233,6 +233,14 @@ func (sw *statusWriter) WriteHeader(code int) {
 	sw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush implements http.Flusher so that SSE streaming works through the
+// Logger middleware.
+func (sw *statusWriter) Flush() {
+	if f, ok := sw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Logger returns middleware that logs each request's method, path, status code,
 // and duration using structured logging.
 func Logger(next http.Handler) http.Handler {

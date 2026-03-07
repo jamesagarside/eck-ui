@@ -21,6 +21,14 @@ func (rc *responseCapture) WriteHeader(code int) {
 	rc.ResponseWriter.WriteHeader(code)
 }
 
+// Flush implements http.Flusher so that SSE streaming works through the
+// audit middleware.
+func (rc *responseCapture) Flush() {
+	if f, ok := rc.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Middleware returns an HTTP middleware that emits audit log entries for
 // API requests. By default only mutating operations (POST, PUT, PATCH, DELETE)
 // are audited. When auditReads is true, GET requests are also captured.
