@@ -83,16 +83,32 @@ function defaultComponentState(): ComponentState {
 
 type ComponentKey = 'elasticsearch' | 'kibana' | 'apm' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
 
-const COMPONENT_ORDER: { key: ComponentKey; label: string; icon: string }[] = [
+interface ComponentDef {
+  key: ComponentKey;
+  label: string;
+  icon: string;
+  /** Component is hidden when selected version >= this major (e.g. 9 hides for 9.x+) */
+  removedInMajor?: number;
+  /** Deprecation notice shown when selected version >= this major */
+  deprecatedInMajor?: number;
+  deprecationNote?: string;
+}
+
+const COMPONENT_ORDER: ComponentDef[] = [
   { key: 'elasticsearch', label: 'Elasticsearch', icon: 'logoElasticsearch' },
   { key: 'kibana', label: 'Kibana', icon: 'logoKibana' },
-  { key: 'apm', label: 'APM Server', icon: 'apmApp' },
+  { key: 'apm', label: 'APM Server', icon: 'apmApp', deprecatedInMajor: 8, deprecationNote: 'Deprecated since 8.0. Use Elastic Agent with Fleet instead.' },
   { key: 'beat', label: 'Beats', icon: 'logoBeats' },
   { key: 'agent', label: 'Elastic Agent', icon: 'logoSecurity' },
   { key: 'logstash', label: 'Logstash', icon: 'logoLogstash' },
-  { key: 'enterprise-search', label: 'Enterprise Search', icon: 'logoEnterpriseSearch' },
+  { key: 'enterprise-search', label: 'Enterprise Search', icon: 'logoEnterpriseSearch', removedInMajor: 9 },
   { key: 'maps', label: 'Elastic Maps', icon: 'logoMaps' },
 ];
+
+function parseMajor(ver: string): number {
+  const n = parseInt(ver.split('.')[0], 10);
+  return isNaN(n) ? 0 : n;
+}
 
 export function DeploymentCreatePage() {
   const navigate = useNavigate();
@@ -124,6 +140,13 @@ export function DeploymentCreatePage() {
     setVersion(defaultVersion);
   }
 
+  const selectedMajor = parseMajor(version);
+
+  // Filter components available for the selected version
+  const availableComponents = COMPONENT_ORDER.filter(
+    (c) => !c.removedInMajor || selectedMajor < c.removedInMajor,
+  );
+
   const [components, setComponents] = useState<Record<ComponentKey, ComponentState>>(() => {
     const state: Record<string, ComponentState> = {};
     for (const c of COMPONENT_ORDER) {
@@ -137,6 +160,21 @@ export function DeploymentCreatePage() {
       ...prev,
       [key]: { ...prev[key], ...updates },
     }));
+  };
+
+  // Auto-disable components removed in the selected version
+  const handleVersionChange = (newVersion: string) => {
+    setVersion(newVersion);
+    const major = parseMajor(newVersion);
+    setComponents((prev) => {
+      const next = { ...prev };
+      for (const c of COMPONENT_ORDER) {
+        if (c.removedInMajor && major >= c.removedInMajor && prev[c.key].enabled) {
+          next[c.key] = { ...prev[c.key], enabled: false };
+        }
+      }
+      return next;
+    });
   };
 
   // Beat instance helpers
@@ -291,7 +329,7 @@ export function DeploymentCreatePage() {
 
   // Count total resources that will be created
   let enabledCount = 0;
-  for (const c of COMPONENT_ORDER) {
+  for (const c of availableComponents) {
     if (!components[c.key].enabled) continue;
     if (c.key === 'beat') {
       enabledCount += components.beat.beatInstances.length;
@@ -302,27 +340,33 @@ export function DeploymentCreatePage() {
     }
   }
 
-  function renderAccordionButton(key: ComponentKey, label: string) {
+  function renderAccordionButton(def: ComponentDef) {
+    const isDeprecated = def.deprecatedInMajor != null && selectedMajor >= def.deprecatedInMajor;
     return (
       <EuiFlexGroup alignItems="center" gutterSize="m" responsive={false}>
         <EuiFlexItem grow={false}>
           <EuiSwitch
             label=""
             showLabel={false}
-            checked={components[key].enabled}
+            checked={components[def.key].enabled}
             onChange={(e) => {
               e.stopPropagation();
-              updateComponent(key, { enabled: !components[key].enabled });
+              updateComponent(def.key, { enabled: !components[def.key].enabled });
             }}
             compressed
           />
         </EuiFlexItem>
         <EuiFlexItem grow={false}>
-          <strong>{label}</strong>
+          <strong>{def.label}</strong>
         </EuiFlexItem>
-        {components[key].enabled && (
+        {components[def.key].enabled && (
           <EuiFlexItem grow={false}>
             <EuiBadge color="success">Enabled</EuiBadge>
+          </EuiFlexItem>
+        )}
+        {isDeprecated && (
+          <EuiFlexItem grow={false}>
+            <EuiBadge color="warning">Deprecated</EuiBadge>
           </EuiFlexItem>
         )}
       </EuiFlexGroup>
@@ -436,7 +480,7 @@ export function DeploymentCreatePage() {
                     : [{ value: version || '8.17.0', text: version || '8.17.0' }]
                   }
                   value={version}
-                  onChange={(e) => setVersion(e.target.value)}
+                  onChange={(e) => handleVersionChange(e.target.value)}
                   isInvalid={!!errors.version}
                   isLoading={versionsLoading}
                 />
@@ -451,11 +495,11 @@ export function DeploymentCreatePage() {
         <EuiTitle size="xs"><h3>Components</h3></EuiTitle>
         <EuiSpacer size="m" />
 
-        {COMPONENT_ORDER.map((c) => (
+        {availableComponents.map((c) => (
           <div key={c.key} style={{ marginBottom: 8 }}>
             <EuiAccordion
               id={`component-${c.key}`}
-              buttonContent={renderAccordionButton(c.key, c.label)}
+              buttonContent={renderAccordionButton(c)}
               paddingSize="l"
               forceState={components[c.key].enabled ? 'open' : 'closed'}
               onToggle={() => updateComponent(c.key, { enabled: !components[c.key].enabled })}
@@ -463,6 +507,12 @@ export function DeploymentCreatePage() {
             >
               {components[c.key].enabled && (
                 <>
+                  {c.deprecatedInMajor != null && selectedMajor >= c.deprecatedInMajor && (
+                    <>
+                      <EuiCallOut title={c.deprecationNote || 'This component is deprecated.'} color="warning" iconType="warning" size="s" />
+                      <EuiSpacer size="m" />
+                    </>
+                  )}
                   {/* Elasticsearch */}
                   {c.key === 'elasticsearch' && (
                     <>

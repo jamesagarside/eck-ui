@@ -57,16 +57,29 @@ interface ComponentEditState {
 
 type ComponentKey = 'elasticsearch' | 'kibana' | 'apm' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
 
-const COMPONENT_ORDER: { key: ComponentKey; label: string }[] = [
+interface ComponentDef {
+  key: ComponentKey;
+  label: string;
+  removedInMajor?: number;
+  deprecatedInMajor?: number;
+  deprecationNote?: string;
+}
+
+const COMPONENT_ORDER: ComponentDef[] = [
   { key: 'elasticsearch', label: 'Elasticsearch' },
   { key: 'kibana', label: 'Kibana' },
-  { key: 'apm', label: 'APM Server' },
+  { key: 'apm', label: 'APM Server', deprecatedInMajor: 8, deprecationNote: 'Deprecated since 8.0. Use Elastic Agent with Fleet instead.' },
   { key: 'beat', label: 'Beats' },
   { key: 'agent', label: 'Elastic Agent' },
   { key: 'logstash', label: 'Logstash' },
-  { key: 'enterprise-search', label: 'Enterprise Search' },
+  { key: 'enterprise-search', label: 'Enterprise Search', removedInMajor: 9 },
   { key: 'maps', label: 'Elastic Maps' },
 ];
+
+function parseMajor(ver: string): number {
+  const n = parseInt(ver.split('.')[0], 10);
+  return isNaN(n) ? 0 : n;
+}
 
 function defaultState(): ComponentEditState {
   return {
@@ -98,6 +111,10 @@ export function DeploymentEditPage() {
   }));
 
   const [version, setVersion] = useState('');
+  const selectedMajor = parseMajor(version);
+  const availableComponents = COMPONENT_ORDER.filter(
+    (c) => !c.removedInMajor || selectedMajor < c.removedInMajor,
+  );
   const [initialized, setInitialized] = useState(false);
   const [components, setComponents] = useState<Record<ComponentKey, ComponentEditState>>(() => {
     const state: Record<string, ComponentEditState> = {};
@@ -391,7 +408,9 @@ export function DeploymentEditPage() {
         <EuiTitle size="xs"><h3>Components</h3></EuiTitle>
         <EuiSpacer size="m" />
 
-        {COMPONENT_ORDER.map((c) => (
+        {availableComponents.map((c) => {
+          const isDeprecated = c.deprecatedInMajor != null && selectedMajor >= c.deprecatedInMajor;
+          return (
           <div key={c.key} style={{ marginBottom: 8 }}>
             <EuiAccordion
               id={`edit-${c.key}`}
@@ -407,12 +426,19 @@ export function DeploymentEditPage() {
                   <EuiFlexItem grow={false}><strong>{c.label}</strong></EuiFlexItem>
                   {components[c.key].enabled && <EuiFlexItem grow={false}><EuiBadge color={components[c.key].existed ? 'primary' : 'success'}>{components[c.key].existed ? 'Active' : 'New'}</EuiBadge></EuiFlexItem>}
                   {!components[c.key].enabled && components[c.key].existed && <EuiFlexItem grow={false}><EuiBadge color="danger">Will be removed</EuiBadge></EuiFlexItem>}
+                  {isDeprecated && <EuiFlexItem grow={false}><EuiBadge color="warning">Deprecated</EuiBadge></EuiFlexItem>}
                 </EuiFlexGroup>
               }
               paddingSize="l"
               forceState={components[c.key].enabled ? 'open' : 'closed'}
               onToggle={() => updateComponent(c.key, { enabled: !components[c.key].enabled })}
             >
+              {isDeprecated && components[c.key].enabled && (
+                <>
+                  <EuiCallOut title={c.deprecationNote || 'This component is deprecated.'} color="warning" iconType="warning" size="s" />
+                  <EuiSpacer size="m" />
+                </>
+              )}
               {c.key === 'elasticsearch' && (
                 <NodeSetEditor
                   nodeSets={components.elasticsearch.nodeSets}
@@ -531,7 +557,8 @@ export function DeploymentEditPage() {
               )}
             </EuiAccordion>
           </div>
-        ))}
+          );
+        })}
 
         <EuiSpacer size="xl" />
         <EuiFlexGroup justifyContent="flexEnd">
