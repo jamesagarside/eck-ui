@@ -7,11 +7,15 @@ interface ElasticsearchResource {
   };
 }
 
+interface K8sListResponse {
+  items: ElasticsearchResource[];
+}
+
 export function useNamespaceElasticsearchClusters(namespace: string) {
-  const query = useQuery<ElasticsearchResource[]>({
+  const query = useQuery<K8sListResponse>({
     queryKey: ['elasticsearch-clusters', namespace],
     queryFn: () =>
-      apiClient.get<ElasticsearchResource[]>(
+      apiClient.get<K8sListResponse>(
         `/elasticsearch?namespace=${encodeURIComponent(namespace)}`,
       ),
     enabled: !!namespace,
@@ -19,8 +23,10 @@ export function useNamespaceElasticsearchClusters(namespace: string) {
     retry: 1,
   });
 
+  const items = query.data?.items ?? [];
+
   return {
-    clusters: query.data?.map((r) => r.metadata.name) ?? [],
+    clusters: items.map((r) => r.metadata.name),
     isLoading: query.isLoading,
   };
 }
