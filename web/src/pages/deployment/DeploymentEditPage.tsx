@@ -24,13 +24,18 @@ import {
 import { useDeployment } from '../../hooks/useDeployments';
 import { useVersions } from '../../hooks/useVersions';
 import { useResourceTypes } from '../../hooks/useResourceTypes';
+import { useNamespaceElasticsearchClusters } from '../../hooks/useNamespaceElasticsearchClusters';
 import { useUpdateDeployment, type DeploymentIntent, type ComponentResult } from '../../hooks/useDeploymentMutations';
 import {
-  NodeSetEditor,
   specToNodeSetConfigs,
-  type NodeSetConfig,
 } from '../../components/elasticsearch/NodeSetEditor';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import {
+  ComponentConfigurator,
+  type ComponentFormState,
+  defaultComponentFormState,
+} from '../../components/deployment/ComponentConfigurator';
+import { buildComponentName } from '../../types/deployment';
 
 interface BeatInstance {
   id: string;
@@ -46,11 +51,8 @@ interface AgentInstance {
   existed: boolean;
 }
 
-interface ComponentEditState {
-  enabled: boolean;
+interface ComponentEditState extends ComponentFormState {
   existed: boolean;
-  count: number;
-  nodeSets: NodeSetConfig[];
   beatInstances: BeatInstance[];
   agentInstances: AgentInstance[];
 }
@@ -83,10 +85,8 @@ function parseMajor(ver: string): number {
 
 function defaultState(): ComponentEditState {
   return {
-    enabled: false,
+    ...defaultComponentFormState(),
     existed: false,
-    count: 1,
-    nodeSets: [{ name: 'default', count: 3, roles: ['master', 'data', 'ingest'], memoryRequest: '2Gi', cpuRequest: '1', memoryLimit: '2Gi', cpuLimit: '1', storageSize: '10Gi', storageClass: '' }],
     beatInstances: [{ id: crypto.randomUUID(), beatType: 'filebeat', count: 1, existed: false }],
     agentInstances: [{ id: crypto.randomUUID(), mode: 'standalone', count: 1, existed: false }],
   };
@@ -97,7 +97,8 @@ export function DeploymentEditPage() {
   const navigate = useNavigate();
   const { deployment, isLoading } = useDeployment(namespace || '', name || '');
   const { versions, isLoading: versionsLoading } = useVersions();
-  const { beatTypes, agentModes } = useResourceTypes();
+  const { beatTypes, agentModes, resourceTypes } = useResourceTypes();
+  const { clusters: esClusters } = useNamespaceElasticsearchClusters(namespace || '');
 
   const updateDeployment = useUpdateDeployment();
 
@@ -240,6 +241,26 @@ export function DeploymentEditPage() {
     for (const c of COMPONENT_ORDER) {
       const comp = components[c.key];
 
+      // Enhanced fields (only include non-empty)
+      const config = Object.keys(comp.config).length > 0 ? comp.config : undefined;
+      const resources =
+        comp.resources.memoryRequest || comp.resources.memoryLimit ||
+        comp.resources.cpuRequest || comp.resources.cpuLimit
+          ? comp.resources : undefined;
+      const podTemplate =
+        Object.keys(comp.podTemplate.nodeSelector ?? {}).length > 0 ||
+        (comp.podTemplate.tolerations?.length ?? 0) > 0 ||
+        Object.keys(comp.podTemplate.affinity ?? {}).length > 0
+          ? comp.podTemplate : undefined;
+      const http =
+        comp.http.tls?.disabled || comp.http.tls?.secretName || comp.http.serviceType
+          ? comp.http : undefined;
+      const monitoring =
+        comp.monitoring.metricsRef || comp.monitoring.logsRef ? comp.monitoring : undefined;
+      const updateStrategy =
+        comp.updateStrategy.maxUnavailable != null || comp.updateStrategy.maxSurge != null
+          ? comp.updateStrategy : undefined;
+
       if (c.key === 'elasticsearch') {
         intentComponents.elasticsearch = {
           enabled: comp.enabled,
@@ -254,31 +275,34 @@ export function DeploymentEditPage() {
             storageSize: ns.storageSize,
             storageClass: ns.storageClass,
           })),
+          config, podTemplate, http, monitoring, updateStrategy,
         };
       } else if (c.key === 'beat') {
         intentComponents.beat = {
           enabled: comp.enabled,
           instances: comp.enabled
-            ? comp.beatInstances.map((b) => ({
-                type: b.beatType,
-                replicas: b.count,
-              }))
+            ? comp.beatInstances.map((b) => ({ type: b.beatType, replicas: b.count }))
             : [],
+          config, resources, podTemplate, monitoring,
+          elasticsearchRef: comp.elasticsearchRef,
         };
       } else if (c.key === 'agent') {
         intentComponents.agent = {
           enabled: comp.enabled,
           instances: comp.enabled
-            ? comp.agentInstances.map((a) => ({
-                mode: a.mode,
-                replicas: a.mode === 'fleet' ? 1 : a.count,
-              }))
+            ? comp.agentInstances.map((a) => ({ mode: a.mode, replicas: a.mode === 'fleet' ? 1 : a.count }))
             : [],
+          config, resources, podTemplate, monitoring,
+          elasticsearchRef: comp.elasticsearchRef,
+          kibanaRef: comp.kibanaRef,
         };
       } else {
         intentComponents[c.key] = {
           enabled: comp.enabled,
           replicas: comp.count,
+          config, resources, podTemplate, http, monitoring,
+          elasticsearchRef: comp.elasticsearchRef,
+          kibanaRef: comp.kibanaRef,
         };
       }
     }
@@ -410,6 +434,11 @@ export function DeploymentEditPage() {
 
         {availableComponents.map((c) => {
           const isDeprecated = c.deprecatedInMajor != null && selectedMajor >= c.deprecatedInMajor;
+          const backendTypeMap: Record<string, string> = { 'apm': 'apmserver', 'enterprise-search': 'enterprisesearch', 'maps': 'elasticmapsserver' };
+          const backendType = backendTypeMap[c.key] ?? c.key;
+          const specFields = resourceTypes.find((r) => r.name === backendType)?.specFields ?? [];
+          const esName = name ? buildComponentName(name, 'elasticsearch') : undefined;
+          const kbName = name ? buildComponentName(name, 'kibana') : undefined;
           return (
           <div key={c.key} style={{ marginBottom: 8 }}>
             <EuiAccordion
@@ -438,17 +467,6 @@ export function DeploymentEditPage() {
                   <EuiCallOut title={c.deprecationNote || 'This component is deprecated.'} color="warning" iconType="warning" size="s" />
                   <EuiSpacer size="m" />
                 </>
-              )}
-              {c.key === 'elasticsearch' && (
-                <NodeSetEditor
-                  nodeSets={components.elasticsearch.nodeSets}
-                  onChange={(nodeSets) => updateComponent('elasticsearch', { nodeSets })}
-                />
-              )}
-              {['kibana', 'apm', 'logstash', 'enterprise-search', 'maps'].includes(c.key) && (
-                <EuiFormRow label="Replicas">
-                  <EuiFieldNumber value={components[c.key].count} onChange={(e) => updateComponent(c.key, { count: parseInt(e.target.value, 10) || 1 })} min={1} />
-                </EuiFormRow>
               )}
 
               {/* Beats — multi-instance */}
@@ -505,6 +523,7 @@ export function DeploymentEditPage() {
                   >
                     Add Beat
                   </EuiButtonEmpty>
+                  <EuiSpacer size="m" />
                 </>
               )}
 
@@ -553,8 +572,20 @@ export function DeploymentEditPage() {
                   >
                     Add Agent
                   </EuiButtonEmpty>
+                  <EuiSpacer size="m" />
                 </>
               )}
+
+              {/* ComponentConfigurator handles ES NodeSetEditor, simple replicas+sizing, and all advanced sections */}
+              <ComponentConfigurator
+                type={c.key}
+                state={components[c.key]}
+                onChange={(updates) => updateComponent(c.key, updates)}
+                specFields={specFields}
+                autoEsName={esName}
+                autoKbName={kbName}
+                esClusters={esClusters}
+              />
             </EuiAccordion>
           </div>
           );

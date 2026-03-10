@@ -1,0 +1,12 @@
+{{- if .Values.deploymentTemplates.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eck-ui-deployment-templates
+  labels:
+    {{- include "eck-ui.labels" . | nindent 4 }}
+    app.kubernetes.io/component: deployment-templates
+data:
+  templates.json: |
+    {{ .Values.deploymentTemplates.templates | toJson }}
+{{- end }}

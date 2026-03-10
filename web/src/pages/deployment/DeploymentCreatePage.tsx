@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader,
@@ -19,14 +19,25 @@ import {
   EuiSelect,
   EuiTitle,
   EuiBadge,
+  EuiCard,
+  EuiIcon,
 } from '@elastic/eui';
 import { useVersions } from '../../hooks/useVersions';
 import { useResourceTypes } from '../../hooks/useResourceTypes';
-import { useCreateDeployment, type DeploymentIntent, type ComponentResult } from '../../hooks/useDeploymentMutations';
+import { useDeploymentTemplates } from '../../hooks/useDeploymentTemplates';
+import { useNamespaceElasticsearchClusters } from '../../hooks/useNamespaceElasticsearchClusters';
 import {
-  NodeSetEditor,
-  type NodeSetConfig,
-} from '../../components/elasticsearch/NodeSetEditor';
+  useCreateDeployment,
+  type DeploymentIntent,
+  type ComponentResult,
+  type DeploymentTemplate,
+} from '../../hooks/useDeploymentMutations';
+import {
+  ComponentConfigurator,
+  type ComponentFormState,
+  type ComponentType,
+  defaultComponentFormState,
+} from '../../components/deployment/ComponentConfigurator';
 import {
   buildComponentName,
   buildBeatName,
@@ -48,48 +59,26 @@ interface AgentInstance {
   count: number;
 }
 
-interface ComponentState {
-  enabled: boolean;
-  count: number;
-  // ES-specific
-  nodeSets: NodeSetConfig[];
-  // Beat instances
+interface FullComponentState extends ComponentFormState {
   beatInstances: BeatInstance[];
-  // Agent instances
   agentInstances: AgentInstance[];
 }
 
-function defaultComponentState(): ComponentState {
+function defaultFullState(): FullComponentState {
   return {
-    enabled: false,
-    count: 1,
-    nodeSets: [
-      {
-        name: 'default',
-        count: 3,
-        roles: ['master', 'data', 'ingest'],
-        memoryRequest: '2Gi',
-        cpuRequest: '1',
-        memoryLimit: '2Gi',
-        cpuLimit: '1',
-        storageSize: '10Gi',
-        storageClass: '',
-      },
-    ],
+    ...defaultComponentFormState(),
     beatInstances: [{ id: crypto.randomUUID(), beatType: 'filebeat', count: 1 }],
     agentInstances: [{ id: crypto.randomUUID(), mode: 'standalone', count: 1 }],
   };
 }
 
-type ComponentKey = 'elasticsearch' | 'kibana' | 'apm' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
+type ComponentKey = ComponentType;
 
 interface ComponentDef {
   key: ComponentKey;
   label: string;
   icon: string;
-  /** Component is hidden when selected version >= this major (e.g. 9 hides for 9.x+) */
   removedInMajor?: number;
-  /** Deprecation notice shown when selected version >= this major */
   deprecatedInMajor?: number;
   deprecationNote?: string;
 }
@@ -115,17 +104,19 @@ export function DeploymentCreatePage() {
   const [name, setName] = useState('');
   const [namespace, setNamespace] = useState('default');
   const { versions, defaultVersion, isLoading: versionsLoading } = useVersions();
-  const { beatTypes, agentModes } = useResourceTypes();
+  const { beatTypes, agentModes, resourceTypes } = useResourceTypes();
+  const { templates } = useDeploymentTemplates();
+  const { clusters: esClusters } = useNamespaceElasticsearchClusters(namespace);
   const [version, setVersion] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deployError, setDeployError] = useState('');
   const [deployErrors, setDeployErrors] = useState<string[]>([]);
   const [isDeploying, setIsDeploying] = useState(false);
   const [partialSuccess, setPartialSuccess] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
 
   const createDeployment = useCreateDeployment();
 
-  // Build select options from discovered types
   const beatTypeOptions = beatTypes.map((t) => ({
     value: t,
     text: t.charAt(0).toUpperCase() + t.slice(1),
@@ -135,34 +126,43 @@ export function DeploymentCreatePage() {
     text: m.charAt(0).toUpperCase() + m.slice(1),
   }));
 
-  // Set version from operator default once loaded
   if (!version && defaultVersion && !versionsLoading) {
     setVersion(defaultVersion);
   }
 
   const selectedMajor = parseMajor(version);
 
-  // Filter components available for the selected version
   const availableComponents = COMPONENT_ORDER.filter(
     (c) => !c.removedInMajor || selectedMajor < c.removedInMajor,
   );
 
-  const [components, setComponents] = useState<Record<ComponentKey, ComponentState>>(() => {
-    const state: Record<string, ComponentState> = {};
+  const [components, setComponents] = useState<Record<ComponentKey, FullComponentState>>(() => {
+    const state: Record<string, FullComponentState> = {};
     for (const c of COMPONENT_ORDER) {
-      state[c.key] = defaultComponentState();
+      state[c.key] = defaultFullState();
     }
-    return state as Record<ComponentKey, ComponentState>;
+    return state as Record<ComponentKey, FullComponentState>;
   });
 
-  const updateComponent = (key: ComponentKey, updates: Partial<ComponentState>) => {
+  const updateComponent = useCallback((key: ComponentKey, updates: Partial<FullComponentState>) => {
     setComponents((prev) => ({
       ...prev,
       [key]: { ...prev[key], ...updates },
     }));
-  };
+  }, []);
 
-  // Auto-disable components removed in the selected version
+  // Get specFields for a component type
+  const getSpecFields = useCallback((type: ComponentType): string[] => {
+    const backendTypeMap: Record<string, string> = {
+      'apm': 'apmserver',
+      'enterprise-search': 'enterprisesearch',
+      'maps': 'elasticmapsserver',
+    };
+    const backendType = backendTypeMap[type] ?? type;
+    const rt = resourceTypes.find((r) => r.name === backendType);
+    return rt?.specFields ?? [];
+  }, [resourceTypes]);
+
   const handleVersionChange = (newVersion: string) => {
     setVersion(newVersion);
     const major = parseMajor(newVersion);
@@ -170,6 +170,59 @@ export function DeploymentCreatePage() {
       const next = { ...prev };
       for (const c of COMPONENT_ORDER) {
         if (c.removedInMajor && major >= c.removedInMajor && prev[c.key].enabled) {
+          next[c.key] = { ...prev[c.key], enabled: false };
+        }
+      }
+      return next;
+    });
+  };
+
+  // Template application
+  const applyTemplate = (template: DeploymentTemplate) => {
+    setSelectedTemplate(template.name);
+    const intent = template.intent;
+    if (intent.version) setVersion(intent.version);
+
+    setComponents((prev) => {
+      const next = { ...prev };
+      for (const c of COMPONENT_ORDER) {
+        const compIntent = intent.components?.[c.key];
+        if (compIntent) {
+          next[c.key] = {
+            ...prev[c.key],
+            enabled: compIntent.enabled ?? false,
+            count: compIntent.replicas ?? prev[c.key].count,
+            nodeSets: compIntent.nodeSets?.map((ns) => ({
+              name: ns.name,
+              count: ns.count,
+              roles: ns.roles ?? ['master', 'data', 'ingest'],
+              memoryRequest: ns.memoryRequest ?? '',
+              cpuRequest: ns.cpuRequest ?? '',
+              memoryLimit: ns.memoryLimit ?? '',
+              cpuLimit: ns.cpuLimit ?? '',
+              storageSize: ns.storageSize ?? '10Gi',
+              storageClass: ns.storageClass ?? '',
+            })) ?? prev[c.key].nodeSets,
+            beatInstances: compIntent.instances
+              ?.filter((i) => i.type)
+              .map((i) => ({ id: crypto.randomUUID(), beatType: i.type!, count: i.replicas ?? 1 })) ?? prev[c.key].beatInstances,
+            agentInstances: compIntent.instances
+              ?.filter((i) => i.mode)
+              .map((i) => ({
+                id: crypto.randomUUID(),
+                mode: (i.mode as 'standalone' | 'fleet') ?? 'standalone',
+                count: i.replicas ?? 1,
+              })) ?? prev[c.key].agentInstances,
+            config: compIntent.config ?? {},
+            resources: compIntent.resources ?? {},
+            podTemplate: compIntent.podTemplate ?? {},
+            http: compIntent.http ?? {},
+            monitoring: compIntent.monitoring ?? {},
+            updateStrategy: compIntent.updateStrategy ?? {},
+            elasticsearchRef: compIntent.elasticsearchRef,
+            kibanaRef: compIntent.kibanaRef,
+          };
+        } else {
           next[c.key] = { ...prev[c.key], enabled: false };
         }
       }
@@ -252,6 +305,30 @@ export function DeploymentCreatePage() {
       const comp = components[c.key];
       if (!comp.enabled) continue;
 
+      // Common enhanced fields (only include if non-empty)
+      const config = Object.keys(comp.config).length > 0 ? comp.config : undefined;
+      const resources =
+        comp.resources.memoryRequest || comp.resources.memoryLimit ||
+        comp.resources.cpuRequest || comp.resources.cpuLimit
+          ? comp.resources
+          : undefined;
+      const podTemplate =
+        Object.keys(comp.podTemplate.nodeSelector ?? {}).length > 0 ||
+        (comp.podTemplate.tolerations?.length ?? 0) > 0 ||
+        Object.keys(comp.podTemplate.affinity ?? {}).length > 0
+          ? comp.podTemplate
+          : undefined;
+      const http =
+        comp.http.tls?.disabled || comp.http.tls?.secretName || comp.http.serviceType
+          ? comp.http
+          : undefined;
+      const monitoring =
+        comp.monitoring.metricsRef || comp.monitoring.logsRef ? comp.monitoring : undefined;
+      const updateStrategy =
+        comp.updateStrategy.maxUnavailable != null || comp.updateStrategy.maxSurge != null
+          ? comp.updateStrategy
+          : undefined;
+
       if (c.key === 'elasticsearch') {
         intentComponents.elasticsearch = {
           enabled: true,
@@ -266,6 +343,11 @@ export function DeploymentCreatePage() {
             storageSize: ns.storageSize,
             storageClass: ns.storageClass,
           })),
+          config,
+          podTemplate,
+          http,
+          monitoring,
+          updateStrategy,
         };
       } else if (c.key === 'beat') {
         intentComponents.beat = {
@@ -274,6 +356,11 @@ export function DeploymentCreatePage() {
             type: b.beatType,
             replicas: b.count,
           })),
+          config,
+          resources,
+          podTemplate,
+          monitoring,
+          elasticsearchRef: comp.elasticsearchRef,
         };
       } else if (c.key === 'agent') {
         intentComponents.agent = {
@@ -282,11 +369,24 @@ export function DeploymentCreatePage() {
             mode: a.mode,
             replicas: a.mode === 'fleet' ? 1 : a.count,
           })),
+          config,
+          resources,
+          podTemplate,
+          monitoring,
+          elasticsearchRef: comp.elasticsearchRef,
+          kibanaRef: comp.kibanaRef,
         };
       } else {
         intentComponents[c.key] = {
           enabled: true,
           replicas: comp.count,
+          config,
+          resources,
+          podTemplate,
+          http,
+          monitoring,
+          elasticsearchRef: comp.elasticsearchRef,
+          kibanaRef: comp.kibanaRef,
         };
       }
     }
@@ -327,7 +427,6 @@ export function DeploymentCreatePage() {
     }
   }
 
-  // Count total resources that will be created
   let enabledCount = 0;
   for (const c of availableComponents) {
     if (!components[c.key].enabled) continue;
@@ -387,6 +486,9 @@ export function DeploymentCreatePage() {
     return <EuiBadge color="hollow">{buildComponentName(name, key as DeployableResourceType)}</EuiBadge>;
   }
 
+  const esName = name ? buildComponentName(name, 'elasticsearch') : undefined;
+  const kbName = name ? buildComponentName(name, 'kibana') : undefined;
+
   return (
     <>
       <EuiPageHeader
@@ -395,6 +497,52 @@ export function DeploymentCreatePage() {
         description="Deploy Elastic stack components as a single unit"
       />
       <EuiSpacer size="l" />
+
+      {/* Template Selector */}
+      {templates.length > 0 && (
+        <>
+          <EuiTitle size="xs"><h3>Start from a template</h3></EuiTitle>
+          <EuiSpacer size="s" />
+          <EuiFlexGroup gutterSize="m" wrap>
+            {templates.map((t) => (
+              <EuiFlexItem key={t.name} grow={false} style={{ minWidth: 200 }}>
+                <EuiCard
+                  icon={<EuiIcon type={t.icon} size="xl" />}
+                  title={t.label}
+                  description={t.description}
+                  onClick={() => applyTemplate(t)}
+                  selectable={{
+                    isSelected: selectedTemplate === t.name,
+                    onClick: () => applyTemplate(t),
+                  }}
+                  layout="horizontal"
+                  paddingSize="s"
+                />
+              </EuiFlexItem>
+            ))}
+            {selectedTemplate && (
+              <EuiFlexItem grow={false}>
+                <EuiButtonEmpty
+                  size="s"
+                  onClick={() => {
+                    setSelectedTemplate('');
+                    setComponents(() => {
+                      const state: Record<string, FullComponentState> = {};
+                      for (const c of COMPONENT_ORDER) {
+                        state[c.key] = defaultFullState();
+                      }
+                      return state as Record<ComponentKey, FullComponentState>;
+                    });
+                  }}
+                >
+                  Clear template
+                </EuiButtonEmpty>
+              </EuiFlexItem>
+            )}
+          </EuiFlexGroup>
+          <EuiSpacer size="l" />
+        </>
+      )}
 
       {deployError && (
         <>
@@ -435,7 +583,6 @@ export function DeploymentCreatePage() {
       )}
 
       <EuiForm component="form" onSubmit={(e) => { e.preventDefault(); handleDeploy(); }}>
-        {/* Deployment-level fields */}
         <EuiPanel>
           <EuiTitle size="xs"><h3>Deployment Settings</h3></EuiTitle>
           <EuiSpacer size="m" />
@@ -491,7 +638,6 @@ export function DeploymentCreatePage() {
 
         <EuiSpacer size="l" />
 
-        {/* Component sections */}
         <EuiTitle size="xs"><h3>Components</h3></EuiTitle>
         <EuiSpacer size="m" />
 
@@ -513,42 +659,17 @@ export function DeploymentCreatePage() {
                       <EuiSpacer size="m" />
                     </>
                   )}
-                  {/* Elasticsearch */}
-                  {c.key === 'elasticsearch' && (
+
+                  {errors[c.key] && (
                     <>
-                      {errors.elasticsearch && (
-                        <>
-                          <EuiCallOut title={errors.elasticsearch} color="danger" size="s" />
-                          <EuiSpacer size="m" />
-                        </>
-                      )}
-                      <NodeSetEditor
-                        nodeSets={components.elasticsearch.nodeSets}
-                        onChange={(nodeSets) => updateComponent('elasticsearch', { nodeSets })}
-                      />
+                      <EuiCallOut title={errors[c.key]} color="danger" size="s" />
+                      <EuiSpacer size="m" />
                     </>
                   )}
 
-                  {/* Simple count components */}
-                  {['kibana', 'apm', 'logstash', 'enterprise-search', 'maps'].includes(c.key) && (
-                    <EuiFormRow label="Replicas">
-                      <EuiFieldNumber
-                        value={components[c.key].count}
-                        onChange={(e) => updateComponent(c.key, { count: parseInt(e.target.value, 10) || 1 })}
-                        min={1}
-                      />
-                    </EuiFormRow>
-                  )}
-
-                  {/* Beats — multi-instance */}
+                  {/* Beats multi-instance (before ComponentConfigurator) */}
                   {c.key === 'beat' && (
                     <>
-                      {errors.beat && (
-                        <>
-                          <EuiCallOut title={errors.beat} color="danger" size="s" />
-                          <EuiSpacer size="m" />
-                        </>
-                      )}
                       {components.beat.beatInstances.map((inst) => {
                         const usedTypes = components.beat.beatInstances
                           .filter((b) => b.id !== inst.id)
@@ -600,18 +721,13 @@ export function DeploymentCreatePage() {
                       >
                         Add Beat
                       </EuiButtonEmpty>
+                      <EuiSpacer size="m" />
                     </>
                   )}
 
-                  {/* Elastic Agent — multi-instance */}
+                  {/* Agent multi-instance (before ComponentConfigurator) */}
                   {c.key === 'agent' && (
                     <>
-                      {errors.agent && (
-                        <>
-                          <EuiCallOut title={errors.agent} color="danger" size="s" />
-                          <EuiSpacer size="m" />
-                        </>
-                      )}
                       {components.agent.agentInstances.map((inst) => (
                         <div key={inst.id} style={{ marginBottom: 8 }}>
                           <EuiFlexGroup alignItems="flexEnd" gutterSize="m">
@@ -654,8 +770,20 @@ export function DeploymentCreatePage() {
                       >
                         Add Agent
                       </EuiButtonEmpty>
+                      <EuiSpacer size="m" />
                     </>
                   )}
+
+                  {/* ComponentConfigurator handles all sections */}
+                  <ComponentConfigurator
+                    type={c.key}
+                    state={components[c.key]}
+                    onChange={(updates) => updateComponent(c.key, updates)}
+                    specFields={getSpecFields(c.key)}
+                    autoEsName={esName}
+                    autoKbName={kbName}
+                    esClusters={esClusters}
+                  />
                 </>
               )}
             </EuiAccordion>

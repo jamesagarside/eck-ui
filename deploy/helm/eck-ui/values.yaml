@@ -105,3 +105,25 @@ versions:
     - "8.18.8"
     - "8.18.7"
     - "7.17.30"
+
+# Deployment templates: pre-configured deployment presets shown in the UI.
+# Set enabled: true and customise templates to override the built-in defaults.
+deploymentTemplates:
+  enabled: false
+  templates: []
+  # Example custom template:
+  # templates:
+  #   - name: custom
+  #     label: Custom Template
+  #     description: My custom deployment template
+  #     icon: logoElasticsearch
+  #     intent:
+  #       version: ""
+  #       components:
+  #         elasticsearch:
+  #           enabled: true
+  #           nodeSets:
+  #             - name: default
+  #               count: 3
+  #               roles: [master, data, ingest]
+  #               storageSize: 50Gi

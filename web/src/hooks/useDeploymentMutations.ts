@@ -1,6 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
 
+export interface DeploymentTemplate {
+  name: string;
+  label: string;
+  description: string;
+  icon: string;
+  intent: Omit<DeploymentIntent, 'name'>;
+}
+
 /** Matches the backend DeploymentIntent struct. */
 export interface DeploymentIntent {
   name: string;
@@ -8,11 +16,62 @@ export interface DeploymentIntent {
   components: Record<string, ComponentIntent>;
 }
 
+export interface ResourcesIntent {
+  memoryRequest?: string;
+  memoryLimit?: string;
+  cpuRequest?: string;
+  cpuLimit?: string;
+}
+
+export interface PodTemplateIntent {
+  nodeSelector?: Record<string, string>;
+  tolerations?: TolerationIntent[];
+  affinity?: Record<string, unknown>;
+}
+
+export interface TolerationIntent {
+  key: string;
+  operator: 'Equal' | 'Exists';
+  value?: string;
+  effect: 'NoSchedule' | 'NoExecute' | 'PreferNoSchedule' | '';
+}
+
+export interface HttpIntent {
+  tls?: {
+    disabled?: boolean;
+    secretName?: string;
+  };
+  serviceType?: 'ClusterIP' | 'LoadBalancer' | 'NodePort';
+}
+
+export interface MonitoringIntent {
+  metricsRef?: RefIntent;
+  logsRef?: RefIntent;
+}
+
+export interface UpdateStrategyIntent {
+  maxUnavailable?: number;
+  maxSurge?: number;
+}
+
+export interface RefIntent {
+  name: string;
+}
+
 export interface ComponentIntent {
   enabled: boolean;
   nodeSets?: NodeSetIntent[];
   replicas?: number;
   instances?: InstanceIntent[];
+  // Enhanced fields
+  config?: Record<string, unknown>;
+  resources?: ResourcesIntent;
+  podTemplate?: PodTemplateIntent;
+  http?: HttpIntent;
+  monitoring?: MonitoringIntent;
+  updateStrategy?: UpdateStrategyIntent;
+  elasticsearchRef?: RefIntent;
+  kibanaRef?: RefIntent;
 }
 
 export interface NodeSetIntent {

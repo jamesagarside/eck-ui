@@ -191,14 +191,14 @@ export const handlers = [
     return HttpResponse.json({
       source: 'crd-discovery',
       resourceTypes: [
-        { name: 'elasticsearch', apiVersion: 'elasticsearch.k8s.elastic.co/v1', kind: 'Elasticsearch', specFields: ['version', 'nodeSets'] },
-        { name: 'kibana', apiVersion: 'kibana.k8s.elastic.co/v1', kind: 'Kibana', specFields: ['version', 'count', 'elasticsearchRef'] },
-        { name: 'apmserver', apiVersion: 'apm.k8s.elastic.co/v1', kind: 'ApmServer', specFields: ['version', 'count', 'elasticsearchRef', 'kibanaRef'] },
-        { name: 'beat', apiVersion: 'beat.k8s.elastic.co/v1beta1', kind: 'Beat', specFields: ['version', 'type', 'deployment', 'elasticsearchRef'] },
-        { name: 'agent', apiVersion: 'agent.k8s.elastic.co/v1alpha1', kind: 'Agent', specFields: ['version', 'mode', 'deployment', 'elasticsearchRefs', 'kibanaRef'] },
-        { name: 'logstash', apiVersion: 'logstash.k8s.elastic.co/v1alpha1', kind: 'Logstash', specFields: ['version', 'count', 'elasticsearchRefs'] },
-        { name: 'enterprisesearch', apiVersion: 'enterprisesearch.k8s.elastic.co/v1', kind: 'EnterpriseSearch', specFields: ['version', 'count', 'elasticsearchRef'] },
-        { name: 'elasticmapsserver', apiVersion: 'maps.k8s.elastic.co/v1alpha1', kind: 'ElasticMapsServer', specFields: ['version', 'count', 'elasticsearchRef'] },
+        { name: 'elasticsearch', apiVersion: 'elasticsearch.k8s.elastic.co/v1', kind: 'Elasticsearch', specFields: ['version', 'nodeSets', 'config', 'http', 'monitoring', 'updateStrategy'] },
+        { name: 'kibana', apiVersion: 'kibana.k8s.elastic.co/v1', kind: 'Kibana', specFields: ['version', 'count', 'elasticsearchRef', 'config', 'http', 'monitoring'] },
+        { name: 'apmserver', apiVersion: 'apm.k8s.elastic.co/v1', kind: 'ApmServer', specFields: ['version', 'count', 'elasticsearchRef', 'kibanaRef', 'config', 'http', 'monitoring'] },
+        { name: 'beat', apiVersion: 'beat.k8s.elastic.co/v1beta1', kind: 'Beat', specFields: ['version', 'type', 'deployment', 'elasticsearchRef', 'config', 'monitoring'] },
+        { name: 'agent', apiVersion: 'agent.k8s.elastic.co/v1alpha1', kind: 'Agent', specFields: ['version', 'mode', 'deployment', 'elasticsearchRefs', 'kibanaRef', 'config', 'monitoring'] },
+        { name: 'logstash', apiVersion: 'logstash.k8s.elastic.co/v1alpha1', kind: 'Logstash', specFields: ['version', 'count', 'elasticsearchRefs', 'config', 'http', 'monitoring'] },
+        { name: 'enterprisesearch', apiVersion: 'enterprisesearch.k8s.elastic.co/v1', kind: 'EnterpriseSearch', specFields: ['version', 'count', 'elasticsearchRef', 'config', 'http', 'monitoring'] },
+        { name: 'elasticmapsserver', apiVersion: 'maps.k8s.elastic.co/v1alpha1', kind: 'ElasticMapsServer', specFields: ['version', 'count', 'elasticsearchRef', 'config', 'http', 'monitoring'] },
       ],
       beatTypes: ['filebeat', 'metricbeat', 'heartbeat', 'auditbeat', 'packetbeat'],
       agentModes: ['standalone', 'fleet'],
@@ -245,6 +245,47 @@ export const handlers = [
       results: [
         { type: 'elasticsearch', name: `${params.name}-es`, status: 'deleted' },
         { type: 'kibana', name: `${params.name}-kb`, status: 'deleted' },
+      ],
+    });
+  }),
+
+  // Deployment templates
+  http.get(`${BASE_URL}/deployment-templates`, () => {
+    return HttpResponse.json({
+      source: 'built-in',
+      templates: [
+        {
+          name: 'dev',
+          label: 'Development',
+          description: 'Single-node Elasticsearch with Kibana',
+          icon: 'beaker',
+          intent: {
+            version: '',
+            components: {
+              elasticsearch: {
+                enabled: true,
+                nodeSets: [{ name: 'default', count: 1, roles: ['master', 'data', 'ingest'], storageSize: '5Gi' }],
+              },
+              kibana: { enabled: true, replicas: 1 },
+            },
+          },
+        },
+        {
+          name: 'production',
+          label: 'Production',
+          description: 'Multi-node cluster',
+          icon: 'launch',
+          intent: {
+            version: '',
+            components: {
+              elasticsearch: {
+                enabled: true,
+                nodeSets: [{ name: 'default', count: 3, roles: ['master', 'data', 'ingest'], storageSize: '50Gi' }],
+              },
+              kibana: { enabled: true, replicas: 2 },
+            },
+          },
+        },
       ],
     });
   }),

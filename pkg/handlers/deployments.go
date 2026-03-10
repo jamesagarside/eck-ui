@@ -34,6 +34,67 @@ type ComponentIntent struct {
 	NodeSets  []NodeSetIntent   `json:"nodeSets,omitempty"`
 	Replicas  int               `json:"replicas,omitempty"`
 	Instances []InstanceIntent  `json:"instances,omitempty"`
+	// Enhanced fields
+	Config         map[string]interface{} `json:"config,omitempty"`
+	Resources      *ResourcesIntent       `json:"resources,omitempty"`
+	PodTemplate    *PodTemplateIntent     `json:"podTemplate,omitempty"`
+	HTTP           *HTTPIntent            `json:"http,omitempty"`
+	Monitoring     *MonitoringIntent      `json:"monitoring,omitempty"`
+	UpdateStrategy *UpdateStrategyIntent  `json:"updateStrategy,omitempty"`
+	ElasticsearchRef *RefIntent           `json:"elasticsearchRef,omitempty"`
+	KibanaRef        *RefIntent           `json:"kibanaRef,omitempty"`
+}
+
+// ResourcesIntent describes CPU/memory sizing.
+type ResourcesIntent struct {
+	MemoryRequest string `json:"memoryRequest,omitempty"`
+	MemoryLimit   string `json:"memoryLimit,omitempty"`
+	CPURequest    string `json:"cpuRequest,omitempty"`
+	CPULimit      string `json:"cpuLimit,omitempty"`
+}
+
+// PodTemplateIntent describes pod scheduling configuration.
+type PodTemplateIntent struct {
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Tolerations  []TolerationIntent  `json:"tolerations,omitempty"`
+	Affinity     map[string]interface{} `json:"affinity,omitempty"`
+}
+
+// TolerationIntent describes a single toleration.
+type TolerationIntent struct {
+	Key      string `json:"key"`
+	Operator string `json:"operator"` // "Equal" or "Exists"
+	Value    string `json:"value,omitempty"`
+	Effect   string `json:"effect,omitempty"` // "NoSchedule", "NoExecute", "PreferNoSchedule", or ""
+}
+
+// HTTPIntent describes TLS and service type configuration.
+type HTTPIntent struct {
+	TLS         *TLSIntent `json:"tls,omitempty"`
+	ServiceType string     `json:"serviceType,omitempty"`
+}
+
+// TLSIntent describes TLS configuration.
+type TLSIntent struct {
+	Disabled   bool   `json:"disabled,omitempty"`
+	SecretName string `json:"secretName,omitempty"`
+}
+
+// MonitoringIntent describes monitoring destination.
+type MonitoringIntent struct {
+	MetricsRef *RefIntent `json:"metricsRef,omitempty"`
+	LogsRef    *RefIntent `json:"logsRef,omitempty"`
+}
+
+// UpdateStrategyIntent describes change budget for rolling updates.
+type UpdateStrategyIntent struct {
+	MaxUnavailable *int `json:"maxUnavailable,omitempty"`
+	MaxSurge       *int `json:"maxSurge,omitempty"`
+}
+
+// RefIntent is a reference to another resource by name.
+type RefIntent struct {
+	Name string `json:"name"`
 }
 
 // NodeSetIntent mirrors the frontend NodeSet configuration.
@@ -459,6 +520,72 @@ func buildElasticsearch(registry *k8s.CRDRegistry, namespace string, intent Depl
 		nodeSets = append(nodeSets, nodeSet)
 	}
 
+	spec := map[string]interface{}{
+		"version":  intent.Version,
+		"nodeSets": nodeSets,
+	}
+
+	// Merge component-level config into each nodeSet config
+	if len(comp.Config) > 0 && hasSpecField(meta, "nodeSets") {
+		for _, ns := range nodeSets {
+			nsMap := ns.(map[string]interface{})
+			existing, ok := nsMap["config"].(map[string]interface{})
+			if !ok {
+				existing = map[string]interface{}{}
+			}
+			for k, v := range comp.Config {
+				existing[k] = v
+			}
+			nsMap["config"] = existing
+		}
+	}
+
+	// Apply pod scheduling to each nodeSet's podTemplate
+	if comp.PodTemplate != nil {
+		for _, ns := range nodeSets {
+			nsMap := ns.(map[string]interface{})
+			nsPt, ok := nsMap["podTemplate"].(map[string]interface{})
+			if !ok {
+				nsPt = map[string]interface{}{}
+				nsMap["podTemplate"] = nsPt
+			}
+			nsPs, ok := nsPt["spec"].(map[string]interface{})
+			if !ok {
+				nsPs = map[string]interface{}{}
+				nsPt["spec"] = nsPs
+			}
+			if len(comp.PodTemplate.NodeSelector) > 0 {
+				sel := map[string]interface{}{}
+				for k, v := range comp.PodTemplate.NodeSelector {
+					sel[k] = v
+				}
+				nsPs["nodeSelector"] = sel
+			}
+			if len(comp.PodTemplate.Tolerations) > 0 {
+				tols := make([]interface{}, 0, len(comp.PodTemplate.Tolerations))
+				for _, t := range comp.PodTemplate.Tolerations {
+					tol := map[string]interface{}{"key": t.Key, "operator": t.Operator}
+					if t.Operator == "Equal" && t.Value != "" {
+						tol["value"] = t.Value
+					}
+					if t.Effect != "" {
+						tol["effect"] = t.Effect
+					}
+					tols = append(tols, tol)
+				}
+				nsPs["tolerations"] = tols
+			}
+			if len(comp.PodTemplate.Affinity) > 0 {
+				nsPs["affinity"] = comp.PodTemplate.Affinity
+			}
+		}
+	}
+
+	// ES-specific: updateStrategy, monitoring, http
+	applyUpdateStrategy(spec, comp)
+	applyHTTP(spec, meta, comp)
+	applyMonitoring(spec, meta, comp)
+
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": meta.APIVersion,
@@ -470,10 +597,7 @@ func buildElasticsearch(registry *k8s.CRDRegistry, namespace string, intent Depl
 					deploymentLabel: intent.Name,
 				},
 			},
-			"spec": map[string]interface{}{
-				"version":  intent.Version,
-				"nodeSets": nodeSets,
-			},
+			"spec": spec,
 		},
 	}
 	return obj
@@ -504,8 +628,8 @@ func buildSimple(registry *k8s.CRDRegistry, namespace string, intent DeploymentI
 		spec["count"] = int64(max(comp.Replicas, 1))
 	}
 
-	// ES reference
-	if hasEs {
+	// ES reference — only auto-wire if not overridden by intent
+	if comp.ElasticsearchRef == nil && hasEs {
 		if hasSpecField(meta, "elasticsearchRef") {
 			spec["elasticsearchRef"] = map[string]interface{}{"name": esName}
 		} else if hasSpecField(meta, "elasticsearchRefs") {
@@ -515,10 +639,13 @@ func buildSimple(registry *k8s.CRDRegistry, namespace string, intent DeploymentI
 		}
 	}
 
-	// Kibana reference (for APM)
-	if hasKb && hasSpecField(meta, "kibanaRef") {
+	// Kibana reference (for APM) — only if not overridden
+	if comp.KibanaRef == nil && hasKb && hasSpecField(meta, "kibanaRef") {
 		spec["kibanaRef"] = map[string]interface{}{"name": kbName}
 	}
+
+	// Apply enhanced fields (config, resources, podTemplate, http, monitoring, refs)
+	applyEnhancedFields(spec, meta, comp)
 
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -557,7 +684,8 @@ func buildBeats(registry *k8s.CRDRegistry, namespace string, intent DeploymentIn
 			},
 		}
 
-		if hasEs {
+		// Auto-wire ES ref only if not overridden
+		if comp.ElasticsearchRef == nil && hasEs {
 			if hasSpecField(meta, "elasticsearchRef") {
 				spec["elasticsearchRef"] = map[string]interface{}{"name": esName}
 			} else if hasSpecField(meta, "elasticsearchRefs") {
@@ -566,6 +694,9 @@ func buildBeats(registry *k8s.CRDRegistry, namespace string, intent DeploymentIn
 				}
 			}
 		}
+
+		// Apply enhanced fields
+		applyEnhancedFields(spec, meta, comp)
 
 		result = append(result, &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -622,7 +753,8 @@ func buildAgents(registry *k8s.CRDRegistry, namespace string, intent DeploymentI
 			spec["fleetServerEnabled"] = true
 		}
 
-		if hasEs {
+		// Auto-wire ES ref only if not overridden
+		if comp.ElasticsearchRef == nil && hasEs {
 			if hasSpecField(meta, "elasticsearchRefs") {
 				spec["elasticsearchRefs"] = []interface{}{
 					map[string]interface{}{"name": esName},
@@ -632,9 +764,13 @@ func buildAgents(registry *k8s.CRDRegistry, namespace string, intent DeploymentI
 			}
 		}
 
-		if isFleet && hasKb && hasSpecField(meta, "kibanaRef") {
+		// Auto-wire Kibana ref only if not overridden
+		if comp.KibanaRef == nil && isFleet && hasKb && hasSpecField(meta, "kibanaRef") {
 			spec["kibanaRef"] = map[string]interface{}{"name": kbName}
 		}
+
+		// Apply enhanced fields
+		applyEnhancedFields(spec, meta, comp)
 
 		result = append(result, &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -713,6 +849,243 @@ func discoverExisting(ctx context.Context, client *k8s.Client, registry *k8s.CRD
 	return result
 }
 
+// --- Enhanced field mapping ---
+
+// applyConfig adds spec.config from intent, guarded by CRD specFields.
+func applyConfig(spec map[string]interface{}, meta k8s.ECKResourceMeta, comp ComponentIntent) {
+	if len(comp.Config) == 0 || !hasSpecField(meta, "config") {
+		return
+	}
+	spec["config"] = comp.Config
+}
+
+// applyResources adds podTemplate container resources from intent.
+func applyResources(spec map[string]interface{}, comp ComponentIntent) {
+	if comp.Resources == nil {
+		return
+	}
+	r := comp.Resources
+	if r.MemoryRequest == "" && r.MemoryLimit == "" && r.CPURequest == "" && r.CPULimit == "" {
+		return
+	}
+
+	reqs := map[string]interface{}{}
+	lims := map[string]interface{}{}
+	if r.MemoryRequest != "" {
+		reqs["memory"] = r.MemoryRequest
+	}
+	if r.CPURequest != "" {
+		reqs["cpu"] = r.CPURequest
+	}
+	if r.MemoryLimit != "" {
+		lims["memory"] = r.MemoryLimit
+	}
+	if r.CPULimit != "" {
+		lims["cpu"] = r.CPULimit
+	}
+
+	resources := map[string]interface{}{}
+	if len(reqs) > 0 {
+		resources["requests"] = reqs
+	}
+	if len(lims) > 0 {
+		resources["limits"] = lims
+	}
+
+	podSpec := ensurePodTemplateSpec(spec)
+	containers := ensureContainers(podSpec, "")
+	containers["resources"] = resources
+}
+
+// applyPodTemplate adds nodeSelector, tolerations, affinity to podTemplate.spec.
+func applyPodTemplate(spec map[string]interface{}, comp ComponentIntent) {
+	if comp.PodTemplate == nil {
+		return
+	}
+	pt := comp.PodTemplate
+	if len(pt.NodeSelector) == 0 && len(pt.Tolerations) == 0 && len(pt.Affinity) == 0 {
+		return
+	}
+
+	podSpec := ensurePodTemplateSpec(spec)
+	if len(pt.NodeSelector) > 0 {
+		ns := map[string]interface{}{}
+		for k, v := range pt.NodeSelector {
+			ns[k] = v
+		}
+		podSpec["nodeSelector"] = ns
+	}
+	if len(pt.Tolerations) > 0 {
+		tols := make([]interface{}, 0, len(pt.Tolerations))
+		for _, t := range pt.Tolerations {
+			tol := map[string]interface{}{
+				"key":      t.Key,
+				"operator": t.Operator,
+			}
+			if t.Operator == "Equal" && t.Value != "" {
+				tol["value"] = t.Value
+			}
+			if t.Effect != "" {
+				tol["effect"] = t.Effect
+			}
+			tols = append(tols, tol)
+		}
+		podSpec["tolerations"] = tols
+	}
+	if len(pt.Affinity) > 0 {
+		podSpec["affinity"] = pt.Affinity
+	}
+}
+
+// applyHTTP adds spec.http TLS and service type, guarded by CRD specFields.
+func applyHTTP(spec map[string]interface{}, meta k8s.ECKResourceMeta, comp ComponentIntent) {
+	if comp.HTTP == nil || !hasSpecField(meta, "http") {
+		return
+	}
+	h := comp.HTTP
+	httpSpec := map[string]interface{}{}
+
+	if h.TLS != nil {
+		tls := map[string]interface{}{}
+		if h.TLS.Disabled {
+			tls["selfSignedCertificate"] = map[string]interface{}{"disabled": true}
+		}
+		if h.TLS.SecretName != "" {
+			tls["certificate"] = map[string]interface{}{"secretName": h.TLS.SecretName}
+		}
+		if len(tls) > 0 {
+			httpSpec["tls"] = tls
+		}
+	}
+
+	if h.ServiceType != "" {
+		httpSpec["service"] = map[string]interface{}{
+			"spec": map[string]interface{}{
+				"type": h.ServiceType,
+			},
+		}
+	}
+
+	if len(httpSpec) > 0 {
+		spec["http"] = httpSpec
+	}
+}
+
+// applyMonitoring adds spec.monitoring, guarded by CRD specFields.
+func applyMonitoring(spec map[string]interface{}, meta k8s.ECKResourceMeta, comp ComponentIntent) {
+	if comp.Monitoring == nil || !hasSpecField(meta, "monitoring") {
+		return
+	}
+	m := comp.Monitoring
+	monitoring := map[string]interface{}{}
+
+	if m.MetricsRef != nil && m.MetricsRef.Name != "" {
+		monitoring["metrics"] = map[string]interface{}{
+			"elasticsearchRefs": []interface{}{
+				map[string]interface{}{"name": m.MetricsRef.Name},
+			},
+		}
+	}
+	if m.LogsRef != nil && m.LogsRef.Name != "" {
+		monitoring["logs"] = map[string]interface{}{
+			"elasticsearchRefs": []interface{}{
+				map[string]interface{}{"name": m.LogsRef.Name},
+			},
+		}
+	}
+
+	if len(monitoring) > 0 {
+		spec["monitoring"] = monitoring
+	}
+}
+
+// applyUpdateStrategy adds spec.updateStrategy.changeBudget (ES only).
+func applyUpdateStrategy(spec map[string]interface{}, comp ComponentIntent) {
+	if comp.UpdateStrategy == nil {
+		return
+	}
+	us := comp.UpdateStrategy
+	if us.MaxUnavailable == nil && us.MaxSurge == nil {
+		return
+	}
+	cb := map[string]interface{}{}
+	if us.MaxUnavailable != nil {
+		cb["maxUnavailable"] = int64(*us.MaxUnavailable)
+	}
+	if us.MaxSurge != nil {
+		cb["maxSurge"] = int64(*us.MaxSurge)
+	}
+	spec["updateStrategy"] = map[string]interface{}{
+		"changeBudget": cb,
+	}
+}
+
+// applyESRefOverride overrides the auto-wired ES ref if the intent specifies one.
+func applyESRefOverride(spec map[string]interface{}, meta k8s.ECKResourceMeta, comp ComponentIntent) {
+	if comp.ElasticsearchRef == nil || comp.ElasticsearchRef.Name == "" {
+		return
+	}
+	ref := comp.ElasticsearchRef
+	if hasSpecField(meta, "elasticsearchRef") {
+		spec["elasticsearchRef"] = map[string]interface{}{"name": ref.Name}
+	} else if hasSpecField(meta, "elasticsearchRefs") {
+		spec["elasticsearchRefs"] = []interface{}{
+			map[string]interface{}{"name": ref.Name},
+		}
+	}
+}
+
+// applyKibanaRefOverride overrides the auto-wired Kibana ref if the intent specifies one.
+func applyKibanaRefOverride(spec map[string]interface{}, meta k8s.ECKResourceMeta, comp ComponentIntent) {
+	if comp.KibanaRef == nil || comp.KibanaRef.Name == "" {
+		return
+	}
+	if hasSpecField(meta, "kibanaRef") {
+		spec["kibanaRef"] = map[string]interface{}{"name": comp.KibanaRef.Name}
+	}
+}
+
+// applyEnhancedFields applies all enhanced intent fields to a spec.
+// For non-ES resources, call this after the basic spec is built.
+func applyEnhancedFields(spec map[string]interface{}, meta k8s.ECKResourceMeta, comp ComponentIntent) {
+	applyConfig(spec, meta, comp)
+	applyResources(spec, comp)
+	applyPodTemplate(spec, comp)
+	applyHTTP(spec, meta, comp)
+	applyMonitoring(spec, meta, comp)
+	applyESRefOverride(spec, meta, comp)
+	applyKibanaRefOverride(spec, meta, comp)
+}
+
+// ensurePodTemplateSpec ensures spec.podTemplate.spec exists and returns it.
+func ensurePodTemplateSpec(spec map[string]interface{}) map[string]interface{} {
+	pt, ok := spec["podTemplate"].(map[string]interface{})
+	if !ok {
+		pt = map[string]interface{}{}
+		spec["podTemplate"] = pt
+	}
+	ps, ok := pt["spec"].(map[string]interface{})
+	if !ok {
+		ps = map[string]interface{}{}
+		pt["spec"] = ps
+	}
+	return ps
+}
+
+// ensureContainers ensures the first container exists in the pod spec and returns it.
+func ensureContainers(podSpec map[string]interface{}, containerName string) map[string]interface{} {
+	containers, ok := podSpec["containers"].([]interface{})
+	if !ok || len(containers) == 0 {
+		c := map[string]interface{}{}
+		if containerName != "" {
+			c["name"] = containerName
+		}
+		podSpec["containers"] = []interface{}{c}
+		return c
+	}
+	return containers[0].(map[string]interface{})
+}
+
 // --- Helpers ---
 
 func lookupMeta(registry *k8s.CRDRegistry, backendType string) k8s.ECKResourceMeta {
@@ -734,23 +1107,35 @@ func hasSpecField(meta k8s.ECKResourceMeta, field string) bool {
 // defaultSpecFields provides hardcoded fallback knowledge about which spec
 // fields exist on which resource types, used when CRD discovery fails.
 func defaultSpecFields(resourceType, field string) bool {
+	// Common fields most ECK resources support
+	common := map[string]bool{
+		"version": true, "config": true, "http": true, "monitoring": true,
+	}
+	if common[field] {
+		// Beats and Agent don't have http
+		if field == "http" && (resourceType == "beat" || resourceType == "agent") {
+			return false
+		}
+		return true
+	}
+
 	switch resourceType {
 	case "elasticsearch":
-		return field == "version" || field == "nodeSets"
+		return field == "nodeSets" || field == "updateStrategy"
 	case "kibana":
-		return field == "version" || field == "count" || field == "elasticsearchRef"
+		return field == "count" || field == "elasticsearchRef"
 	case "apmserver":
-		return field == "version" || field == "count" || field == "elasticsearchRef" || field == "kibanaRef"
+		return field == "count" || field == "elasticsearchRef" || field == "kibanaRef"
 	case "beat":
-		return field == "version" || field == "type" || field == "deployment" || field == "elasticsearchRef"
+		return field == "type" || field == "deployment" || field == "elasticsearchRef"
 	case "agent":
-		return field == "version" || field == "mode" || field == "deployment" || field == "elasticsearchRefs" || field == "kibanaRef"
+		return field == "mode" || field == "deployment" || field == "elasticsearchRefs" || field == "kibanaRef"
 	case "logstash":
-		return field == "version" || field == "count" || field == "elasticsearchRefs"
+		return field == "count" || field == "elasticsearchRefs"
 	case "enterprisesearch":
-		return field == "version" || field == "count" || field == "elasticsearchRef"
+		return field == "count" || field == "elasticsearchRef"
 	case "elasticmapsserver":
-		return field == "version" || field == "count" || field == "elasticsearchRef"
+		return field == "count" || field == "elasticsearchRef"
 	}
 	return false
 }
