@@ -27,6 +27,7 @@ import { ElasticsearchRefDropdown } from './ElasticsearchRefDropdown';
 export type ComponentType =
   | 'elasticsearch'
   | 'kibana'
+  | 'fleet-server'
   | 'apm'
   | 'beat'
   | 'agent'
@@ -98,13 +99,13 @@ function hasField(specFields: string[], field: string): boolean {
 }
 
 /** Simple components = everything except ES, Beats, Agent */
-const SIMPLE_TYPES: ComponentType[] = ['kibana', 'apm', 'logstash', 'enterprise-search', 'maps'];
+const SIMPLE_TYPES: ComponentType[] = ['kibana', 'fleet-server', 'apm', 'logstash', 'enterprise-search', 'maps'];
 
 /** Components with ES ref dropdown */
-const ES_REF_TYPES: ComponentType[] = ['kibana', 'apm', 'beat', 'agent', 'logstash', 'enterprise-search', 'maps'];
+const ES_REF_TYPES: ComponentType[] = ['kibana', 'fleet-server', 'apm', 'beat', 'agent', 'logstash', 'enterprise-search', 'maps'];
 
 /** Components with Kibana ref dropdown */
-const KB_REF_TYPES: ComponentType[] = ['apm', 'agent'];
+const KB_REF_TYPES: ComponentType[] = ['fleet-server', 'apm', 'agent'];
 
 /** Components WITHOUT http field */
 const NO_HTTP_TYPES: ComponentType[] = ['beat', 'agent'];

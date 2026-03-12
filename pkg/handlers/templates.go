@@ -8,8 +8,12 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
+	apierrors "github.com/jamesagarside/eck-ui/pkg/errors"
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
+	"github.com/jamesagarside/eck-ui/pkg/middleware"
 )
 
 const templatesConfigMapName = "eck-ui-deployment-templates"
@@ -85,6 +89,98 @@ func DeploymentTemplatesHandler(k8sClient *k8s.Client, namespace string) http.Ha
 		writeJSON(w, http.StatusOK, TemplatesResponse{
 			Source:    "built-in",
 			Templates: builtInTemplates,
+		})
+	}
+}
+
+// DeploymentTemplatesUpdateHandler returns the PUT /api/v1/deployment-templates handler.
+// It requires the admin role and writes templates to the ConfigMap.
+func DeploymentTemplatesUpdateHandler(k8sClient *k8s.Client, namespace string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Require admin role
+		role := middleware.RoleFromContext(r.Context())
+		if role != "admin" {
+			apierrors.WriteError(w, apierrors.New(
+				http.StatusForbidden,
+				"Forbidden",
+				"Admin role required to update deployment templates",
+			))
+			return
+		}
+
+		var templates []DeploymentTemplate
+		if err := json.NewDecoder(r.Body).Decode(&templates); err != nil {
+			apierrors.WriteError(w, apierrors.New(
+				http.StatusBadRequest,
+				"BadRequest",
+				"Invalid request body: "+err.Error(),
+			))
+			return
+		}
+
+		data, err := json.Marshal(templates)
+		if err != nil {
+			apierrors.WriteError(w, apierrors.New(
+				http.StatusInternalServerError,
+				"InternalError",
+				"Failed to marshal templates: "+err.Error(),
+			))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		cmClient := k8sClient.Clientset.CoreV1().ConfigMaps(namespace)
+
+		// Try to get existing ConfigMap
+		cm, err := cmClient.Get(ctx, templatesConfigMapName, metav1.GetOptions{})
+		if err != nil {
+			if !k8serrors.IsNotFound(err) {
+				apierrors.WriteError(w, apierrors.New(
+					http.StatusInternalServerError,
+					"InternalError",
+					"Failed to get templates ConfigMap: "+err.Error(),
+				))
+				return
+			}
+			// Create new ConfigMap
+			cm = &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      templatesConfigMapName,
+					Namespace: namespace,
+				},
+				Data: map[string]string{
+					"templates.json": string(data),
+				},
+			}
+			if _, err := cmClient.Create(ctx, cm, metav1.CreateOptions{}); err != nil {
+				apierrors.WriteError(w, apierrors.New(
+					http.StatusInternalServerError,
+					"InternalError",
+					"Failed to create templates ConfigMap: "+err.Error(),
+				))
+				return
+			}
+		} else {
+			// Update existing ConfigMap
+			if cm.Data == nil {
+				cm.Data = make(map[string]string)
+			}
+			cm.Data["templates.json"] = string(data)
+			if _, err := cmClient.Update(ctx, cm, metav1.UpdateOptions{}); err != nil {
+				apierrors.WriteError(w, apierrors.New(
+					http.StatusInternalServerError,
+					"InternalError",
+					"Failed to update templates ConfigMap: "+err.Error(),
+				))
+				return
+			}
+		}
+
+		writeJSON(w, http.StatusOK, TemplatesResponse{
+			Source:    "configmap",
+			Templates: templates,
 		})
 	}
 }

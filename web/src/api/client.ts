@@ -49,6 +49,11 @@ async function request<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401 && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+      return new Promise<T>(() => {});
+    }
+
     const apiError = await parseErrorResponse(response);
     throw new ApiClientError(apiError);
   }

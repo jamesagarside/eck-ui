@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	apierrors "github.com/jamesagarside/eck-ui/pkg/errors"
@@ -23,20 +27,226 @@ func NewHandler(k8sClient *k8s.Client) *Handler {
 	return &Handler{k8sClient: k8sClient}
 }
 
+// paginatedResponse wraps a list of resources with pagination metadata.
+type paginatedResponse struct {
+	Items    []unstructured.Unstructured `json:"items"`
+	Total    int                         `json:"total"`
+	Page     int                         `json:"page"`
+	PageSize int                         `json:"pageSize"`
+}
+
+// listParams holds parsed query parameters for list filtering, sorting, and pagination.
+type listParams struct {
+	Namespace string
+	Search    string
+	Health    []string
+	Sort      string
+	Order     string
+	Page      int
+	PageSize  int
+}
+
+func parseListParams(r *http.Request) listParams {
+	q := r.URL.Query()
+
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(q.Get("pageSize"))
+	if pageSize < 1 {
+		pageSize = 25
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	var healthFilters []string
+	if h := q.Get("health"); h != "" {
+		for _, v := range strings.Split(h, ",") {
+			v = strings.TrimSpace(strings.ToLower(v))
+			if v != "" {
+				healthFilters = append(healthFilters, v)
+			}
+		}
+	}
+
+	sortField := q.Get("sort")
+	order := strings.ToLower(q.Get("order"))
+	if order != "desc" {
+		order = "asc"
+	}
+
+	return listParams{
+		Namespace: q.Get("namespace"),
+		Search:    strings.ToLower(strings.TrimSpace(q.Get("search"))),
+		Health:    healthFilters,
+		Sort:      sortField,
+		Order:     order,
+		Page:      page,
+		PageSize:  pageSize,
+	}
+}
+
+// getResourceField extracts a string field from an unstructured resource for filtering/sorting.
+func getResourceField(item unstructured.Unstructured, field string) string {
+	switch field {
+	case "name":
+		return item.GetName()
+	case "namespace":
+		return item.GetNamespace()
+	case "version":
+		spec, _ := item.Object["spec"].(map[string]interface{})
+		if spec != nil {
+			v, _ := spec["version"].(string)
+			return v
+		}
+		return ""
+	case "health":
+		return getStatusField(item, "health")
+	case "phase":
+		return getStatusField(item, "phase")
+	case "age":
+		return item.GetCreationTimestamp().Format(time.RFC3339)
+	default:
+		return item.GetName()
+	}
+}
+
+func getStatusField(item unstructured.Unstructured, field string) string {
+	status, _ := item.Object["status"].(map[string]interface{})
+	if status == nil {
+		return ""
+	}
+	v, _ := status[field].(string)
+	return strings.ToLower(v)
+}
+
+func filterItems(items []unstructured.Unstructured, params listParams) []unstructured.Unstructured {
+	if params.Search == "" && len(params.Health) == 0 {
+		return items
+	}
+
+	healthSet := make(map[string]bool, len(params.Health))
+	for _, h := range params.Health {
+		healthSet[h] = true
+	}
+
+	var filtered []unstructured.Unstructured
+	for _, item := range items {
+		if params.Search != "" {
+			name := strings.ToLower(item.GetName())
+			if !strings.Contains(name, params.Search) {
+				continue
+			}
+		}
+		if len(healthSet) > 0 {
+			health := getStatusField(item, "health")
+			if !healthSet[health] {
+				continue
+			}
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
+
+func sortItems(items []unstructured.Unstructured, sortField, order string) {
+	if sortField == "" {
+		sortField = "name"
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		a := getResourceField(items[i], sortField)
+		b := getResourceField(items[j], sortField)
+		if order == "desc" {
+			return a > b
+		}
+		return a < b
+	})
+}
+
+func paginateItems(items []unstructured.Unstructured, page, pageSize int) []unstructured.Unstructured {
+	start := (page - 1) * pageSize
+	if start >= len(items) {
+		return nil
+	}
+	end := start + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end]
+}
+
 // List returns an HTTP handler that lists all resources of the given type.
-// It supports an optional "namespace" query parameter for filtering.
+// It supports query parameters for namespace filtering, search, health filter,
+// sorting, and pagination. For agent resources, an optional "mode" parameter
+// filters by spec.mode (fleet = fleetServerEnabled agents, standalone = non-fleet agents).
 func (h *Handler) List(resourceType string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		namespace := r.URL.Query().Get("namespace")
+		params := parseListParams(r)
 
-		list, err := h.k8sClient.ListResources(r.Context(), resourceType, namespace)
+		list, err := h.k8sClient.ListResources(r.Context(), resourceType, params.Namespace)
 		if err != nil {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
 		}
 
-		writeJSON(w, http.StatusOK, list)
+		// Apply mode filter for agent resources
+		if resourceType == "agent" {
+			if modeFilter := r.URL.Query().Get("mode"); modeFilter != "" {
+				list = filterAgentsByMode(list, modeFilter)
+			}
+		}
+
+		items := list.Items
+
+		// Filter
+		items = filterItems(items, params)
+
+		// Sort
+		sortItems(items, params.Sort, params.Order)
+
+		total := len(items)
+
+		// Paginate
+		paged := paginateItems(items, params.Page, params.PageSize)
+		if paged == nil {
+			paged = []unstructured.Unstructured{}
+		}
+
+		writeJSON(w, http.StatusOK, paginatedResponse{
+			Items:    paged,
+			Total:    total,
+			Page:     params.Page,
+			PageSize: params.PageSize,
+		})
 	}
+}
+
+// filterAgentsByMode filters an agent resource list by mode.
+// "fleet" returns agents with spec.mode=="fleet", "standalone" returns the rest.
+func filterAgentsByMode(list *unstructured.UnstructuredList, mode string) *unstructured.UnstructuredList {
+	filtered := &unstructured.UnstructuredList{}
+	filtered.SetGroupVersionKind(list.GroupVersionKind())
+
+	for _, item := range list.Items {
+		spec, _ := item.Object["spec"].(map[string]interface{})
+		if spec == nil {
+			if mode == "standalone" {
+				filtered.Items = append(filtered.Items, item)
+			}
+			continue
+		}
+		agentMode, _ := spec["mode"].(string)
+		fleetEnabled, _ := spec["fleetServerEnabled"].(bool)
+
+		isFleet := agentMode == "fleet" || fleetEnabled
+		if (mode == "fleet" && isFleet) || (mode == "standalone" && !isFleet) {
+			filtered.Items = append(filtered.Items, item)
+		}
+	}
+
+	return filtered
 }
 
 // Get returns an HTTP handler that retrieves a single resource by namespace and name.

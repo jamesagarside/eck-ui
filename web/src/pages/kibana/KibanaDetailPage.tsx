@@ -17,7 +17,9 @@ import {
   type EuiBasicTableColumn,
 } from '@elastic/eui';
 import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
+import { useToast } from '../../context/ToastContext';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ManifestViewer } from '../../components/common/ManifestViewer';
 import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
 import { PodTable } from '../../components/common/PodLogsViewer';
@@ -39,16 +41,13 @@ export function KibanaDetailPage() {
   const { data: resource, isLoading, error } = useResource<Kibana>('kibana', namespace || '', name || '');
   const deleteMutation = useDeleteResource('kibana');
   const updateMutation = useUpdateResource('kibana');
+  const { addToast } = useToast();
   const podsQuery = usePods(namespace || '', buildECKLabelSelector('kibana', name || ''));
   const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
   if (error || !resource) {
-    return (
-      <EuiCallOut title="Failed to load Kibana instance" color="danger" iconType="error">
-        {error?.message || 'Resource not found'}
-      </EuiCallOut>
-    );
+    return <ErrorCallout error={error || new Error('Resource not found')} />;
   }
 
   const health = resource.status?.health || 'unknown';
@@ -56,8 +55,13 @@ export function KibanaDetailPage() {
 
   const handleDelete = async () => {
     if (!namespace || !name) return;
-    await deleteMutation.mutateAsync({ namespace, name });
-    navigate('/kibana');
+    try {
+      await deleteMutation.mutateAsync({ namespace, name });
+      addToast({ title: `Kibana '${name}' deleted`, color: 'success' });
+      navigate('/kibana');
+    } catch (err) {
+      addToast({ title: 'Failed to delete Kibana', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+    }
   };
 
   const overviewItems = [
@@ -153,8 +157,8 @@ export function KibanaDetailPage() {
         iconType="logoKibana"
         description={`Namespace: ${resource.metadata.namespace}`}
         rightSideItems={[
-          <EuiButton key="edit" onClick={() => navigate(`/kibana/${namespace}/${name}/edit`)}>Edit</EuiButton>,
-          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDeleteModal(true)}>Delete</EuiButtonEmpty>,
+          <EuiButton key="edit" onClick={() => navigate(`/kibana/${namespace}/${name}/edit`)} aria-label={`Edit ${resource.metadata.name}`}>Edit</EuiButton>,
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDeleteModal(true)} aria-label={`Delete ${resource.metadata.name}`}>Delete</EuiButtonEmpty>,
         ]}
       />
       <EuiSpacer size="l" />

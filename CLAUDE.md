@@ -142,6 +142,24 @@ go run ./cmd/server
 | `OTEL_ENDPOINT` | -- | No | OTLP gRPC endpoint for audit logs |
 | `TOKEN_CACHE_TTL` | `5m` | No | Bearer token cache duration |
 
+## Architecture: Agent & Fleet Server
+
+The ECK `Agent` CRD (`agent.k8s.elastic.co/v1alpha1`) serves multiple roles depending on its configuration. The UI separates these into two logical components:
+
+- **Fleet Server** -- Agent with `spec.mode: 'fleet'` + `spec.fleetServerEnabled: true`. Managed under `/fleet-server` routes. Always uses a `deployment` workload.
+- **Elastic Agent** -- Standalone (`spec.mode: 'standalone'`) or Fleet-connected (has `spec.fleetServerRef`). Managed under `/agent` routes. Can use `daemonSet` or `deployment` workload.
+
+Both share the same backend resource type (`agent`) with a `?mode=fleet|standalone` query parameter filter on the list endpoint.
+
+### Deployment Management
+
+The deployment creation flow (`/deployments/create`) manages multi-component ECK stack deployments as a single unit. Components are tagged with `eck-ui/deployment` labels for grouping.
+
+**Supported deployment components** (`COMPONENT_ORDER` in `DeploymentCreatePage.tsx`):
+- Elasticsearch, Kibana, Fleet Server, APM Server, Beats, Elastic Agent, Logstash, Enterprise Search, Elastic Maps
+
+Fleet Server appears as a dedicated first-class component (not hidden inside Agent). On the backend, `buildFleetServer()` in `pkg/handlers/deployments.go` creates an Agent CR with `mode: fleet` + `fleetServerEnabled: true`. The resource is named `{deployName}-fs` and auto-wires ES/Kibana refs from the deployment.
+
 ## API Routes
 
 All resource endpoints follow this pattern:

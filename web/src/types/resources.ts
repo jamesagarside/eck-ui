@@ -181,10 +181,16 @@ export interface AgentSpec {
   elasticsearchRefs?: { name: string; namespace?: string }[];
   kibanaRef?: { name: string; namespace?: string };
   fleetServerRef?: { name: string; namespace?: string };
+  fleetServerEnabled?: boolean;
   mode?: 'standalone' | 'fleet';
   deployment?: { replicas: number; podTemplate?: Record<string, unknown> };
   daemonSet?: { podTemplate?: Record<string, unknown> };
   config?: Record<string, unknown>;
+  http?: {
+    service?: { spec?: { type?: string } };
+    tls?: { selfSignedCertificate?: { disabled?: boolean }; certificate?: { secretName?: string } };
+  };
+  monitoring?: MonitoringSpec;
   image?: string;
 }
 
@@ -280,6 +286,8 @@ export type ResourceType =
 export interface ResourceList<T extends BaseResource = BaseResource> {
   items: T[];
   total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface ResourceEvent {

@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { EuiSideNav, EuiIcon, type EuiSideNavItemType } from '@elastic/eui';
+import { useAuthStore } from '../../stores/authStore';
 
 function createItem(
   name: string,
@@ -22,6 +23,12 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  const user = useAuthStore((s) => s.user);
+
+  // Check admin access (matches backend deriveRole logic)
+  const isAdmin = user?.groups?.some(
+    (g) => g.includes('admin') || g.includes('system:serviceaccounts'),
+  ) ?? !user?.groups?.length;
 
   const navItems: EuiSideNavItemType<object>[] = [
     {
@@ -38,9 +45,10 @@ export function Sidebar() {
       items: [
         createItem('Elasticsearch', '/elasticsearch', currentPath, navigate),
         createItem('Kibana', '/kibana', currentPath, navigate),
+        createItem('Fleet Server', '/fleet-server', currentPath, navigate),
+        createItem('Elastic Agent', '/agent', currentPath, navigate),
         createItem('APM Server', '/apm', currentPath, navigate),
         createItem('Beats', '/beats', currentPath, navigate),
-        createItem('Elastic Agent', '/agent', currentPath, navigate),
         createItem('Logstash', '/logstash', currentPath, navigate),
         createItem(
           'Enterprise Search',
@@ -60,6 +68,18 @@ export function Sidebar() {
       ],
     },
   ];
+
+  if (isAdmin) {
+    navItems.push({
+      id: 'admin',
+      name: 'Administration',
+      items: [
+        createItem('Versions', '/admin/versions', currentPath, navigate),
+        createItem('Templates', '/admin/templates', currentPath, navigate),
+        createItem('System Info', '/admin/system', currentPath, navigate),
+      ],
+    });
+  }
 
   return (
     <EuiSideNav

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader,
@@ -11,82 +10,122 @@ import {
   EuiButtonEmpty,
   EuiFlexGroup,
   EuiFlexItem,
-  EuiCallOut,
   EuiPanel,
   EuiTitle,
 } from '@elastic/eui';
 import { useCreateResource } from '../../hooks/useResources';
+import { useVersions } from '../../hooks/useVersions';
+import { VersionSelect } from '../../components/form/VersionSelect';
+import { useToast } from '../../context/ToastContext';
+import { useResourceForm } from '../../hooks/useResourceForm';
+import { UnsavedChangesPrompt } from '../../hooks/useUnsavedChanges';
+import { validateK8sName, validateRequired } from '../../utils/validators';
 
-interface FormErrors {
-  name?: string;
-  namespace?: string;
-  version?: string;
-  elasticsearchRef?: string;
+interface KibanaFormValues {
+  name: string;
+  namespace: string;
+  version: string;
+  count: number;
+  elasticsearchRef: string;
+}
+
+function validateKibanaForm(values: KibanaFormValues): Partial<Record<keyof KibanaFormValues, string>> {
+  const errors: Partial<Record<keyof KibanaFormValues, string>> = {};
+  const nameError = validateK8sName(values.name);
+  if (nameError) errors.name = nameError;
+  const nsError = validateRequired(values.namespace, 'Namespace');
+  if (nsError) errors.namespace = nsError;
+  const versionError = validateRequired(values.version, 'Version');
+  if (versionError) errors.version = versionError;
+  const esRefError = validateRequired(values.elasticsearchRef, 'Elasticsearch reference');
+  if (esRefError) errors.elasticsearchRef = esRefError;
+  return errors;
 }
 
 export function KibanaCreatePage() {
   const navigate = useNavigate();
   const createMutation = useCreateResource('kibana');
+  const { addToast } = useToast();
+  const { defaultVersion } = useVersions();
 
-  const [name, setName] = useState('');
-  const [namespace, setNamespace] = useState('default');
-  const [version, setVersion] = useState('8.17.0');
-  const [count, setCount] = useState(1);
-  const [esRef, setEsRef] = useState('');
-  const [errors, setErrors] = useState<FormErrors>({});
-
-  const validate = (): boolean => {
-    const e: FormErrors = {};
-    if (!name.trim()) e.name = 'Name is required';
-    else if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(name)) e.name = 'Invalid Kubernetes name';
-    if (!namespace.trim()) e.namespace = 'Namespace is required';
-    if (!version.trim()) e.version = 'Version is required';
-    if (!esRef.trim()) e.elasticsearchRef = 'Elasticsearch reference is required';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (!validate()) return;
-    const resource = {
-      apiVersion: 'kibana.k8s.elastic.co/v1',
-      kind: 'Kibana',
-      metadata: { name, namespace },
-      spec: { version, count, elasticsearchRef: { name: esRef } },
-    };
-    await createMutation.mutateAsync(resource);
-    navigate('/kibana');
-  };
+  const form = useResourceForm<KibanaFormValues>({
+    initialValues: {
+      name: '',
+      namespace: 'default',
+      version: defaultVersion,
+      count: 1,
+      elasticsearchRef: '',
+    },
+    validate: validateKibanaForm,
+    onSubmit: async (values) => {
+      const resource = {
+        apiVersion: 'kibana.k8s.elastic.co/v1',
+        kind: 'Kibana',
+        metadata: { name: values.name, namespace: values.namespace },
+        spec: {
+          version: values.version,
+          count: values.count,
+          elasticsearchRef: { name: values.elasticsearchRef },
+        },
+      };
+      try {
+        await createMutation.mutateAsync(resource);
+        addToast({ title: `Kibana '${values.name}' created successfully`, color: 'success' });
+        navigate('/kibana');
+      } catch (err) {
+        addToast({ title: 'Failed to create Kibana', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+      }
+    },
+  });
 
   return (
     <>
+      <UnsavedChangesPrompt isDirty={form.isDirty} />
       <EuiPageHeader pageTitle="Create Kibana" iconType="logoKibana" />
       <EuiSpacer size="l" />
-      {createMutation.isError && (
-        <>
-          <EuiCallOut title="Failed to create Kibana" color="danger" iconType="error">{createMutation.error?.message}</EuiCallOut>
-          <EuiSpacer size="m" />
-        </>
-      )}
-      <EuiForm component="form" onSubmit={handleSubmit}>
+      <EuiForm component="form" onSubmit={form.handleSubmit}>
         <EuiPanel>
           <EuiTitle size="xs"><h3>General</h3></EuiTitle>
           <EuiSpacer size="m" />
-          <EuiFormRow label="Name" isInvalid={!!errors.name} error={errors.name}>
-            <EuiFieldText value={name} onChange={(e) => setName(e.target.value)} isInvalid={!!errors.name} placeholder="my-kibana" />
+          <EuiFormRow label="Name" isInvalid={form.fields.name.isInvalid} error={form.fields.name.error}>
+            <EuiFieldText
+              value={form.fields.name.value as string}
+              onChange={(e) => form.fields.name.onChange(e.target.value)}
+              onBlur={form.fields.name.onBlur}
+              isInvalid={form.fields.name.isInvalid}
+              placeholder="my-kibana"
+            />
           </EuiFormRow>
-          <EuiFormRow label="Namespace" isInvalid={!!errors.namespace} error={errors.namespace}>
-            <EuiFieldText value={namespace} onChange={(e) => setNamespace(e.target.value)} isInvalid={!!errors.namespace} />
+          <EuiFormRow label="Namespace" isInvalid={form.fields.namespace.isInvalid} error={form.fields.namespace.error}>
+            <EuiFieldText
+              value={form.fields.namespace.value as string}
+              onChange={(e) => form.fields.namespace.onChange(e.target.value)}
+              onBlur={form.fields.namespace.onBlur}
+              isInvalid={form.fields.namespace.isInvalid}
+            />
           </EuiFormRow>
-          <EuiFormRow label="Version" isInvalid={!!errors.version} error={errors.version}>
-            <EuiFieldText value={version} onChange={(e) => setVersion(e.target.value)} isInvalid={!!errors.version} />
+          <EuiFormRow label="Version" isInvalid={form.fields.version.isInvalid} error={form.fields.version.error}>
+            <VersionSelect
+              value={form.fields.version.value as string}
+              onChange={(v) => form.fields.version.onChange(v)}
+              isInvalid={form.fields.version.isInvalid}
+            />
           </EuiFormRow>
           <EuiFormRow label="Count">
-            <EuiFieldNumber value={count} onChange={(e) => setCount(parseInt(e.target.value, 10) || 1)} min={1} />
+            <EuiFieldNumber
+              value={form.fields.count.value as number}
+              onChange={(e) => form.fields.count.onChange(parseInt(e.target.value, 10) || 1)}
+              min={1}
+            />
           </EuiFormRow>
-          <EuiFormRow label="Elasticsearch Reference" isInvalid={!!errors.elasticsearchRef} error={errors.elasticsearchRef} helpText="Name of the Elasticsearch cluster">
-            <EuiFieldText value={esRef} onChange={(e) => setEsRef(e.target.value)} isInvalid={!!errors.elasticsearchRef} placeholder="my-elasticsearch" />
+          <EuiFormRow label="Elasticsearch Reference" isInvalid={form.fields.elasticsearchRef.isInvalid} error={form.fields.elasticsearchRef.error} helpText="Name of the Elasticsearch cluster">
+            <EuiFieldText
+              value={form.fields.elasticsearchRef.value as string}
+              onChange={(e) => form.fields.elasticsearchRef.onChange(e.target.value)}
+              onBlur={form.fields.elasticsearchRef.onBlur}
+              isInvalid={form.fields.elasticsearchRef.isInvalid}
+              placeholder="my-elasticsearch"
+            />
           </EuiFormRow>
         </EuiPanel>
         <EuiSpacer size="l" />
@@ -95,7 +134,7 @@ export function KibanaCreatePage() {
             <EuiButtonEmpty onClick={() => navigate('/kibana')}>Cancel</EuiButtonEmpty>
           </EuiFlexItem>
           <EuiFlexItem grow={false}>
-            <EuiButton type="submit" fill isLoading={createMutation.isPending}>Create Kibana</EuiButton>
+            <EuiButton type="submit" fill isLoading={form.isSubmitting}>Create Kibana</EuiButton>
           </EuiFlexItem>
         </EuiFlexGroup>
       </EuiForm>

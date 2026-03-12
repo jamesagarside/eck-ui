@@ -21,7 +21,9 @@ import {
   type EuiBasicTableColumn,
 } from '@elastic/eui';
 import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
+import { useToast } from '../../context/ToastContext';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ManifestViewer } from '../../components/common/ManifestViewer';
 import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
 import { PodTable } from '../../components/common/PodLogsViewer';
@@ -56,6 +58,7 @@ export function ElasticsearchDetailPage() {
 
   const deleteMutation = useDeleteResource('elasticsearch');
   const updateMutation = useUpdateResource('elasticsearch');
+  const { addToast } = useToast();
   const eventsQuery = useEvents(namespace || '');
   const podsQuery = usePods(
     namespace || '',
@@ -65,15 +68,7 @@ export function ElasticsearchDetailPage() {
   if (isLoading) return <DetailSkeleton />;
 
   if (error || !resource) {
-    return (
-      <EuiCallOut
-        title="Failed to load Elasticsearch cluster"
-        color="danger"
-        iconType="error"
-      >
-        {error?.message || 'Resource not found'}
-      </EuiCallOut>
-    );
+    return <ErrorCallout error={error || new Error('Resource not found')} />;
   }
 
   const health = resource.status?.health || 'unknown';
@@ -81,8 +76,13 @@ export function ElasticsearchDetailPage() {
 
   const handleDelete = async () => {
     if (!namespace || !name) return;
-    await deleteMutation.mutateAsync({ namespace, name });
-    navigate('/elasticsearch');
+    try {
+      await deleteMutation.mutateAsync({ namespace, name });
+      addToast({ title: `Elasticsearch '${name}' deleted`, color: 'success' });
+      navigate('/elasticsearch');
+    } catch (err) {
+      addToast({ title: 'Failed to delete Elasticsearch', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+    }
   };
 
   const overviewItems = [
@@ -291,6 +291,7 @@ export function ElasticsearchDetailPage() {
             iconType="sortUp"
             color="success"
             onClick={() => setShowUpgradeFlyout(true)}
+            aria-label={`Upgrade ${resource.metadata.name}`}
           >
             Upgrade
           </EuiButton>,
@@ -301,6 +302,7 @@ export function ElasticsearchDetailPage() {
                 `/elasticsearch/${namespace}/${name}/edit`,
               )
             }
+            aria-label={`Edit ${resource.metadata.name}`}
           >
             Edit
           </EuiButton>,
@@ -308,6 +310,7 @@ export function ElasticsearchDetailPage() {
             key="delete"
             color="danger"
             onClick={() => setShowDeleteModal(true)}
+            aria-label={`Delete ${resource.metadata.name}`}
           >
             Delete
           </EuiButtonEmpty>,

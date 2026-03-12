@@ -118,8 +118,12 @@ func main() {
 	// Resource types discovery endpoint
 	api.HandleFunc("/resource-types", handlers.ResourceTypesHandler(crdRegistry)).Methods("GET")
 
-	// Deployment templates endpoint
+	// Deployment templates endpoints
 	api.HandleFunc("/deployment-templates", handlers.DeploymentTemplatesHandler(k8sClient, versionsNS)).Methods("GET")
+	api.HandleFunc("/deployment-templates", handlers.DeploymentTemplatesUpdateHandler(k8sClient, versionsNS)).Methods("PUT")
+
+	// System info endpoint
+	api.HandleFunc("/system-info", handlers.SystemInfoHandler(k8sClient)).Methods("GET")
 
 	// Deployment intent endpoints (backend-assembled K8s resources)
 	api.HandleFunc("/deployments/{namespace}", handlers.DeploymentCreateHandler(k8sClient, crdRegistry)).Methods("POST")

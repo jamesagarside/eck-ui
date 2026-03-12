@@ -113,6 +113,16 @@ func RBAC() mux.MiddlewareFunc {
 	}
 }
 
+// RoleFromContext derives the user's role from the request context.
+// Returns empty string if no user info is present.
+func RoleFromContext(ctx context.Context) string {
+	userInfo := UserInfoFromContext(ctx)
+	if userInfo == nil {
+		return ""
+	}
+	return deriveRole(userInfo.Groups)
+}
+
 // deriveRole determines the highest role from the user's group membership.
 // Service accounts (system:serviceaccounts) are treated as admin because
 // K8s RBAC is the real authorization gate. When no organization-based roles

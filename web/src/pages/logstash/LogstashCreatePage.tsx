@@ -1,64 +1,126 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader, EuiSpacer, EuiForm, EuiFormRow, EuiFieldText, EuiFieldNumber,
-  EuiButton, EuiButtonEmpty, EuiFlexGroup, EuiFlexItem, EuiCallOut, EuiPanel, EuiTitle,
+  EuiButton, EuiButtonEmpty, EuiFlexGroup, EuiFlexItem, EuiPanel, EuiTitle,
 } from '@elastic/eui';
 import { useCreateResource } from '../../hooks/useResources';
+import { useVersions } from '../../hooks/useVersions';
+import { VersionSelect } from '../../components/form/VersionSelect';
+import { useToast } from '../../context/ToastContext';
+import { useResourceForm } from '../../hooks/useResourceForm';
+import { UnsavedChangesPrompt } from '../../hooks/useUnsavedChanges';
+import { validateK8sName, validateRequired } from '../../utils/validators';
+
+interface LogstashFormValues {
+  name: string;
+  namespace: string;
+  version: string;
+  count: number;
+  esRef: string;
+}
+
+function validateLogstashForm(values: LogstashFormValues): Partial<Record<keyof LogstashFormValues, string>> {
+  const errors: Partial<Record<keyof LogstashFormValues, string>> = {};
+  const nameError = validateK8sName(values.name);
+  if (nameError) errors.name = nameError;
+  const nsError = validateRequired(values.namespace, 'Namespace');
+  if (nsError) errors.namespace = nsError;
+  const versionError = validateRequired(values.version, 'Version');
+  if (versionError) errors.version = versionError;
+  return errors;
+}
 
 export function LogstashCreatePage() {
   const navigate = useNavigate();
   const createMutation = useCreateResource('logstash');
-  const [name, setName] = useState('');
-  const [namespace, setNamespace] = useState('default');
-  const [version, setVersion] = useState('8.17.0');
-  const [count, setCount] = useState(1);
-  const [esRef, setEsRef] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { addToast } = useToast();
+  const { defaultVersion } = useVersions();
 
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!name.trim()) e.name = 'Required';
-    else if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(name)) e.name = 'Invalid Kubernetes name';
-    if (!namespace.trim()) e.namespace = 'Required';
-    if (!version.trim()) e.version = 'Required';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (!validate()) return;
-    await createMutation.mutateAsync({
-      apiVersion: 'logstash.k8s.elastic.co/v1alpha1',
-      kind: 'Logstash',
-      metadata: { name, namespace },
-      spec: {
-        version, count,
-        ...(esRef ? { elasticsearchRefs: [{ name: esRef }] } : {}),
-      },
-    });
-    navigate('/logstash');
-  };
+  const form = useResourceForm<LogstashFormValues>({
+    initialValues: {
+      name: '',
+      namespace: 'default',
+      version: defaultVersion,
+      count: 1,
+      esRef: '',
+    },
+    validate: validateLogstashForm,
+    onSubmit: async (values) => {
+      try {
+        await createMutation.mutateAsync({
+          apiVersion: 'logstash.k8s.elastic.co/v1alpha1',
+          kind: 'Logstash',
+          metadata: { name: values.name, namespace: values.namespace },
+          spec: {
+            version: values.version,
+            count: values.count,
+            ...(values.esRef ? { elasticsearchRefs: [{ name: values.esRef }] } : {}),
+          },
+        });
+        addToast({ title: `Logstash '${values.name}' created successfully`, color: 'success' });
+        navigate('/logstash');
+      } catch (err) {
+        addToast({ title: 'Failed to create Logstash', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+      }
+    },
+  });
 
   return (
     <>
+      <UnsavedChangesPrompt isDirty={form.isDirty} />
       <EuiPageHeader pageTitle="Create Logstash" iconType="logoLogstash" />
       <EuiSpacer size="l" />
-      {createMutation.isError && <><EuiCallOut title="Failed" color="danger" iconType="error">{createMutation.error?.message}</EuiCallOut><EuiSpacer size="m" /></>}
-      <EuiForm component="form" onSubmit={handleSubmit}>
+      <EuiForm component="form" onSubmit={form.handleSubmit}>
         <EuiPanel>
-          <EuiTitle size="xs"><h3>General</h3></EuiTitle><EuiSpacer size="m" />
-          <EuiFormRow label="Name" isInvalid={!!errors.name} error={errors.name}><EuiFieldText value={name} onChange={(e) => setName(e.target.value)} isInvalid={!!errors.name} placeholder="my-logstash" /></EuiFormRow>
-          <EuiFormRow label="Namespace" isInvalid={!!errors.namespace} error={errors.namespace}><EuiFieldText value={namespace} onChange={(e) => setNamespace(e.target.value)} isInvalid={!!errors.namespace} /></EuiFormRow>
-          <EuiFormRow label="Version" isInvalid={!!errors.version} error={errors.version}><EuiFieldText value={version} onChange={(e) => setVersion(e.target.value)} isInvalid={!!errors.version} /></EuiFormRow>
-          <EuiFormRow label="Count"><EuiFieldNumber value={count} onChange={(e) => setCount(parseInt(e.target.value, 10) || 1)} min={1} /></EuiFormRow>
-          <EuiFormRow label="Elasticsearch Reference (optional)"><EuiFieldText value={esRef} onChange={(e) => setEsRef(e.target.value)} placeholder="my-elasticsearch" /></EuiFormRow>
+          <EuiTitle size="xs"><h3>General</h3></EuiTitle>
+          <EuiSpacer size="m" />
+          <EuiFormRow label="Name" isInvalid={form.fields.name.isInvalid} error={form.fields.name.error}>
+            <EuiFieldText
+              value={form.fields.name.value as string}
+              onChange={(e) => form.fields.name.onChange(e.target.value)}
+              onBlur={form.fields.name.onBlur}
+              isInvalid={form.fields.name.isInvalid}
+              placeholder="my-logstash"
+            />
+          </EuiFormRow>
+          <EuiFormRow label="Namespace" isInvalid={form.fields.namespace.isInvalid} error={form.fields.namespace.error}>
+            <EuiFieldText
+              value={form.fields.namespace.value as string}
+              onChange={(e) => form.fields.namespace.onChange(e.target.value)}
+              onBlur={form.fields.namespace.onBlur}
+              isInvalid={form.fields.namespace.isInvalid}
+            />
+          </EuiFormRow>
+          <EuiFormRow label="Version" isInvalid={form.fields.version.isInvalid} error={form.fields.version.error}>
+            <VersionSelect
+              value={form.fields.version.value as string}
+              onChange={(v) => form.fields.version.onChange(v)}
+              isInvalid={form.fields.version.isInvalid}
+            />
+          </EuiFormRow>
+          <EuiFormRow label="Count">
+            <EuiFieldNumber
+              value={form.fields.count.value as number}
+              onChange={(e) => form.fields.count.onChange(parseInt(e.target.value, 10) || 1)}
+              min={1}
+            />
+          </EuiFormRow>
+          <EuiFormRow label="Elasticsearch Reference (optional)">
+            <EuiFieldText
+              value={form.fields.esRef.value as string}
+              onChange={(e) => form.fields.esRef.onChange(e.target.value)}
+              placeholder="my-elasticsearch"
+            />
+          </EuiFormRow>
         </EuiPanel>
         <EuiSpacer size="l" />
         <EuiFlexGroup justifyContent="flexEnd">
-          <EuiFlexItem grow={false}><EuiButtonEmpty onClick={() => navigate('/logstash')}>Cancel</EuiButtonEmpty></EuiFlexItem>
-          <EuiFlexItem grow={false}><EuiButton type="submit" fill isLoading={createMutation.isPending}>Create Logstash</EuiButton></EuiFlexItem>
+          <EuiFlexItem grow={false}>
+            <EuiButtonEmpty onClick={() => navigate('/logstash')}>Cancel</EuiButtonEmpty>
+          </EuiFlexItem>
+          <EuiFlexItem grow={false}>
+            <EuiButton type="submit" fill isLoading={form.isSubmitting}>Create Logstash</EuiButton>
+          </EuiFlexItem>
         </EuiFlexGroup>
       </EuiForm>
     </>

@@ -3,6 +3,7 @@ import { render, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { EuiProvider } from '@elastic/eui';
+import { ToastProvider } from '../context/ToastContext';
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -27,7 +28,9 @@ function AllProviders({ children }: WrapperProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <EuiProvider colorMode="light">
-        <MemoryRouter>{children}</MemoryRouter>
+        <ToastProvider>
+          <MemoryRouter>{children}</MemoryRouter>
+        </ToastProvider>
       </EuiProvider>
     </QueryClientProvider>
   );

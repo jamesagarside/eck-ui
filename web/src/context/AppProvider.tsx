@@ -4,14 +4,17 @@ import { EuiProvider } from '@elastic/eui';
 import { BrowserRouter } from 'react-router-dom';
 import { UserPreferencesProvider, useUserPreferences } from './UserPreferencesContext';
 import { OrganizationProvider } from './OrganizationContext';
+import { ToastProvider } from './ToastContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       refetchOnWindowFocus: true,
-      staleTime: 5000,
+      staleTime: 30000,
+      gcTime: 5 * 60 * 1000,
     },
     mutations: {
       retry: 0,
@@ -31,7 +34,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         <UserPreferencesProvider>
           <EuiThemeWrapper>
             <BrowserRouter>
-              <OrganizationProvider>{children}</OrganizationProvider>
+              <ToastProvider>
+                <OrganizationProvider>{children}</OrganizationProvider>
+              </ToastProvider>
             </BrowserRouter>
           </EuiThemeWrapper>
         </UserPreferencesProvider>

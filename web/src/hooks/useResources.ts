@@ -40,13 +40,43 @@ function resourceItemPath(
   return `/${backendType(type)}/${namespace}/${name}`;
 }
 
+export interface ListParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  health?: string;
+  namespace?: string;
+  sort?: string;
+  order?: 'asc' | 'desc';
+}
+
+export interface ListOptions {
+  /** Override the default polling interval. Set to `false` to disable polling (e.g. when SSE is connected). */
+  refetchInterval?: number | false;
+}
+
+function buildListQuery(type: ResourceType, params?: ListParams): string {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.health) searchParams.set('health', params.health);
+  if (params?.namespace) searchParams.set('namespace', params.namespace);
+  if (params?.sort) searchParams.set('sort', params.sort);
+  if (params?.order) searchParams.set('order', params.order);
+  const qs = searchParams.toString();
+  return `${resourcePath(type)}${qs ? `?${qs}` : ''}`;
+}
+
 export function useResourceList<T extends BaseResource = BaseResource>(
   type: ResourceType,
+  params?: ListParams,
+  options?: ListOptions,
 ) {
   return useQuery<ResourceList<T>>({
-    queryKey: ['resources', type],
-    queryFn: () => apiClient.get<ResourceList<T>>(resourcePath(type)),
-    refetchInterval: 15000,
+    queryKey: ['resources', type, params],
+    queryFn: () => apiClient.get<ResourceList<T>>(buildListQuery(type, params)),
+    refetchInterval: options?.refetchInterval ?? 15000,
     staleTime: 5000,
   });
 }

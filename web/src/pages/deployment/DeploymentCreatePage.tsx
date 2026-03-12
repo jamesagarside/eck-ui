@@ -44,6 +44,7 @@ import {
   buildAgentName,
   type DeployableResourceType,
 } from '../../types/deployment';
+import { useToast } from '../../context/ToastContext';
 
 const K8S_NAME_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
@@ -86,6 +87,7 @@ interface ComponentDef {
 const COMPONENT_ORDER: ComponentDef[] = [
   { key: 'elasticsearch', label: 'Elasticsearch', icon: 'logoElasticsearch' },
   { key: 'kibana', label: 'Kibana', icon: 'logoKibana' },
+  { key: 'fleet-server', label: 'Fleet Server', icon: 'fleetApp' },
   { key: 'apm', label: 'APM Server', icon: 'apmApp', deprecatedInMajor: 8, deprecationNote: 'Deprecated since 8.0. Use Elastic Agent with Fleet instead.' },
   { key: 'beat', label: 'Beats', icon: 'logoBeats' },
   { key: 'agent', label: 'Elastic Agent', icon: 'logoSecurity' },
@@ -101,6 +103,7 @@ function parseMajor(ver: string): number {
 
 export function DeploymentCreatePage() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [name, setName] = useState('');
   const [namespace, setNamespace] = useState('default');
   const { versions, defaultVersion, isLoading: versionsLoading } = useVersions();
@@ -154,6 +157,7 @@ export function DeploymentCreatePage() {
   // Get specFields for a component type
   const getSpecFields = useCallback((type: ComponentType): string[] => {
     const backendTypeMap: Record<string, string> = {
+      'fleet-server': 'agent',
       'apm': 'apmserver',
       'enterprise-search': 'enterprisesearch',
       'maps': 'elasticmapsserver',
@@ -412,16 +416,29 @@ export function DeploymentCreatePage() {
         setDeployErrors(errorMessages);
 
         if (succeededResults.length > 0) {
+          const failedNames = failedResults.map((r: ComponentResult) => r.name).join(', ');
           setDeployError(`${failedResults.length} of ${response.results.length} component(s) failed — ${succeededResults.length} deployed successfully`);
           setPartialSuccess(true);
+          addToast({
+            title: `Deployment '${name}' partially created. Failed components: ${failedNames}`,
+            color: 'warning',
+          });
         } else {
           setDeployError(`All ${failedResults.length} component(s) failed to create`);
+          addToast({
+            title: 'Failed to create deployment',
+            color: 'danger',
+            text: errorMessages.join('; '),
+          });
         }
       } else {
+        addToast({ title: `Deployment '${name}' created successfully`, color: 'success' });
         navigate(`/deployments/${namespace}/${name}`);
       }
     } catch (err) {
-      setDeployError(err instanceof Error ? err.message : 'Deployment failed');
+      const message = err instanceof Error ? err.message : 'Deployment failed';
+      setDeployError(message);
+      addToast({ title: 'Failed to create deployment', color: 'danger', text: message });
     } finally {
       setIsDeploying(false);
     }
@@ -482,6 +499,9 @@ export function DeploymentCreatePage() {
     if (key === 'agent') {
       const names = components.agent.agentInstances.map((_, i) => buildAgentName(name, i));
       return <EuiBadge color="hollow">{names.join(', ')}</EuiBadge>;
+    }
+    if (key === 'fleet-server') {
+      return <EuiBadge color="hollow">{`${name}-fs`}</EuiBadge>;
     }
     return <EuiBadge color="hollow">{buildComponentName(name, key as DeployableResourceType)}</EuiBadge>;
   }

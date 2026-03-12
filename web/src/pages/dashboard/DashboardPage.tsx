@@ -12,6 +12,7 @@ import {
   EuiBadge,
   EuiEmptyPrompt,
   EuiButton,
+  EuiButtonEmpty,
   EuiLink,
   EuiSwitch,
   type EuiBasicTableColumn,
@@ -19,6 +20,7 @@ import {
 } from '@elastic/eui';
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
+import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
 import { routePath } from '../../utils/routePaths';
 import type {
@@ -104,14 +106,25 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const esQuery = useResourceList<Elasticsearch>('elasticsearch');
-  const kibanaQuery = useResourceList<Kibana>('kibana');
-  const apmQuery = useResourceList('apm');
-  const beatQuery = useResourceList('beat');
-  const agentQuery = useResourceList('agent');
-  const logstashQuery = useResourceList('logstash');
-  const entSearchQuery = useResourceList('enterprise-search');
-  const mapsQuery = useResourceList('maps');
+  // SSE live updates: auto-invalidate TanStack Query cache when resources change.
+  // When SSE is connected, disable polling to avoid redundant network requests.
+  const esWatch = useResourceWatch('elasticsearch', { enabled: autoRefresh });
+  const kibanaWatch = useResourceWatch('kibana', { enabled: autoRefresh });
+  const apmWatch = useResourceWatch('apm', { enabled: autoRefresh });
+  const beatWatch = useResourceWatch('beat', { enabled: autoRefresh });
+  const agentWatch = useResourceWatch('agent', { enabled: autoRefresh });
+  const logstashWatch = useResourceWatch('logstash', { enabled: autoRefresh });
+  const entSearchWatch = useResourceWatch('enterprise-search', { enabled: autoRefresh });
+  const mapsWatch = useResourceWatch('maps', { enabled: autoRefresh });
+
+  const esQuery = useResourceList<Elasticsearch>('elasticsearch', undefined, { refetchInterval: esWatch.isConnected ? false : 15000 });
+  const kibanaQuery = useResourceList<Kibana>('kibana', undefined, { refetchInterval: kibanaWatch.isConnected ? false : 15000 });
+  const apmQuery = useResourceList('apm', undefined, { refetchInterval: apmWatch.isConnected ? false : 15000 });
+  const beatQuery = useResourceList('beat', undefined, { refetchInterval: beatWatch.isConnected ? false : 15000 });
+  const agentQuery = useResourceList('agent', undefined, { refetchInterval: agentWatch.isConnected ? false : 15000 });
+  const logstashQuery = useResourceList('logstash', undefined, { refetchInterval: logstashWatch.isConnected ? false : 15000 });
+  const entSearchQuery = useResourceList('enterprise-search', undefined, { refetchInterval: entSearchWatch.isConnected ? false : 15000 });
+  const mapsQuery = useResourceList('maps', undefined, { refetchInterval: mapsWatch.isConnected ? false : 15000 });
 
   const [recentSortField, setRecentSortField] = useState<keyof RecentResource>('created');
   const [recentSortDirection, setRecentSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -209,7 +222,7 @@ export function DashboardPage() {
   const totalWarning = summaryRows.reduce((sum, r) => sum + r.warning, 0);
   const totalCritical = summaryRows.reduce((sum, r) => sum + r.critical, 0);
 
-  // Empty state: no resources at all
+  // First-run empty state: welcoming experience when no resources exist
   if (totalResources === 0) {
     return (
       <>
@@ -217,21 +230,76 @@ export function DashboardPage() {
           <h1>Dashboard</h1>
         </EuiTitle>
         <EuiSpacer size="xl" />
-        <EuiEmptyPrompt
-          iconType="logoElastic"
-          title={<h2>No resources found</h2>}
-          body={
-            <p>
-              Get started by creating your first deployment,
-              or create individual resources from the sidebar navigation.
-            </p>
-          }
-          actions={
-            <EuiButton fill iconType="plusInCircle" onClick={() => navigate('/deployments/create')}>
-              Create Deployment
-            </EuiButton>
-          }
-        />
+        <EuiPanel paddingSize="xl" hasBorder>
+          <EuiEmptyPrompt
+            iconType="logoElastic"
+            title={<h2>Welcome to ECK UI</h2>}
+            layout="vertical"
+            body={
+              <>
+                <p>
+                  Elastic Cloud on Kubernetes (ECK) lets you run the entire
+                  Elastic Stack natively on Kubernetes. This dashboard will show
+                  an overview of all your managed resources once they are
+                  deployed.
+                </p>
+                <p>
+                  Get started by creating a full-stack deployment or an
+                  individual Elasticsearch cluster.
+                </p>
+              </>
+            }
+            actions={[
+              <EuiButton
+                key="deployment"
+                fill
+                iconType="plusInCircle"
+                onClick={() => navigate('/deployments/create')}
+              >
+                Create Deployment
+              </EuiButton>,
+              <EuiButtonEmpty
+                key="elasticsearch"
+                iconType="logoElasticsearch"
+                onClick={() => navigate('/elasticsearch/create')}
+              >
+                Create Elasticsearch Cluster
+              </EuiButtonEmpty>,
+            ]}
+            footer={
+              <EuiFlexGroup
+                gutterSize="l"
+                justifyContent="center"
+                wrap
+                responsive={false}
+              >
+                <EuiFlexItem grow={false}>
+                  <EuiLink
+                    href="https://www.elastic.co/guide/en/cloud-on-k8s/current/index.html"
+                    target="_blank"
+                    external
+                  >
+                    ECK Documentation
+                  </EuiLink>
+                </EuiFlexItem>
+                <EuiFlexItem grow={false}>
+                  <EuiLink
+                    onClick={() => navigate('/kibana/create')}
+                  >
+                    Create Kibana
+                  </EuiLink>
+                </EuiFlexItem>
+                <EuiFlexItem grow={false}>
+                  <EuiLink
+                    onClick={() => navigate('/agent/create')}
+                  >
+                    Create Elastic Agent
+                  </EuiLink>
+                </EuiFlexItem>
+              </EuiFlexGroup>
+            }
+          />
+        </EuiPanel>
       </>
     );
   }
@@ -264,12 +332,17 @@ export function DashboardPage() {
     })
     .slice(0, 10);
 
-  // Problem resources: non-Ready phase
+  // Problem resources: non-Ready phase (missing phase with green health is not a problem)
   const problemResources: ProblemResource[] = resources
     .flatMap((r) =>
       r.items
         .filter((item) => {
-          const phase = item.status?.phase || 'Unknown';
+          const phase = item.status?.phase;
+          if (!phase) {
+            // Some CRDs (Kibana, Agent) don't set a phase field.
+            // Only flag as problem if health isn't green.
+            return item.status?.health != null && item.status.health !== 'green';
+          }
           return phase !== 'Ready';
         })
         .map((item) => ({

@@ -6,7 +6,9 @@ import {
   type EuiTabbedContentTab, type EuiBasicTableColumn,
 } from '@elastic/eui';
 import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
+import { useToast } from '../../context/ToastContext';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ManifestViewer } from '../../components/common/ManifestViewer';
 import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
 import { PodTable } from '../../components/common/PodLogsViewer';
@@ -22,15 +24,25 @@ export function MapsDetailPage() {
   const { data: resource, isLoading, error } = useResource<ElasticMapsServer>('maps', namespace || '', name || '');
   const deleteMutation = useDeleteResource('maps');
   const updateMutation = useUpdateResource('maps');
+  const { addToast } = useToast();
   const podsQuery = usePods(namespace || '', buildECKLabelSelector('maps', name || ''));
   const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
-  if (error || !resource) return <EuiCallOut title="Failed to load Maps Server" color="danger" iconType="error">{error?.message || 'Not found'}</EuiCallOut>;
+  if (error || !resource) return <ErrorCallout error={error || new Error('Resource not found')} />;
 
   const health = resource.status?.health || 'unknown';
   const phase = resource.status?.phase || 'Unknown';
-  const handleDelete = async () => { if (namespace && name) { await deleteMutation.mutateAsync({ namespace, name }); navigate('/maps'); } };
+  const handleDelete = async () => {
+    if (!namespace || !name) return;
+    try {
+      await deleteMutation.mutateAsync({ namespace, name });
+      addToast({ title: `Elastic Maps Server '${name}' deleted`, color: 'success' });
+      navigate('/maps');
+    } catch (err) {
+      addToast({ title: 'Failed to delete Elastic Maps Server', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+    }
+  };
 
   const overviewItems = [
     { title: 'Name', description: resource.metadata.name },
@@ -93,8 +105,8 @@ export function MapsDetailPage() {
     <>
       <EuiPageHeader pageTitle={resource.metadata.name} iconType="logoMaps" description={`Namespace: ${resource.metadata.namespace}`}
         rightSideItems={[
-          <EuiButton key="edit" onClick={() => navigate(`/maps/${namespace}/${name}/edit`)}>Edit</EuiButton>,
-          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDelete(true)}>Delete</EuiButtonEmpty>,
+          <EuiButton key="edit" onClick={() => navigate(`/maps/${namespace}/${name}/edit`)} aria-label={`Edit ${resource.metadata.name}`}>Edit</EuiButton>,
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDelete(true)} aria-label={`Delete ${resource.metadata.name}`}>Delete</EuiButtonEmpty>,
         ]} />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />

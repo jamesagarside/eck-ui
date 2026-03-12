@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader,
@@ -22,11 +21,34 @@ import {
 } from '../../components/elasticsearch/NodeSetEditor';
 import { useResource, useUpdateResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { useToast } from '../../context/ToastContext';
+import { useResourceForm } from '../../hooks/useResourceForm';
+import { UnsavedChangesPrompt } from '../../hooks/useUnsavedChanges';
+import { validateRequired } from '../../utils/validators';
 import type { Elasticsearch } from '../../types/resources';
 
-interface FormErrors {
-  version?: string;
-  nodeSets?: string;
+interface ElasticsearchEditFormValues {
+  version: string;
+  nodeSets: NodeSetConfig[];
+}
+
+function validateElasticsearchEditForm(
+  values: ElasticsearchEditFormValues,
+): Partial<Record<keyof ElasticsearchEditFormValues, string>> {
+  const errors: Partial<Record<keyof ElasticsearchEditFormValues, string>> = {};
+  const versionError = validateRequired(values.version, 'Version');
+  if (versionError) errors.version = versionError;
+  if (values.nodeSets.length === 0) {
+    errors.nodeSets = 'At least one NodeSet is required';
+  } else {
+    for (const ns of values.nodeSets) {
+      if (!ns.name.trim()) {
+        errors.nodeSets = 'All NodeSets must have a name';
+        break;
+      }
+    }
+  }
+  return errors;
 }
 
 interface EditFormProps {
@@ -38,52 +60,41 @@ interface EditFormProps {
 function EditForm({ resource, namespace, name }: EditFormProps) {
   const navigate = useNavigate();
   const updateMutation = useUpdateResource('elasticsearch');
+  const { addToast } = useToast();
 
-  const [version, setVersion] = useState(resource.spec.version);
-  const [nodeSets, setNodeSets] = useState<NodeSetConfig[]>(
-    () => specToNodeSetConfigs(resource.spec.nodeSets),
-  );
-  const [errors, setErrors] = useState<FormErrors>({});
+  const form = useResourceForm<ElasticsearchEditFormValues>({
+    initialValues: {
+      version: resource.spec.version,
+      nodeSets: specToNodeSetConfigs(resource.spec.nodeSets),
+    },
+    validate: validateElasticsearchEditForm,
+    onSubmit: async (values) => {
+      const updated = {
+        ...resource,
+        spec: {
+          ...resource.spec,
+          version: values.version,
+          nodeSets: nodeSetConfigsToSpec(values.nodeSets),
+        },
+      };
 
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {};
-    if (!version.trim()) newErrors.version = 'Version is required';
-    if (nodeSets.length === 0) {
-      newErrors.nodeSets = 'At least one NodeSet is required';
-    }
-    for (const ns of nodeSets) {
-      if (!ns.name.trim()) {
-        newErrors.nodeSets = 'All NodeSets must have a name';
-        break;
+      try {
+        await updateMutation.mutateAsync({
+          namespace,
+          name,
+          resource: updated,
+        });
+        addToast({ title: `Elasticsearch '${name}' updated`, color: 'success' });
+        navigate(`/elasticsearch/${namespace}/${name}`);
+      } catch (err) {
+        addToast({ title: 'Failed to update Elasticsearch', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
       }
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-
-    const updated = {
-      ...resource,
-      spec: {
-        ...resource.spec,
-        version,
-        nodeSets: nodeSetConfigsToSpec(nodeSets),
-      },
-    };
-
-    await updateMutation.mutateAsync({
-      namespace,
-      name,
-      resource: updated,
-    });
-    navigate(`/elasticsearch/${namespace}/${name}`);
-  };
+    },
+  });
 
   return (
     <>
+      <UnsavedChangesPrompt isDirty={form.isDirty} />
       <EuiPageHeader
         pageTitle={`Edit ${resource.metadata.name}`}
         iconType="logoElasticsearch"
@@ -91,20 +102,7 @@ function EditForm({ resource, namespace, name }: EditFormProps) {
       />
       <EuiSpacer size="l" />
 
-      {updateMutation.isError && (
-        <>
-          <EuiCallOut
-            title="Failed to update cluster"
-            color="danger"
-            iconType="error"
-          >
-            {updateMutation.error?.message}
-          </EuiCallOut>
-          <EuiSpacer size="m" />
-        </>
-      )}
-
-      <EuiForm component="form" onSubmit={handleSubmit}>
+      <EuiForm component="form" onSubmit={form.handleSubmit}>
         <EuiPanel>
           <EuiTitle size="xs">
             <h3>General</h3>
@@ -129,13 +127,14 @@ function EditForm({ resource, namespace, name }: EditFormProps) {
 
           <EuiFormRow
             label="Version"
-            isInvalid={!!errors.version}
-            error={errors.version}
+            isInvalid={form.fields.version.isInvalid}
+            error={form.fields.version.error}
           >
             <EuiFieldText
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              isInvalid={!!errors.version}
+              value={form.fields.version.value as string}
+              onChange={(e) => form.fields.version.onChange(e.target.value)}
+              onBlur={form.fields.version.onBlur}
+              isInvalid={form.fields.version.isInvalid}
               aria-label="Elasticsearch version"
             />
           </EuiFormRow>
@@ -148,10 +147,10 @@ function EditForm({ resource, namespace, name }: EditFormProps) {
             <h3>NodeSets</h3>
           </EuiTitle>
           <EuiSpacer size="m" />
-          {errors.nodeSets && (
+          {form.fields.nodeSets.isInvalid && form.fields.nodeSets.error && (
             <>
               <EuiCallOut
-                title={errors.nodeSets}
+                title={form.fields.nodeSets.error}
                 color="danger"
                 iconType="error"
                 size="s"
@@ -159,7 +158,10 @@ function EditForm({ resource, namespace, name }: EditFormProps) {
               <EuiSpacer size="m" />
             </>
           )}
-          <NodeSetEditor nodeSets={nodeSets} onChange={setNodeSets} />
+          <NodeSetEditor
+            nodeSets={form.fields.nodeSets.value as NodeSetConfig[]}
+            onChange={(updated) => form.fields.nodeSets.onChange(updated)}
+          />
         </EuiPanel>
 
         <EuiSpacer size="l" />
@@ -178,7 +180,7 @@ function EditForm({ resource, namespace, name }: EditFormProps) {
             <EuiButton
               type="submit"
               fill
-              isLoading={updateMutation.isPending}
+              isLoading={form.isSubmitting}
             >
               Save Changes
             </EuiButton>

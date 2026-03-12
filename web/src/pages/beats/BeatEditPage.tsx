@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader, EuiSpacer, EuiForm, EuiFormRow, EuiFieldText,
@@ -6,43 +5,73 @@ import {
 } from '@elastic/eui';
 import { useResource, useUpdateResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { VersionSelect } from '../../components/form/VersionSelect';
+import { useToast } from '../../context/ToastContext';
+import { useResourceForm } from '../../hooks/useResourceForm';
+import { UnsavedChangesPrompt } from '../../hooks/useUnsavedChanges';
 import type { Beat } from '../../types/resources';
+
+interface BeatEditFormValues {
+  version: string;
+  elasticsearchRef: string;
+}
 
 interface EditFormProps { resource: Beat; namespace: string; name: string; }
 
 function EditForm({ resource, namespace, name }: EditFormProps) {
   const navigate = useNavigate();
   const updateMutation = useUpdateResource('beat');
-  const [version, setVersion] = useState(resource.spec.version);
-  const [esRef, setEsRef] = useState(resource.spec.elasticsearchRef?.name || '');
+  const { addToast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await updateMutation.mutateAsync({
-      namespace, name,
-      resource: { ...resource, spec: { ...resource.spec, version, elasticsearchRef: { name: esRef } } },
-    });
-    navigate(`/beats/${namespace}/${name}`);
-  };
+  const form = useResourceForm<BeatEditFormValues>({
+    initialValues: {
+      version: resource.spec.version,
+      elasticsearchRef: resource.spec.elasticsearchRef?.name || '',
+    },
+    onSubmit: async (values) => {
+      try {
+        await updateMutation.mutateAsync({
+          namespace, name,
+          resource: {
+            ...resource,
+            spec: {
+              ...resource.spec,
+              version: values.version,
+              elasticsearchRef: { name: values.elasticsearchRef },
+            },
+          },
+        });
+        addToast({ title: `Beat '${name}' updated`, color: 'success' });
+        navigate(`/beats/${namespace}/${name}`);
+      } catch (err) {
+        addToast({ title: 'Failed to update Beat', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+      }
+    },
+  });
 
   return (
     <>
+      <UnsavedChangesPrompt isDirty={form.isDirty} />
       <EuiPageHeader pageTitle={`Edit ${resource.metadata.name}`} iconType="logoBeats" description={`Namespace: ${resource.metadata.namespace}`} />
       <EuiSpacer size="l" />
-      {updateMutation.isError && <><EuiCallOut title="Failed" color="danger" iconType="error">{updateMutation.error?.message}</EuiCallOut><EuiSpacer size="m" /></>}
-      <EuiForm component="form" onSubmit={handleSubmit}>
+      <EuiForm component="form" onSubmit={form.handleSubmit}>
         <EuiPanel>
-          <EuiTitle size="xs"><h3>General</h3></EuiTitle><EuiSpacer size="m" />
+          <EuiTitle size="xs"><h3>General</h3></EuiTitle>
+          <EuiSpacer size="m" />
           <EuiFormRow label="Name"><EuiFieldText value={resource.metadata.name} disabled /></EuiFormRow>
           <EuiFormRow label="Namespace"><EuiFieldText value={resource.metadata.namespace} disabled /></EuiFormRow>
           <EuiFormRow label="Type"><EuiFieldText value={resource.spec.type} disabled /></EuiFormRow>
-          <EuiFormRow label="Version"><EuiFieldText value={version} onChange={(e) => setVersion(e.target.value)} /></EuiFormRow>
-          <EuiFormRow label="Elasticsearch Reference"><EuiFieldText value={esRef} onChange={(e) => setEsRef(e.target.value)} /></EuiFormRow>
+          <EuiFormRow label="Version">
+            <VersionSelect value={form.fields.version.value as string} onChange={(v) => form.fields.version.onChange(v)} currentVersion={resource.spec.version} />
+          </EuiFormRow>
+          <EuiFormRow label="Elasticsearch Reference">
+            <EuiFieldText value={form.fields.elasticsearchRef.value as string} onChange={(e) => form.fields.elasticsearchRef.onChange(e.target.value)} />
+          </EuiFormRow>
         </EuiPanel>
         <EuiSpacer size="l" />
         <EuiFlexGroup justifyContent="flexEnd">
           <EuiFlexItem grow={false}><EuiButtonEmpty onClick={() => navigate(`/beats/${namespace}/${name}`)}>Cancel</EuiButtonEmpty></EuiFlexItem>
-          <EuiFlexItem grow={false}><EuiButton type="submit" fill isLoading={updateMutation.isPending}>Save Changes</EuiButton></EuiFlexItem>
+          <EuiFlexItem grow={false}><EuiButton type="submit" fill isLoading={form.isSubmitting}>Save Changes</EuiButton></EuiFlexItem>
         </EuiFlexGroup>
       </EuiForm>
     </>

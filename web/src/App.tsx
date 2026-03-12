@@ -12,6 +12,7 @@ import { KibanaListPage, KibanaDetailPage, KibanaCreatePage, KibanaEditPage } fr
 import { ApmListPage, ApmDetailPage, ApmCreatePage, ApmEditPage } from './pages/apm';
 import { BeatListPage, BeatDetailPage, BeatCreatePage, BeatEditPage } from './pages/beats';
 import { AgentListPage, AgentDetailPage, AgentCreatePage, AgentEditPage } from './pages/agent';
+import { FleetServerListPage, FleetServerDetailPage, FleetServerCreatePage, FleetServerEditPage } from './pages/fleet-server';
 import { LogstashListPage, LogstashDetailPage, LogstashCreatePage, LogstashEditPage } from './pages/logstash';
 import { EnterpriseSearchListPage, EnterpriseSearchDetailPage, EnterpriseSearchCreatePage, EnterpriseSearchEditPage } from './pages/enterprise-search';
 import { MapsListPage, MapsDetailPage, MapsCreatePage, MapsEditPage } from './pages/maps';
@@ -25,6 +26,7 @@ import {
   AutoscalerDetailPage,
   AutoscalerEditPage,
 } from './pages/stack';
+import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage, AdminGuard } from './pages/admin';
 import './App.css';
 
 function App() {
@@ -69,6 +71,12 @@ function App() {
           <Route path="/beats/:namespace/:name" element={<BeatDetailPage />} />
           <Route path="/beats/:namespace/:name/edit" element={<BeatEditPage />} />
 
+          {/* Fleet Server */}
+          <Route path="/fleet-server" element={<FleetServerListPage />} />
+          <Route path="/fleet-server/create" element={<FleetServerCreatePage />} />
+          <Route path="/fleet-server/:namespace/:name" element={<FleetServerDetailPage />} />
+          <Route path="/fleet-server/:namespace/:name/edit" element={<FleetServerEditPage />} />
+
           {/* Agent */}
           <Route path="/agent" element={<AgentListPage />} />
           <Route path="/agent/create" element={<AgentCreatePage />} />
@@ -104,6 +112,11 @@ function App() {
           <Route path="/elasticsearchautoscaler/create" element={<AutoscalerCreatePage />} />
           <Route path="/elasticsearchautoscaler/:namespace/:name" element={<AutoscalerDetailPage />} />
           <Route path="/elasticsearchautoscaler/:namespace/:name/edit" element={<AutoscalerEditPage />} />
+
+          {/* Admin */}
+          <Route path="/admin/versions" element={<AdminGuard><VersionManagementPage /></AdminGuard>} />
+          <Route path="/admin/templates" element={<AdminGuard><DeploymentTemplatesPage /></AdminGuard>} />
+          <Route path="/admin/system" element={<AdminGuard><SystemInfoPage /></AdminGuard>} />
 
           {/* Wizard redirect */}
           <Route path="/wizard" element={<Navigate to="/deployments/create" replace />} />

@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import {
   EuiBasicTable,
   EuiButton,
@@ -5,11 +6,20 @@ import {
   EuiPageHeader,
   EuiSpacer,
   EuiBadge,
+  EuiFieldSearch,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiFilterGroup,
+  EuiFilterButton,
   type EuiBasicTableColumn,
+  type CriteriaWithPagination,
 } from '@elastic/eui';
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
+import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
+import { ErrorCallout } from '../../components/common/ErrorCallout';
+import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
 import type { Elasticsearch, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -31,11 +41,48 @@ function formatAge(timestamp: string): string {
 
 export function ElasticsearchListPage() {
   const navigate = useNavigate();
-  const { data, isLoading, error } = useResourceList<Elasticsearch>('elasticsearch');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [healthFilter, setHealthFilter] = useState<string[]>([]);
+  const [sortField, setSortField] = useState('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  if (isLoading) return <ListSkeleton />;
+  const healthParam = healthFilter.length > 0 ? healthFilter.join(',') : undefined;
+
+  const { isConnected } = useResourceWatch('elasticsearch');
+
+  const { data, isLoading, error, refetch } = useResourceList<Elasticsearch>('elasticsearch', {
+    page: page + 1,
+    pageSize,
+    search: search || undefined,
+    health: healthParam,
+    sort: sortField,
+    order: sortDirection,
+  }, { refetchInterval: isConnected ? false : 15000 });
+
+  // Debounced search
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    const timeout = setTimeout(() => {
+      setSearch(value);
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const toggleHealthFilter = (health: string) => {
+    setHealthFilter((prev) =>
+      prev.includes(health) ? prev.filter((h) => h !== health) : [...prev, health],
+    );
+    setPage(0);
+  };
+
+  if (isLoading && !data) return <ListSkeleton />;
 
   const items = data?.items || [];
+  const totalItems = data?.total ?? 0;
 
   const columns: EuiBasicTableColumn<Elasticsearch>[] = [
     {
@@ -58,9 +105,12 @@ export function ElasticsearchListPage() {
     {
       field: 'status.health',
       name: 'Health',
-      width: '100px',
+      width: '120px',
       render: (health: HealthStatus) => (
-        <EuiHealth color={HEALTH_COLORS[health || 'unknown']}>
+        <EuiHealth
+          color={HEALTH_COLORS[health || 'unknown']}
+          aria-label={`Health: ${health || 'unknown'}`}
+        >
           {health || 'unknown'}
         </EuiHealth>
       ),
@@ -98,10 +148,43 @@ export function ElasticsearchListPage() {
     },
   ];
 
+  const pagination = {
+    pageIndex: page,
+    pageSize,
+    totalItemCount: totalItems,
+    pageSizeOptions: [10, 25, 50],
+  };
+
+  const onTableChange = ({ page: tablePage, sort }: CriteriaWithPagination<Elasticsearch>) => {
+    if (tablePage) {
+      setPage(tablePage.index);
+      setPageSize(tablePage.size);
+    }
+    if (sort) {
+      const field = String(sort.field);
+      // Map nested fields to server sort keys
+      const sortMap: Record<string, string> = {
+        'metadata.name': 'name',
+        'metadata.namespace': 'namespace',
+        'spec.version': 'version',
+        'status.health': 'health',
+        'status.phase': 'phase',
+        'metadata.creationTimestamp': 'age',
+      };
+      setSortField(sortMap[field] || field);
+      setSortDirection(sort.direction);
+    }
+  };
+
+  const hasFilters = search || healthFilter.length > 0;
+  const showEmptyState = !isLoading && totalItems === 0 && !hasFilters;
+  const showNoResults = !isLoading && totalItems === 0 && hasFilters;
+
   return (
     <>
       <EuiPageHeader
         pageTitle="Elasticsearch Clusters"
+        description={isConnected ? undefined : undefined}
         rightSideItems={[
           <EuiButton
             key="create"
@@ -114,27 +197,90 @@ export function ElasticsearchListPage() {
         ]}
       />
       <EuiSpacer size="l" />
+
       {error && (
         <>
-          <EuiHealth color="danger">
-            Failed to load resources: {error.message}
-          </EuiHealth>
+          <ErrorCallout error={error} onRetry={refetch} />
           <EuiSpacer size="m" />
         </>
       )}
-      <EuiBasicTable
-        items={items}
-        columns={columns}
-        rowProps={(item: Elasticsearch) => ({
-          onClick: () =>
-            navigate(
-              `/elasticsearch/${item.metadata.namespace}/${item.metadata.name}`,
-            ),
-          style: { cursor: 'pointer' },
-          'aria-label': `View ${item.metadata.name}`,
-        })}
-        noItemsMessage="No Elasticsearch clusters found"
-      />
+
+      <EuiFlexGroup gutterSize="m" alignItems="center">
+        <EuiFlexItem grow>
+          <EuiFieldSearch
+            placeholder="Search by name..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            isClearable
+            aria-label="Search resources"
+          />
+        </EuiFlexItem>
+        <EuiFlexItem grow={false}>
+          <EuiFilterGroup>
+            {(['green', 'yellow', 'red'] as const).map((health) => (
+              <EuiFilterButton
+                key={health}
+                hasActiveFilters={healthFilter.includes(health)}
+                onClick={() => toggleHealthFilter(health)}
+                aria-label={`Filter by ${health} health`}
+              >
+                <EuiHealth color={HEALTH_COLORS[health]}>{health}</EuiHealth>
+              </EuiFilterButton>
+            ))}
+          </EuiFilterGroup>
+        </EuiFlexItem>
+      </EuiFlexGroup>
+
+      <EuiSpacer size="m" />
+
+      {showEmptyState ? (
+        <ResourceEmptyState
+          resourceType="elasticsearch"
+          resourceLabel="Elasticsearch Cluster"
+          onCreate={() => navigate('/elasticsearch/create')}
+          onCreateDeployment={() => navigate('/deployments/create')}
+        />
+      ) : showNoResults ? (
+        <NoResultsEmptyState
+          onClearFilters={() => {
+            setSearch('');
+            setSearchInput('');
+            setHealthFilter([]);
+            setPage(0);
+          }}
+        />
+      ) : (
+        <EuiBasicTable
+          items={items}
+          columns={columns}
+          pagination={pagination}
+          sorting={{
+            sort: {
+              field: `metadata.${sortField}` as keyof Elasticsearch,
+              direction: sortDirection,
+            },
+          }}
+          onChange={onTableChange}
+          rowProps={(item: Elasticsearch) => ({
+            onClick: () =>
+              navigate(
+                `/elasticsearch/${item.metadata.namespace}/${item.metadata.name}`,
+              ),
+            style: { cursor: 'pointer' },
+            role: 'link' as const,
+            tabIndex: 0,
+            'aria-label': `View ${item.metadata.name}`,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter') {
+                navigate(
+                  `/elasticsearch/${item.metadata.namespace}/${item.metadata.name}`,
+                );
+              }
+            },
+          })}
+          noItemsMessage="No Elasticsearch clusters found"
+        />
+      )}
     </>
   );
 }

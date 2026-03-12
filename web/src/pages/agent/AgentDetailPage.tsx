@@ -6,7 +6,9 @@ import {
   type EuiTabbedContentTab, type EuiBasicTableColumn,
 } from '@elastic/eui';
 import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';
+import { useToast } from '../../context/ToastContext';
 import { DetailSkeleton } from '../../components/common/Skeletons';
+import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ManifestViewer } from '../../components/common/ManifestViewer';
 import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
 import { PodTable } from '../../components/common/PodLogsViewer';
@@ -22,15 +24,25 @@ export function AgentDetailPage() {
   const { data: resource, isLoading, error } = useResource<Agent>('agent', namespace || '', name || '');
   const deleteMutation = useDeleteResource('agent');
   const updateMutation = useUpdateResource('agent');
+  const { addToast } = useToast();
   const podsQuery = usePods(namespace || '', buildECKLabelSelector('agent', name || ''));
   const eventsQuery = useEvents(namespace || '');
 
   if (isLoading) return <DetailSkeleton />;
-  if (error || !resource) return <EuiCallOut title="Failed to load Agent" color="danger" iconType="error">{error?.message || 'Not found'}</EuiCallOut>;
+  if (error || !resource) return <ErrorCallout error={error || new Error('Resource not found')} />;
 
   const health = resource.status?.health || 'unknown';
   const phase = resource.status?.phase || 'Unknown';
-  const handleDelete = async () => { if (namespace && name) { await deleteMutation.mutateAsync({ namespace, name }); navigate('/agent'); } };
+  const handleDelete = async () => {
+    if (!namespace || !name) return;
+    try {
+      await deleteMutation.mutateAsync({ namespace, name });
+      addToast({ title: `Agent '${name}' deleted`, color: 'success' });
+      navigate('/agent');
+    } catch (err) {
+      addToast({ title: 'Failed to delete Agent', color: 'danger', text: err instanceof Error ? err.message : 'An unexpected error occurred' });
+    }
+  };
 
   const overviewItems = [
     { title: 'Name', description: resource.metadata.name },
@@ -92,8 +104,8 @@ export function AgentDetailPage() {
     <>
       <EuiPageHeader pageTitle={resource.metadata.name} iconType="logoSecurity" description={`Namespace: ${resource.metadata.namespace}`}
         rightSideItems={[
-          <EuiButton key="edit" onClick={() => navigate(`/agent/${namespace}/${name}/edit`)}>Edit</EuiButton>,
-          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDelete(true)}>Delete</EuiButtonEmpty>,
+          <EuiButton key="edit" onClick={() => navigate(`/agent/${namespace}/${name}/edit`)} aria-label={`Edit ${resource.metadata.name}`}>Edit</EuiButton>,
+          <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDelete(true)} aria-label={`Delete ${resource.metadata.name}`}>Delete</EuiButtonEmpty>,
         ]} />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />

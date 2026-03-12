@@ -137,6 +137,7 @@ type componentResult struct {
 var componentSuffix = map[string]string{
 	"elasticsearch":     "-es",
 	"kibana":            "-kb",
+	"fleet-server":      "-fs",
 	"apm":               "-apm",
 	"beat":              "-beat",
 	"agent":             "-agent",
@@ -252,7 +253,7 @@ func DeploymentDeleteHandler(k8sClient *k8s.Client, registry *k8s.CRDRegistry) h
 
 // componentOrder defines the creation order. ES must be first because others ref it.
 var componentOrder = []string{
-	"elasticsearch", "kibana", "apm", "beat", "agent",
+	"elasticsearch", "kibana", "fleet-server", "apm", "beat", "agent",
 	"logstash", "enterprise-search", "maps",
 }
 
@@ -444,6 +445,8 @@ func buildResources(registry *k8s.CRDRegistry, namespace string, intent Deployme
 		return buildBeats(registry, namespace, intent, comp)
 	case "agent":
 		return buildAgents(registry, namespace, intent, comp)
+	case "fleet-server":
+		return buildFleetServer(registry, namespace, intent, comp)
 	default:
 		return []*unstructured.Unstructured{buildSimple(registry, namespace, intent, compType, comp)}
 	}
@@ -790,6 +793,62 @@ func buildAgents(registry *k8s.CRDRegistry, namespace string, intent DeploymentI
 	return result
 }
 
+func buildFleetServer(registry *k8s.CRDRegistry, namespace string, intent DeploymentIntent, comp ComponentIntent) []*unstructured.Unstructured {
+	meta := lookupMeta(registry, "agent")
+	resourceName := buildComponentName(intent.Name, "fleet-server")
+	esName := buildComponentName(intent.Name, "elasticsearch")
+	kbName := buildComponentName(intent.Name, "kibana")
+	hasEs := isEnabled(intent, "elasticsearch")
+	hasKb := isEnabled(intent, "kibana")
+
+	replicas := int64(max(comp.Replicas, 1))
+
+	spec := map[string]interface{}{
+		"version":            intent.Version,
+		"mode":               "fleet",
+		"fleetServerEnabled": true,
+		"deployment": map[string]interface{}{
+			"replicas": replicas,
+		},
+	}
+
+	// Auto-wire ES ref only if not overridden
+	if comp.ElasticsearchRef == nil && hasEs {
+		if hasSpecField(meta, "elasticsearchRefs") {
+			spec["elasticsearchRefs"] = []interface{}{
+				map[string]interface{}{"name": esName},
+			}
+		} else if hasSpecField(meta, "elasticsearchRef") {
+			spec["elasticsearchRef"] = map[string]interface{}{"name": esName}
+		}
+	}
+
+	// Auto-wire Kibana ref only if not overridden
+	if comp.KibanaRef == nil && hasKb && hasSpecField(meta, "kibanaRef") {
+		spec["kibanaRef"] = map[string]interface{}{"name": kbName}
+	}
+
+	// Apply enhanced fields (config, resources, podTemplate, http, monitoring)
+	applyEnhancedFields(spec, meta, comp)
+
+	return []*unstructured.Unstructured{
+		{
+			Object: map[string]interface{}{
+				"apiVersion": meta.APIVersion,
+				"kind":       meta.Kind,
+				"metadata": map[string]interface{}{
+					"name":      resourceName,
+					"namespace": namespace,
+					"labels": map[string]interface{}{
+						deploymentLabel: intent.Name,
+					},
+				},
+				"spec": spec,
+			},
+		},
+	}
+}
+
 // --- Discovery for updates/deletes ---
 
 type existingResource struct {
@@ -808,6 +867,7 @@ var backendTypeMap = map[string]string{
 	"apm":               "apmserver",
 	"beat":              "beat",
 	"agent":             "agent",
+	"fleet-server":      "agent",
 	"logstash":          "logstash",
 	"enterprise-search": "enterprisesearch",
 	"maps":              "elasticmapsserver",
