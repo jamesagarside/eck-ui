@@ -12,7 +12,6 @@ import {
   EuiButtonEmpty,
   EuiConfirmModal,
   EuiBasicTable,
-  EuiCallOut,
   EuiFlyout,
   EuiFlyoutBody,
   EuiFlyoutHeader,

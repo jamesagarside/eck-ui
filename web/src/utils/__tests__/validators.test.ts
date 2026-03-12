@@ -23,7 +23,6 @@ describe('validateK8sName', () => {
   });
 
   it('accepts a name at the 253-character limit', () => {
-    const name = 'a' + '-b'.repeat(125) + 'c'; // 253 chars: a + 250 + cc -> let's be precise
     const maxName = 'a'.repeat(253);
     expect(validateK8sName(maxName)).toBeUndefined();
   });

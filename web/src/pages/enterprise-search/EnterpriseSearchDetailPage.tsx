@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   EuiPageHeader, EuiSpacer, EuiTabbedContent, EuiDescriptionList, EuiHealth, EuiBadge, EuiPanel,
-  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiCallOut, EuiBasicTable,
+  EuiButton, EuiButtonEmpty, EuiConfirmModal, EuiBasicTable,
   type EuiTabbedContentTab, type EuiBasicTableColumn,
 } from '@elastic/eui';
 import { useResource, useDeleteResource, useUpdateResource, useEvents } from '../../hooks/useResources';

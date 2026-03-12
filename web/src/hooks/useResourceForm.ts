@@ -1,6 +1,9 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 
-export interface FormFieldConfig<T extends Record<string, unknown>> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FormValues = Record<string, any>;
+
+export interface FormFieldConfig<T extends FormValues> {
   initialValues: T;
   validate?: (values: T) => Partial<Record<keyof T, string>>;
   onSubmit: (values: T) => Promise<void>;
@@ -15,7 +18,7 @@ export interface FormField {
   isInvalid: boolean;
 }
 
-export interface UseResourceFormReturn<T extends Record<string, unknown>> {
+export interface UseResourceFormReturn<T extends FormValues> {
   fields: Record<keyof T, FormField>;
   values: T;
   errors: Partial<Record<keyof T, string>>;
@@ -27,7 +30,7 @@ export interface UseResourceFormReturn<T extends Record<string, unknown>> {
   reset: (newValues?: T) => void;
 }
 
-export function useResourceForm<T extends Record<string, unknown>>(
+export function useResourceForm<T extends FormValues>(
   config: FormFieldConfig<T>,
 ): UseResourceFormReturn<T> {
   const { initialValues, validate, onSubmit } = config;

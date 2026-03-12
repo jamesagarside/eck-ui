@@ -11,7 +11,6 @@ import {
   EuiButton,
   EuiButtonEmpty,
   EuiConfirmModal,
-  EuiCallOut,
   EuiBasicTable,
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
