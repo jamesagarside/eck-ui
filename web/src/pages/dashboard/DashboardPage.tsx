@@ -21,7 +21,10 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
 import { useResourceWatch } from '../../hooks/useResourceWatch';
+import { useUserRole } from '../../hooks/useUserRole';
+import { useDeployments } from '../../hooks/useDeployments';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
+import { DeploymentCardGrid } from '../../components/deployment/DeploymentCardGrid';
 import { routePath } from '../../utils/routePaths';
 import type {
   Elasticsearch,
@@ -104,6 +107,8 @@ function countByPhase(
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const role = useUserRole();
+  const deploymentsHook = useDeployments();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // SSE live updates: auto-invalidate TanStack Query cache when resources change.
@@ -148,6 +153,43 @@ export function DashboardPage() {
 
   if (isLoading) {
     return <DashboardSkeleton />;
+  }
+
+  // Viewer dashboard: deployment-centric card view
+  if (role === 'viewer') {
+    if (deploymentsHook.isLoading) return <DashboardSkeleton />;
+
+    const viewerDeployments = deploymentsHook.deployments;
+
+    if (viewerDeployments.length === 0) {
+      return (
+        <>
+          <EuiTitle size="l">
+            <h1>My Deployments</h1>
+          </EuiTitle>
+          <EuiSpacer size="xl" />
+          <EuiEmptyPrompt
+            iconType="layers"
+            title={<h2>No deployments available</h2>}
+            body={
+              <p>
+                Contact your platform administrator to set up deployments.
+              </p>
+            }
+          />
+        </>
+      );
+    }
+
+    return (
+      <>
+        <EuiTitle size="l">
+          <h1>My Deployments</h1>
+        </EuiTitle>
+        <EuiSpacer size="l" />
+        <DeploymentCardGrid deployments={viewerDeployments} />
+      </>
+    );
   }
 
   const resources: {

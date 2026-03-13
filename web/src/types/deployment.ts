@@ -47,6 +47,14 @@ export interface Deployment {
   createdAt: string;
 }
 
+/** A service endpoint extracted from a deployment component */
+export interface ServiceEndpoint {
+  type: 'kibana' | 'elasticsearch' | 'apm';
+  label: string;
+  url: string;
+  action: 'link' | 'copy';
+}
+
 /** Build the resource name for a component in a deployment */
 export function buildComponentName(deploymentName: string, type: DeployableResourceType): string {
   return `${deploymentName}${COMPONENT_SUFFIX[type]}`;

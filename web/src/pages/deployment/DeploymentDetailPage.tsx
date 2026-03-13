@@ -17,6 +17,9 @@ import {
   EuiTitle,
   EuiBasicTable,
   EuiIcon,
+  EuiCopy,
+  EuiDescriptionList,
+  EuiLink,
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
 } from '@elastic/eui';
@@ -30,6 +33,8 @@ import { PodTable } from '../../components/common/PodLogsViewer';
 import { buildECKLabelSelector } from '../../hooks/usePods';
 import type { PodSummary } from '../../hooks/usePods';
 import { routePath } from '../../utils/routePaths';
+import { useUserRole } from '../../hooks/useUserRole';
+import { extractEndpoints } from '../../utils/endpointExtractor';
 import apiClient from '../../api/client';
 import type { HealthStatus, ResourceEvent } from '../../types/resources';
 
@@ -65,6 +70,8 @@ const TYPE_LABELS: Record<string, string> = {
 export function DeploymentDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
+  const role = useUserRole();
+  const isViewer = role === 'viewer';
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -89,6 +96,8 @@ export function DeploymentDetailPage() {
     enabled: !!deployment && !!namespace,
     refetchInterval: 10_000,
   });
+
+  const endpoints = deployment ? extractEndpoints(deployment) : [];
 
   if (isLoading) return <DetailSkeleton />;
   if (isError || !deployment) {
@@ -222,7 +231,7 @@ export function DeploymentDetailPage() {
         pageTitle={deployment.name}
         iconType="layers"
         description={`Namespace: ${deployment.namespace} · Version: ${deployment.version} · ${deployment.components.length} component${deployment.components.length !== 1 ? 's' : ''}`}
-        rightSideItems={[
+        rightSideItems={isViewer ? [] : [
           <EuiButton
             key="edit"
             onClick={() => navigate(`/deployments/${namespace}/${name}/edit`)}
@@ -246,6 +255,46 @@ export function DeploymentDetailPage() {
           <EuiHealth color={HEALTH_COLORS[deployment.health]}>
             Deployment health: {deployment.health}
           </EuiHealth>
+        </>
+      )}
+
+      {endpoints.length > 0 && (
+        <>
+          <EuiSpacer size="l" />
+          <EuiPanel paddingSize="m" hasBorder>
+            <EuiTitle size="xs"><h4>Service Endpoints</h4></EuiTitle>
+            <EuiSpacer size="s" />
+            <EuiFlexGroup gutterSize="m" wrap>
+              {endpoints.map((ep) => (
+                <EuiFlexItem grow={false} key={ep.type}>
+                  {ep.action === 'link' ? (
+                    <EuiButton
+                      href={ep.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      iconType="popout"
+                      size="s"
+                    >
+                      {ep.label}
+                    </EuiButton>
+                  ) : (
+                    <EuiCopy textToCopy={ep.url}>
+                      {(copy) => (
+                        <EuiButton
+                          onClick={copy}
+                          iconType="copyClipboard"
+                          size="s"
+                          color="text"
+                        >
+                          {ep.label}
+                        </EuiButton>
+                      )}
+                    </EuiCopy>
+                  )}
+                </EuiFlexItem>
+              ))}
+            </EuiFlexGroup>
+          </EuiPanel>
         </>
       )}
 

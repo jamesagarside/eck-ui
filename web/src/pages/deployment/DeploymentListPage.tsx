@@ -12,7 +12,9 @@ import {
 } from '@elastic/eui';
 import { useNavigate } from 'react-router-dom';
 import { useDeployments } from '../../hooks/useDeployments';
+import { useUserRole } from '../../hooks/useUserRole';
 import { ListSkeleton } from '../../components/common/Skeletons';
+import { DeploymentCardGrid } from '../../components/deployment/DeploymentCardGrid';
 import type { Deployment } from '../../types/deployment';
 import type { HealthStatus } from '../../types/resources';
 
@@ -47,33 +49,57 @@ function formatAge(timestamp: string): string {
 export function DeploymentListPage() {
   const navigate = useNavigate();
   const { deployments, isLoading } = useDeployments();
+  const role = useUserRole();
+  const isViewer = role === 'viewer';
 
   if (isLoading) return <ListSkeleton />;
 
   if (deployments.length === 0) {
     return (
       <>
-        <EuiPageHeader pageTitle="Deployments" />
+        <EuiPageHeader pageTitle={isViewer ? "My Deployments" : "Deployments"} />
         <EuiSpacer size="l" />
-        <EuiEmptyPrompt
-          iconType="layers"
-          title={<h2>No deployments yet</h2>}
-          body={
-            <p>
-              Create a deployment to manage Elasticsearch, Kibana, and other
-              Elastic stack components as a single unit.
-            </p>
-          }
-          actions={
-            <EuiButton
-              fill
-              iconType="plusInCircle"
-              onClick={() => navigate('/deployments/create')}
-            >
-              Create Deployment
-            </EuiButton>
-          }
-        />
+        {isViewer ? (
+          <EuiEmptyPrompt
+            iconType="layers"
+            title={<h2>No deployments available</h2>}
+            body={
+              <p>
+                Contact your platform administrator to set up deployments.
+              </p>
+            }
+          />
+        ) : (
+          <EuiEmptyPrompt
+            iconType="layers"
+            title={<h2>No deployments yet</h2>}
+            body={
+              <p>
+                Create a deployment to manage Elasticsearch, Kibana, and other
+                Elastic stack components as a single unit.
+              </p>
+            }
+            actions={
+              <EuiButton
+                fill
+                iconType="plusInCircle"
+                onClick={() => navigate('/deployments/create')}
+              >
+                Create Deployment
+              </EuiButton>
+            }
+          />
+        )}
+      </>
+    );
+  }
+
+  if (isViewer) {
+    return (
+      <>
+        <EuiPageHeader pageTitle="My Deployments" />
+        <EuiSpacer size="l" />
+        <DeploymentCardGrid deployments={deployments} />
       </>
     );
   }
@@ -142,6 +168,7 @@ export function DeploymentListPage() {
           </EuiButton>,
         ]}
       />
+
       <EuiSpacer size="l" />
       <EuiBasicTable
         items={deployments}

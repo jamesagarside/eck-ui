@@ -27,6 +27,7 @@ import {
   AutoscalerEditPage,
 } from './pages/stack';
 import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage, AdminGuard } from './pages/admin';
+import { RoleGuard } from './components/auth/RoleGuard';
 import './App.css';
 
 function App() {
@@ -48,75 +49,75 @@ function App() {
           <Route path="/deployments/:namespace/:name/edit" element={<DeploymentEditPage />} />
 
           {/* Elasticsearch */}
-          <Route path="/elasticsearch" element={<ElasticsearchListPage />} />
-          <Route path="/elasticsearch/create" element={<ElasticsearchCreatePage />} />
-          <Route path="/elasticsearch/:namespace/:name" element={<ElasticsearchDetailPage />} />
-          <Route path="/elasticsearch/:namespace/:name/edit" element={<ElasticsearchEditPage />} />
+          <Route path="/elasticsearch" element={<RoleGuard minRole="editor"><ElasticsearchListPage /></RoleGuard>} />
+          <Route path="/elasticsearch/create" element={<RoleGuard minRole="editor"><ElasticsearchCreatePage /></RoleGuard>} />
+          <Route path="/elasticsearch/:namespace/:name" element={<RoleGuard minRole="editor"><ElasticsearchDetailPage /></RoleGuard>} />
+          <Route path="/elasticsearch/:namespace/:name/edit" element={<RoleGuard minRole="editor"><ElasticsearchEditPage /></RoleGuard>} />
 
           {/* Kibana */}
-          <Route path="/kibana" element={<KibanaListPage />} />
-          <Route path="/kibana/create" element={<KibanaCreatePage />} />
-          <Route path="/kibana/:namespace/:name" element={<KibanaDetailPage />} />
-          <Route path="/kibana/:namespace/:name/edit" element={<KibanaEditPage />} />
+          <Route path="/kibana" element={<RoleGuard minRole="editor"><KibanaListPage /></RoleGuard>} />
+          <Route path="/kibana/create" element={<RoleGuard minRole="editor"><KibanaCreatePage /></RoleGuard>} />
+          <Route path="/kibana/:namespace/:name" element={<RoleGuard minRole="editor"><KibanaDetailPage /></RoleGuard>} />
+          <Route path="/kibana/:namespace/:name/edit" element={<RoleGuard minRole="editor"><KibanaEditPage /></RoleGuard>} />
 
           {/* APM */}
-          <Route path="/apm" element={<ApmListPage />} />
-          <Route path="/apm/create" element={<ApmCreatePage />} />
-          <Route path="/apm/:namespace/:name" element={<ApmDetailPage />} />
-          <Route path="/apm/:namespace/:name/edit" element={<ApmEditPage />} />
+          <Route path="/apm" element={<RoleGuard minRole="editor"><ApmListPage /></RoleGuard>} />
+          <Route path="/apm/create" element={<RoleGuard minRole="editor"><ApmCreatePage /></RoleGuard>} />
+          <Route path="/apm/:namespace/:name" element={<RoleGuard minRole="editor"><ApmDetailPage /></RoleGuard>} />
+          <Route path="/apm/:namespace/:name/edit" element={<RoleGuard minRole="editor"><ApmEditPage /></RoleGuard>} />
 
           {/* Beats */}
-          <Route path="/beats" element={<BeatListPage />} />
-          <Route path="/beats/create" element={<BeatCreatePage />} />
-          <Route path="/beats/:namespace/:name" element={<BeatDetailPage />} />
-          <Route path="/beats/:namespace/:name/edit" element={<BeatEditPage />} />
+          <Route path="/beats" element={<RoleGuard minRole="editor"><BeatListPage /></RoleGuard>} />
+          <Route path="/beats/create" element={<RoleGuard minRole="editor"><BeatCreatePage /></RoleGuard>} />
+          <Route path="/beats/:namespace/:name" element={<RoleGuard minRole="editor"><BeatDetailPage /></RoleGuard>} />
+          <Route path="/beats/:namespace/:name/edit" element={<RoleGuard minRole="editor"><BeatEditPage /></RoleGuard>} />
 
           {/* Fleet Server */}
-          <Route path="/fleet-server" element={<FleetServerListPage />} />
-          <Route path="/fleet-server/create" element={<FleetServerCreatePage />} />
-          <Route path="/fleet-server/:namespace/:name" element={<FleetServerDetailPage />} />
-          <Route path="/fleet-server/:namespace/:name/edit" element={<FleetServerEditPage />} />
+          <Route path="/fleet-server" element={<RoleGuard minRole="editor"><FleetServerListPage /></RoleGuard>} />
+          <Route path="/fleet-server/create" element={<RoleGuard minRole="editor"><FleetServerCreatePage /></RoleGuard>} />
+          <Route path="/fleet-server/:namespace/:name" element={<RoleGuard minRole="editor"><FleetServerDetailPage /></RoleGuard>} />
+          <Route path="/fleet-server/:namespace/:name/edit" element={<RoleGuard minRole="editor"><FleetServerEditPage /></RoleGuard>} />
 
           {/* Agent */}
-          <Route path="/agent" element={<AgentListPage />} />
-          <Route path="/agent/create" element={<AgentCreatePage />} />
-          <Route path="/agent/:namespace/:name" element={<AgentDetailPage />} />
-          <Route path="/agent/:namespace/:name/edit" element={<AgentEditPage />} />
+          <Route path="/agent" element={<RoleGuard minRole="editor"><AgentListPage /></RoleGuard>} />
+          <Route path="/agent/create" element={<RoleGuard minRole="editor"><AgentCreatePage /></RoleGuard>} />
+          <Route path="/agent/:namespace/:name" element={<RoleGuard minRole="editor"><AgentDetailPage /></RoleGuard>} />
+          <Route path="/agent/:namespace/:name/edit" element={<RoleGuard minRole="editor"><AgentEditPage /></RoleGuard>} />
 
           {/* Logstash */}
-          <Route path="/logstash" element={<LogstashListPage />} />
-          <Route path="/logstash/create" element={<LogstashCreatePage />} />
-          <Route path="/logstash/:namespace/:name" element={<LogstashDetailPage />} />
-          <Route path="/logstash/:namespace/:name/edit" element={<LogstashEditPage />} />
+          <Route path="/logstash" element={<RoleGuard minRole="editor"><LogstashListPage /></RoleGuard>} />
+          <Route path="/logstash/create" element={<RoleGuard minRole="editor"><LogstashCreatePage /></RoleGuard>} />
+          <Route path="/logstash/:namespace/:name" element={<RoleGuard minRole="editor"><LogstashDetailPage /></RoleGuard>} />
+          <Route path="/logstash/:namespace/:name/edit" element={<RoleGuard minRole="editor"><LogstashEditPage /></RoleGuard>} />
 
           {/* Enterprise Search */}
-          <Route path="/enterprise-search" element={<EnterpriseSearchListPage />} />
-          <Route path="/enterprise-search/create" element={<EnterpriseSearchCreatePage />} />
-          <Route path="/enterprise-search/:namespace/:name" element={<EnterpriseSearchDetailPage />} />
-          <Route path="/enterprise-search/:namespace/:name/edit" element={<EnterpriseSearchEditPage />} />
+          <Route path="/enterprise-search" element={<RoleGuard minRole="editor"><EnterpriseSearchListPage /></RoleGuard>} />
+          <Route path="/enterprise-search/create" element={<RoleGuard minRole="editor"><EnterpriseSearchCreatePage /></RoleGuard>} />
+          <Route path="/enterprise-search/:namespace/:name" element={<RoleGuard minRole="editor"><EnterpriseSearchDetailPage /></RoleGuard>} />
+          <Route path="/enterprise-search/:namespace/:name/edit" element={<RoleGuard minRole="editor"><EnterpriseSearchEditPage /></RoleGuard>} />
 
           {/* Elastic Maps */}
-          <Route path="/maps" element={<MapsListPage />} />
-          <Route path="/maps/create" element={<MapsCreatePage />} />
-          <Route path="/maps/:namespace/:name" element={<MapsDetailPage />} />
-          <Route path="/maps/:namespace/:name/edit" element={<MapsEditPage />} />
+          <Route path="/maps" element={<RoleGuard minRole="editor"><MapsListPage /></RoleGuard>} />
+          <Route path="/maps/create" element={<RoleGuard minRole="editor"><MapsCreatePage /></RoleGuard>} />
+          <Route path="/maps/:namespace/:name" element={<RoleGuard minRole="editor"><MapsDetailPage /></RoleGuard>} />
+          <Route path="/maps/:namespace/:name/edit" element={<RoleGuard minRole="editor"><MapsEditPage /></RoleGuard>} />
 
           {/* Stack Config Policies */}
-          <Route path="/stackconfigpolicy" element={<StackConfigPolicyListPage />} />
-          <Route path="/stackconfigpolicy/create" element={<StackConfigPolicyCreatePage />} />
-          <Route path="/stackconfigpolicy/:namespace/:name" element={<StackConfigPolicyDetailPage />} />
-          <Route path="/stackconfigpolicy/:namespace/:name/edit" element={<StackConfigPolicyEditPage />} />
+          <Route path="/stackconfigpolicy" element={<RoleGuard minRole="editor"><StackConfigPolicyListPage /></RoleGuard>} />
+          <Route path="/stackconfigpolicy/create" element={<RoleGuard minRole="editor"><StackConfigPolicyCreatePage /></RoleGuard>} />
+          <Route path="/stackconfigpolicy/:namespace/:name" element={<RoleGuard minRole="editor"><StackConfigPolicyDetailPage /></RoleGuard>} />
+          <Route path="/stackconfigpolicy/:namespace/:name/edit" element={<RoleGuard minRole="editor"><StackConfigPolicyEditPage /></RoleGuard>} />
 
           {/* Elasticsearch Autoscalers */}
-          <Route path="/elasticsearchautoscaler" element={<AutoscalerListPage />} />
-          <Route path="/elasticsearchautoscaler/create" element={<AutoscalerCreatePage />} />
-          <Route path="/elasticsearchautoscaler/:namespace/:name" element={<AutoscalerDetailPage />} />
-          <Route path="/elasticsearchautoscaler/:namespace/:name/edit" element={<AutoscalerEditPage />} />
+          <Route path="/elasticsearchautoscaler" element={<RoleGuard minRole="editor"><AutoscalerListPage /></RoleGuard>} />
+          <Route path="/elasticsearchautoscaler/create" element={<RoleGuard minRole="editor"><AutoscalerCreatePage /></RoleGuard>} />
+          <Route path="/elasticsearchautoscaler/:namespace/:name" element={<RoleGuard minRole="editor"><AutoscalerDetailPage /></RoleGuard>} />
+          <Route path="/elasticsearchautoscaler/:namespace/:name/edit" element={<RoleGuard minRole="editor"><AutoscalerEditPage /></RoleGuard>} />
 
           {/* Admin */}
-          <Route path="/admin/versions" element={<AdminGuard><VersionManagementPage /></AdminGuard>} />
-          <Route path="/admin/templates" element={<AdminGuard><DeploymentTemplatesPage /></AdminGuard>} />
-          <Route path="/admin/system" element={<AdminGuard><SystemInfoPage /></AdminGuard>} />
+          <Route path="/admin/versions" element={<RoleGuard minRole="admin"><VersionManagementPage /></RoleGuard>} />
+          <Route path="/admin/templates" element={<RoleGuard minRole="admin"><DeploymentTemplatesPage /></RoleGuard>} />
+          <Route path="/admin/system" element={<RoleGuard minRole="admin"><SystemInfoPage /></RoleGuard>} />
 
           {/* Wizard redirect */}
           <Route path="/wizard" element={<Navigate to="/deployments/create" replace />} />

@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { EuiSideNav, EuiIcon, type EuiSideNavItemType } from '@elastic/eui';
-import { useAuthStore } from '../../stores/authStore';
+import { useUserRole } from '../../hooks/useUserRole';
 
 function createItem(
   name: string,
@@ -23,12 +23,22 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  const user = useAuthStore((s) => s.user);
+  const role = useUserRole();
 
-  // Check admin access (matches backend deriveRole logic)
-  const isAdmin = user?.groups?.some(
-    (g) => g.includes('admin') || g.includes('system:serviceaccounts'),
-  ) ?? !user?.groups?.length;
+  if (role === 'viewer') {
+    const viewerNav: EuiSideNavItemType<object>[] = [
+      createItem('My Deployments', '/deployments', currentPath, navigate, 'layers'),
+      createItem('Settings', '/settings', currentPath, navigate, 'gear'),
+    ];
+
+    return (
+      <EuiSideNav
+        aria-label="Main navigation"
+        items={viewerNav}
+        mobileTitle="Navigation"
+      />
+    );
+  }
 
   const navItems: EuiSideNavItemType<object>[] = [
     {
@@ -69,7 +79,7 @@ export function Sidebar() {
     },
   ];
 
-  if (isAdmin) {
+  if (role === 'admin') {
     navItems.push({
       id: 'admin',
       name: 'Administration',
