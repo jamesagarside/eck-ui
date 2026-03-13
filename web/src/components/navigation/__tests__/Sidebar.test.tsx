@@ -2,22 +2,24 @@ import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen } from '../../../test/utils';
 import { Sidebar } from '../Sidebar';
 import { useAuthStore } from '../../../stores/authStore';
+import type { PlatformRole } from '../../../hooks/useUserRole';
 
-function setUser(groups: string[]) {
+function setRole(role: PlatformRole) {
   useAuthStore.setState({
-    user: { username: 'test', uid: '1', groups },
+    user: { username: 'test', uid: '1', groups: [] },
+    role,
     isAuthenticated: true,
   });
 }
 
 afterEach(() => {
-  useAuthStore.setState({ user: null, isAuthenticated: false });
+  useAuthStore.setState({ user: null, role: null, roles: {}, isAuthenticated: false });
 });
 
 describe('Sidebar', () => {
-  describe('viewer role', () => {
+  describe('deployment-viewer role', () => {
     beforeEach(() => {
-      setUser(['viewers']);
+      setRole('deployment-viewer');
     });
 
     it('shows My Deployments and Settings links', () => {
@@ -52,9 +54,9 @@ describe('Sidebar', () => {
     });
   });
 
-  describe('admin role', () => {
+  describe('platform-admin role', () => {
     beforeEach(() => {
-      setUser(['cluster-admin']);
+      setRole('platform-admin');
     });
 
     it('shows Dashboard', () => {
@@ -102,9 +104,30 @@ describe('Sidebar', () => {
     });
   });
 
-  describe('editor role', () => {
+  describe('deployment-manager role', () => {
     beforeEach(() => {
-      setUser(['platform-editors']);
+      setRole('deployment-manager');
+    });
+
+    it('shows Dashboard, Deployments, Resources, and Stack Management', () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+      expect(screen.getByText('Deployments')).toBeInTheDocument();
+      expect(screen.getByText('Resources')).toBeInTheDocument();
+      expect(screen.getByText('Stack Management')).toBeInTheDocument();
+    });
+
+    it('does not show Administration section', () => {
+      render(<Sidebar />);
+
+      expect(screen.queryByText('Administration')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('platform-viewer role', () => {
+    beforeEach(() => {
+      setRole('platform-viewer');
     });
 
     it('shows Dashboard, Deployments, Resources, and Stack Management', () => {
@@ -125,14 +148,14 @@ describe('Sidebar', () => {
 
   describe('navigation aria label', () => {
     it('renders with accessible navigation label', () => {
-      setUser(['cluster-admin']);
+      setRole('platform-admin');
       render(<Sidebar />);
 
       expect(screen.getByLabelText('Main navigation')).toBeInTheDocument();
     });
 
-    it('renders with accessible navigation label for viewer', () => {
-      setUser(['viewers']);
+    it('renders with accessible navigation label for deployment-viewer', () => {
+      setRole('deployment-viewer');
       render(<Sidebar />);
 
       expect(screen.getByLabelText('Main navigation')).toBeInTheDocument();

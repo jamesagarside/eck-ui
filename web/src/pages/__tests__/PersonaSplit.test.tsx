@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { Sidebar } from '../../components/navigation/Sidebar';
 import { DashboardPage } from '../dashboard/DashboardPage';
 import { ElasticsearchListPage } from '../elasticsearch/ElasticsearchListPage';
+import type { PlatformRole } from '../../hooks/useUserRole';
 
 const server = setupServer(...handlers);
 
@@ -15,6 +16,8 @@ afterEach(() => {
   server.resetHandlers();
   useAuthStore.setState({
     user: null,
+    role: null,
+    roles: {},
     activeOrg: null,
     orgs: [],
     isAuthenticated: false,
@@ -25,26 +28,19 @@ afterEach(() => {
 afterAll(() => server.close());
 
 /**
- * Helper to set auth store state for a specific role.
- * The role derivation in useUserRole works as follows:
- * - Groups containing "admin" or "system:serviceaccounts" -> admin
- * - Groups containing "editor" -> editor
- * - All other groups -> viewer
- * - No user or no groups -> admin (fallback)
+ * Helper to set auth store state for a specific platform role.
+ * Roles are now set directly from the backend session API,
+ * not derived from group names.
  */
-function setUserRole(role: 'admin' | 'editor' | 'viewer') {
-  const groupMap = {
-    admin: ['admin'],
-    editor: ['editor-team'],
-    viewer: ['developers'],
-  };
-
+function setUserRole(role: PlatformRole) {
   useAuthStore.setState({
     user: {
       username: `test-${role}`,
       uid: '1',
-      groups: groupMap[role],
+      groups: [],
     },
+    role,
+    roles: {},
     activeOrg: { name: 'default', namespaces: ['default'] },
     orgs: [{ name: 'default', namespaces: ['default'] }],
     isAuthenticated: true,
@@ -54,18 +50,18 @@ function setUserRole(role: 'admin' | 'editor' | 'viewer') {
 }
 
 // ---------------------------------------------------------------------------
-// Test 9.1: Viewer sidebar shows simplified navigation
+// Test 9.1: Deployment-viewer sidebar shows simplified navigation
 // ---------------------------------------------------------------------------
-describe('Persona Split - Viewer Sidebar', () => {
-  it('renders only "My Deployments" and "Settings" for viewer role', () => {
-    setUserRole('viewer');
+describe('Persona Split - Deployment Viewer Sidebar', () => {
+  it('renders only "My Deployments" and "Settings" for deployment-viewer role', () => {
+    setUserRole('deployment-viewer');
     render(<Sidebar />);
 
     // Viewer-specific items should be present
     expect(screen.getByText('My Deployments')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
 
-    // Admin/editor items should NOT be present
+    // Other roles' items should NOT be present
     expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
     expect(screen.queryByText('Resources')).not.toBeInTheDocument();
     expect(screen.queryByText('Elasticsearch')).not.toBeInTheDocument();
@@ -74,8 +70,8 @@ describe('Persona Split - Viewer Sidebar', () => {
     expect(screen.queryByText('Stack Management')).not.toBeInTheDocument();
   });
 
-  it('does not show resource type navigation items for viewers', () => {
-    setUserRole('viewer');
+  it('does not show resource type navigation items for deployment-viewer', () => {
+    setUserRole('deployment-viewer');
     render(<Sidebar />);
 
     const resourceTypes = [
@@ -95,11 +91,11 @@ describe('Persona Split - Viewer Sidebar', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 9.2: Admin sidebar shows full navigation
+// Test 9.2: Platform-admin sidebar shows full navigation
 // ---------------------------------------------------------------------------
-describe('Persona Split - Admin Sidebar', () => {
+describe('Persona Split - Platform Admin Sidebar', () => {
   it('renders full navigation including Dashboard, Resources, and Administration', () => {
-    setUserRole('admin');
+    setUserRole('platform-admin');
     render(<Sidebar />);
 
     // Top-level navigation
@@ -131,7 +127,7 @@ describe('Persona Split - Admin Sidebar', () => {
   });
 
   it('does not show viewer-specific items like "My Deployments" or "Settings"', () => {
-    setUserRole('admin');
+    setUserRole('platform-admin');
     render(<Sidebar />);
 
     // Admin sidebar uses "Deployments", not "My Deployments"
@@ -141,31 +137,49 @@ describe('Persona Split - Admin Sidebar', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 9.2b: Editor sidebar shows Resources but no Administration
+// Test 9.2b: Platform-viewer sidebar shows Resources but no Administration
 // ---------------------------------------------------------------------------
-describe('Persona Split - Editor Sidebar', () => {
+describe('Persona Split - Platform Viewer Sidebar', () => {
   it('renders Resources and Stack Management but not Administration', () => {
-    setUserRole('editor');
+    setUserRole('platform-viewer');
     render(<Sidebar />);
 
-    // Editor sees the same nav as admin minus Administration
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Deployments')).toBeInTheDocument();
     expect(screen.getByText('Resources')).toBeInTheDocument();
     expect(screen.getByText('Elasticsearch')).toBeInTheDocument();
     expect(screen.getByText('Stack Management')).toBeInTheDocument();
 
-    // Administration is admin-only
+    // Administration is platform-admin only
     expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Test 9.3: Viewer dashboard shows deployment-centric card view
+// Test 9.2c: Deployment-manager sidebar shows Resources but no Administration
 // ---------------------------------------------------------------------------
-describe('Persona Split - Viewer Dashboard', () => {
-  it('renders "My Deployments" title for viewer role', async () => {
-    setUserRole('viewer');
+describe('Persona Split - Deployment Manager Sidebar', () => {
+  it('renders Resources and Stack Management but not Administration', () => {
+    setUserRole('deployment-manager');
+    render(<Sidebar />);
+
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Deployments')).toBeInTheDocument();
+    expect(screen.getByText('Resources')).toBeInTheDocument();
+    expect(screen.getByText('Elasticsearch')).toBeInTheDocument();
+    expect(screen.getByText('Stack Management')).toBeInTheDocument();
+
+    // Administration is platform-admin only
+    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 9.3: Deployment-viewer dashboard shows deployment-centric card view
+// ---------------------------------------------------------------------------
+describe('Persona Split - Deployment Viewer Dashboard', () => {
+  it('renders "My Deployments" title for deployment-viewer role', async () => {
+    setUserRole('deployment-viewer');
     render(<DashboardPage />);
 
     // Viewer dashboard shows "My Deployments" heading
@@ -181,27 +195,25 @@ describe('Persona Split - Viewer Dashboard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 9.3b: Admin dashboard shows fleet overview with resource summaries
+// Test 9.3b: Platform-admin dashboard shows fleet overview with resource summaries
 // ---------------------------------------------------------------------------
-describe('Persona Split - Admin Dashboard', () => {
-  it('renders "Dashboard" title with resource summary for admin role', async () => {
-    setUserRole('admin');
+describe('Persona Split - Platform Admin Dashboard', () => {
+  it('renders "Dashboard" title with resource summary for platform-admin role', async () => {
+    setUserRole('platform-admin');
     render(<DashboardPage />);
 
-    // Admin dashboard shows "Dashboard" heading
     expect(
       await screen.findByText('Dashboard', {}, { timeout: 5000 }),
     ).toBeInTheDocument();
 
-    // Admin sees resource management sections
     expect(
       await screen.findByText('Resource Summary', {}, { timeout: 5000 }),
     ).toBeInTheDocument();
     expect(screen.getByText('Recent Resources')).toBeInTheDocument();
   });
 
-  it('shows auto-refresh toggle on admin dashboard', async () => {
-    setUserRole('admin');
+  it('shows auto-refresh toggle on platform-admin dashboard', async () => {
+    setUserRole('platform-admin');
     render(<DashboardPage />);
 
     expect(
@@ -209,8 +221,8 @@ describe('Persona Split - Admin Dashboard', () => {
     ).toBeInTheDocument();
   });
 
-  it('does not show "My Deployments" title on admin dashboard', async () => {
-    setUserRole('admin');
+  it('does not show "My Deployments" title on platform-admin dashboard', async () => {
+    setUserRole('platform-admin');
     render(<DashboardPage />);
 
     await screen.findByText('Dashboard', {}, { timeout: 5000 });
@@ -219,26 +231,24 @@ describe('Persona Split - Admin Dashboard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 9.4: Admin can access Elasticsearch list page with search
+// Test 9.4: Platform-admin can access Elasticsearch list page with search
 // ---------------------------------------------------------------------------
-describe('Persona Split - Admin Elasticsearch List', () => {
-  it('renders search input on Elasticsearch list page for admin', async () => {
-    setUserRole('admin');
+describe('Persona Split - Platform Admin Elasticsearch List', () => {
+  it('renders search input on Elasticsearch list page for platform-admin', async () => {
+    setUserRole('platform-admin');
     render(<ElasticsearchListPage />);
 
-    // Wait for the page to load
     expect(
       await screen.findByText('Elasticsearch Clusters', {}, { timeout: 5000 }),
     ).toBeInTheDocument();
 
-    // Search input should be present
     expect(
       screen.getByRole('searchbox', { name: /search resources/i }),
     ).toBeInTheDocument();
   });
 
-  it('renders Create Cluster button for admin', async () => {
-    setUserRole('admin');
+  it('renders Create Cluster button for platform-admin', async () => {
+    setUserRole('platform-admin');
     render(<ElasticsearchListPage />);
 
     expect(
@@ -247,10 +257,9 @@ describe('Persona Split - Admin Elasticsearch List', () => {
   });
 
   it('displays resource data from the API', async () => {
-    setUserRole('admin');
+    setUserRole('platform-admin');
     render(<ElasticsearchListPage />);
 
-    // The mock returns resources named "my-es" and "prod-es"
     expect(
       await screen.findByText('my-es', {}, { timeout: 5000 }),
     ).toBeInTheDocument();
@@ -259,12 +268,14 @@ describe('Persona Split - Admin Elasticsearch List', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 9.5: Role derivation edge cases via useUserRole
+// Test 9.5: Role fallback behavior
 // ---------------------------------------------------------------------------
-describe('Persona Split - Role Derivation Edge Cases', () => {
-  it('treats user with no groups as admin (fallback behavior)', () => {
+describe('Persona Split - Role Fallback', () => {
+  it('defaults to platform-admin when role is null (fallback behavior)', () => {
     useAuthStore.setState({
-      user: { username: 'no-groups-user', uid: '2', groups: [] },
+      user: { username: 'no-role-user', uid: '2', groups: [] },
+      role: null,
+      roles: {},
       isAuthenticated: true,
       isLoading: false,
       activeOrg: null,
@@ -274,14 +285,16 @@ describe('Persona Split - Role Derivation Edge Cases', () => {
 
     render(<Sidebar />);
 
-    // No groups -> admin fallback -> full sidebar
+    // Null role -> platform-admin fallback -> full sidebar
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Administration')).toBeInTheDocument();
   });
 
-  it('treats null user as admin (fallback behavior)', () => {
+  it('defaults to platform-admin when user is null (fallback behavior)', () => {
     useAuthStore.setState({
       user: null,
+      role: null,
+      roles: {},
       isAuthenticated: false,
       isLoading: false,
       activeOrg: null,
@@ -291,90 +304,8 @@ describe('Persona Split - Role Derivation Edge Cases', () => {
 
     render(<Sidebar />);
 
-    // Null user -> admin fallback -> full sidebar
+    // Null user -> platform-admin fallback -> full sidebar
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Administration')).toBeInTheDocument();
-  });
-
-  it('recognizes system:serviceaccounts group as admin', () => {
-    useAuthStore.setState({
-      user: {
-        username: 'sa-user',
-        uid: '3',
-        groups: ['system:serviceaccounts:kube-system'],
-      },
-      isAuthenticated: true,
-      isLoading: false,
-      activeOrg: null,
-      orgs: [],
-      error: null,
-    });
-
-    render(<Sidebar />);
-
-    // system:serviceaccounts -> admin
-    expect(screen.getByText('Administration')).toBeInTheDocument();
-  });
-
-  it('treats group containing "admin" substring as admin', () => {
-    useAuthStore.setState({
-      user: {
-        username: 'cluster-admin-user',
-        uid: '4',
-        groups: ['cluster-administrators'],
-      },
-      isAuthenticated: true,
-      isLoading: false,
-      activeOrg: null,
-      orgs: [],
-      error: null,
-    });
-
-    render(<Sidebar />);
-
-    expect(screen.getByText('Administration')).toBeInTheDocument();
-  });
-
-  it('treats group containing "editor" substring as editor', () => {
-    useAuthStore.setState({
-      user: {
-        username: 'content-editor',
-        uid: '5',
-        groups: ['content-editors'],
-      },
-      isAuthenticated: true,
-      isLoading: false,
-      activeOrg: null,
-      orgs: [],
-      error: null,
-    });
-
-    render(<Sidebar />);
-
-    // Editor sees Resources but not Administration
-    expect(screen.getByText('Resources')).toBeInTheDocument();
-    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
-  });
-
-  it('treats unrecognized group as viewer', () => {
-    useAuthStore.setState({
-      user: {
-        username: 'regular-user',
-        uid: '6',
-        groups: ['marketing-team'],
-      },
-      isAuthenticated: true,
-      isLoading: false,
-      activeOrg: null,
-      orgs: [],
-      error: null,
-    });
-
-    render(<Sidebar />);
-
-    // Unrecognized group -> viewer
-    expect(screen.getByText('My Deployments')).toBeInTheDocument();
-    expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
   });
 });

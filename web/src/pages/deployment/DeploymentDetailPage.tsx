@@ -31,7 +31,7 @@ import { PodTable } from '../../components/common/PodLogsViewer';
 import { buildECKLabelSelector } from '../../hooks/usePods';
 import type { PodSummary } from '../../hooks/usePods';
 import { routePath } from '../../utils/routePaths';
-import { useUserRole } from '../../hooks/useUserRole';
+import { useUserRole, hasMinRole } from '../../hooks/useUserRole';
 import { extractEndpoints } from '../../utils/endpointExtractor';
 import apiClient from '../../api/client';
 import type { HealthStatus, ResourceEvent } from '../../types/resources';
@@ -69,7 +69,7 @@ export function DeploymentDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
   const role = useUserRole();
-  const isViewer = role === 'viewer';
+  const isViewer = !hasMinRole(role, 'deployment-manager');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');

@@ -8,6 +8,8 @@ describe('AdminGuard', () => {
   beforeEach(() => {
     useAuthStore.setState({
       user: null,
+      role: null,
+      roles: {},
       activeOrg: null,
       orgs: [],
       isAuthenticated: false,
@@ -16,9 +18,10 @@ describe('AdminGuard', () => {
     });
   });
 
-  it('renders children when user has admin group', () => {
+  it('renders children when user has platform-admin role', () => {
     useAuthStore.setState({
-      user: { username: 'admin-user', uid: '1', groups: ['admin'] },
+      user: { username: 'admin-user', uid: '1', groups: [] },
+      role: 'platform-admin',
       isAuthenticated: true,
     });
 
@@ -31,9 +34,10 @@ describe('AdminGuard', () => {
     expect(screen.getByTestId('protected')).toBeInTheDocument();
   });
 
-  it('renders children when user has system:serviceaccounts group', () => {
+  it('renders children when role is null (defaults to platform-admin)', () => {
     useAuthStore.setState({
-      user: { username: 'sa-user', uid: '2', groups: ['system:serviceaccounts'] },
+      user: { username: 'no-role', uid: '3', groups: [] },
+      role: null,
       isAuthenticated: true,
     });
 
@@ -46,24 +50,10 @@ describe('AdminGuard', () => {
     expect(screen.getByTestId('protected')).toBeInTheDocument();
   });
 
-  it('renders children when user has no groups (defaults to admin)', () => {
+  it('redirects deployment-viewer away from admin pages', () => {
     useAuthStore.setState({
-      user: { username: 'no-groups', uid: '3', groups: [] },
-      isAuthenticated: true,
-    });
-
-    render(
-      <AdminGuard>
-        <div data-testid="protected">Admin Content</div>
-      </AdminGuard>,
-    );
-
-    expect(screen.getByTestId('protected')).toBeInTheDocument();
-  });
-
-  it('redirects non-admin users away from admin pages', () => {
-    useAuthStore.setState({
-      user: { username: 'viewer', uid: '5', groups: ['viewers'] },
+      user: { username: 'viewer', uid: '5', groups: [] },
+      role: 'deployment-viewer',
       isAuthenticated: true,
     });
 
@@ -76,9 +66,26 @@ describe('AdminGuard', () => {
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument();
   });
 
-  it('redirects editor users without admin group', () => {
+  it('redirects deployment-manager away from admin pages', () => {
     useAuthStore.setState({
-      user: { username: 'editor', uid: '6', groups: ['editors', 'developers'] },
+      user: { username: 'manager', uid: '6', groups: [] },
+      role: 'deployment-manager',
+      isAuthenticated: true,
+    });
+
+    render(
+      <AdminGuard>
+        <div data-testid="protected">Admin Content</div>
+      </AdminGuard>,
+    );
+
+    expect(screen.queryByTestId('protected')).not.toBeInTheDocument();
+  });
+
+  it('redirects platform-viewer away from admin pages', () => {
+    useAuthStore.setState({
+      user: { username: 'platform-viewer', uid: '7', groups: [] },
+      role: 'platform-viewer',
       isAuthenticated: true,
     });
 

@@ -12,7 +12,7 @@ import {
 } from '@elastic/eui';
 import { useNavigate } from 'react-router-dom';
 import { useDeployments } from '../../hooks/useDeployments';
-import { useUserRole } from '../../hooks/useUserRole';
+import { useUserRole, hasMinRole } from '../../hooks/useUserRole';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { DeploymentCardGrid } from '../../components/deployment/DeploymentCardGrid';
 import type { Deployment } from '../../types/deployment';
@@ -50,7 +50,7 @@ export function DeploymentListPage() {
   const navigate = useNavigate();
   const { deployments, isLoading } = useDeployments();
   const role = useUserRole();
-  const isViewer = role === 'viewer';
+  const isViewer = !hasMinRole(role, 'platform-viewer');
 
   if (isLoading) return <ListSkeleton />;
 

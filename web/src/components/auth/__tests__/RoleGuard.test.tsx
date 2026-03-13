@@ -6,15 +6,16 @@ import { EuiProvider } from '@elastic/eui';
 import { RoleGuard } from '../RoleGuard';
 import { useAuthStore } from '../../../stores/authStore';
 import { ToastProvider } from '../../../context/ToastContext';
+import type { PlatformRole } from '../../../hooks/useUserRole';
 
-function setUser(groups: string[]) {
+function setRole(role: PlatformRole) {
   useAuthStore.setState({
-    user: { username: 'test', uid: '1', groups },
+    role,
     isAuthenticated: true,
   });
 }
 
-function renderGuarded(minRole: 'editor' | 'admin') {
+function renderGuarded(minRole: PlatformRole) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
@@ -46,65 +47,86 @@ function renderGuarded(minRole: 'editor' | 'admin') {
 }
 
 afterEach(() => {
-  useAuthStore.setState({ user: null, isAuthenticated: false });
+  useAuthStore.setState({ user: null, role: null, roles: {}, isAuthenticated: false });
 });
 
 describe('RoleGuard', () => {
-  describe('minRole="editor"', () => {
-    it('redirects viewer away from editor-guarded content', () => {
-      setUser(['viewers']);
-      renderGuarded('editor');
+  describe('minRole="deployment-manager"', () => {
+    it('redirects deployment-viewer away', () => {
+      setRole('deployment-viewer');
+      renderGuarded('deployment-manager');
 
       expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
       expect(screen.getByText('Redirected to Deployments')).toBeInTheDocument();
     });
 
-    it('allows editor to access editor-guarded content', () => {
-      setUser(['platform-editors']);
-      renderGuarded('editor');
+    it('redirects platform-viewer away', () => {
+      setRole('platform-viewer');
+      renderGuarded('deployment-manager');
 
-      expect(screen.getByText('Protected Content')).toBeInTheDocument();
-      expect(
-        screen.queryByText('Redirected to Deployments'),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+      expect(screen.getByText('Redirected to Deployments')).toBeInTheDocument();
     });
 
-    it('allows admin to access editor-guarded content', () => {
-      setUser(['cluster-admin']);
-      renderGuarded('editor');
+    it('allows deployment-manager', () => {
+      setRole('deployment-manager');
+      renderGuarded('deployment-manager');
 
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
-      expect(
-        screen.queryByText('Redirected to Deployments'),
-      ).not.toBeInTheDocument();
+    });
+
+    it('allows platform-admin', () => {
+      setRole('platform-admin');
+      renderGuarded('deployment-manager');
+
+      expect(screen.getByText('Protected Content')).toBeInTheDocument();
     });
   });
 
-  describe('minRole="admin"', () => {
-    it('redirects viewer away from admin-guarded content', () => {
-      setUser(['viewers']);
-      renderGuarded('admin');
+  describe('minRole="platform-admin"', () => {
+    it('redirects deployment-viewer away', () => {
+      setRole('deployment-viewer');
+      renderGuarded('platform-admin');
 
       expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-      expect(screen.getByText('Redirected to Deployments')).toBeInTheDocument();
     });
 
-    it('redirects editor away from admin-guarded content', () => {
-      setUser(['platform-editors']);
-      renderGuarded('admin');
+    it('redirects deployment-manager away', () => {
+      setRole('deployment-manager');
+      renderGuarded('platform-admin');
 
       expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-      expect(screen.getByText('Redirected to Deployments')).toBeInTheDocument();
     });
 
-    it('allows admin to access admin-guarded content', () => {
-      setUser(['cluster-admin']);
-      renderGuarded('admin');
+    it('redirects platform-viewer away', () => {
+      setRole('platform-viewer');
+      renderGuarded('platform-admin');
+
+      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    });
+
+    it('allows platform-admin', () => {
+      setRole('platform-admin');
+      renderGuarded('platform-admin');
 
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
-      expect(
-        screen.queryByText('Redirected to Deployments'),
-      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('minRole="deployment-viewer"', () => {
+    it('allows all roles', () => {
+      const roles: PlatformRole[] = [
+        'platform-admin',
+        'deployment-manager',
+        'platform-viewer',
+        'deployment-viewer',
+      ];
+      for (const role of roles) {
+        setRole(role);
+        const { unmount } = renderGuarded('deployment-viewer');
+        expect(screen.getByText('Protected Content')).toBeInTheDocument();
+        unmount();
+      }
     });
   });
 });

@@ -1,25 +1,34 @@
 import { useAuthStore } from '../stores/authStore';
 
-export type UserRole = 'admin' | 'editor' | 'viewer';
+export type PlatformRole =
+  | 'platform-admin'
+  | 'deployment-manager'
+  | 'platform-viewer'
+  | 'deployment-viewer';
 
-export function useUserRole(): UserRole {
-  const user = useAuthStore((s) => s.user);
+// Role hierarchy for comparison (higher = more privilege)
+const roleLevel: Record<PlatformRole, number> = {
+  'platform-admin': 4,
+  'deployment-manager': 3,
+  'platform-viewer': 2,
+  'deployment-viewer': 1,
+};
 
-  if (!user || !user.groups || user.groups.length === 0) {
-    return 'admin';
-  }
-
-  if (
-    user.groups.some(
-      (g) => g.includes('admin') || g.includes('system:serviceaccounts'),
-    )
-  ) {
-    return 'admin';
-  }
-
-  if (user.groups.some((g) => g.includes('editor'))) {
-    return 'editor';
-  }
-
-  return 'viewer';
+/**
+ * Returns the user's resolved platform role from the auth store.
+ * The role is set by the backend session API, not derived client-side.
+ */
+export function useUserRole(): PlatformRole {
+  const role = useAuthStore((s) => s.role);
+  return role || 'platform-admin';
 }
+
+/**
+ * Returns true if the given role meets or exceeds the minimum required role.
+ */
+export function hasMinRole(role: PlatformRole, minRole: PlatformRole): boolean {
+  return (roleLevel[role] ?? 0) >= (roleLevel[minRole] ?? 0);
+}
+
+// Backward-compatible alias
+export type UserRole = PlatformRole;

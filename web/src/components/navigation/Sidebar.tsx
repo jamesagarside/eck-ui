@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { EuiSideNav, EuiIcon, type EuiSideNavItemType } from '@elastic/eui';
-import { useUserRole } from '../../hooks/useUserRole';
+import { useUserRole, hasMinRole } from '../../hooks/useUserRole';
 
 function createItem(
   name: string,
@@ -25,7 +25,7 @@ export function Sidebar() {
   const currentPath = location.pathname;
   const role = useUserRole();
 
-  if (role === 'viewer') {
+  if (!hasMinRole(role, 'platform-viewer')) {
     const viewerNav: EuiSideNavItemType<object>[] = [
       createItem('My Deployments', '/deployments', currentPath, navigate, 'layers'),
       createItem('Settings', '/settings', currentPath, navigate, 'gear'),
@@ -79,7 +79,7 @@ export function Sidebar() {
     },
   ];
 
-  if (role === 'admin') {
+  if (hasMinRole(role, 'platform-admin')) {
     navItems.push({
       id: 'admin',
       name: 'Administration',

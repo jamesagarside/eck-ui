@@ -21,7 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
 import { useResourceWatch } from '../../hooks/useResourceWatch';
-import { useUserRole } from '../../hooks/useUserRole';
+import { useUserRole, hasMinRole } from '../../hooks/useUserRole';
 import { useDeployments } from '../../hooks/useDeployments';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
 import { DeploymentCardGrid } from '../../components/deployment/DeploymentCardGrid';
@@ -156,7 +156,7 @@ export function DashboardPage() {
   }
 
   // Viewer dashboard: deployment-centric card view
-  if (role === 'viewer') {
+  if (!hasMinRole(role, 'platform-viewer')) {
     if (deploymentsHook.isLoading) return <DashboardSkeleton />;
 
     const viewerDeployments = deploymentsHook.deployments;

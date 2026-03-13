@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import apiClient from '../api/client';
+import type { PlatformRole } from '../hooks/useUserRole';
 
 interface User {
   username: string;
@@ -16,6 +17,8 @@ interface AuthState {
   user: User | null;
   activeOrg: Organization | null;
   orgs: Organization[];
+  role: PlatformRole | null;
+  roles: Record<string, PlatformRole>;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -34,12 +37,16 @@ interface SessionResponse {
   user: User;
   organizations: Organization[];
   activeOrganization: string;
+  role?: PlatformRole;
+  roles?: Record<string, PlatformRole>;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   activeOrg: null,
   orgs: [],
+  role: null,
+  roles: {},
   isAuthenticated: false,
   isLoading: false,
   error: null,
@@ -59,6 +66,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         user: session.user,
         orgs,
         activeOrg,
+        role: session.role || null,
+        roles: session.roles || {},
         isAuthenticated: true,
         isLoading: false,
       });
@@ -81,6 +90,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       user: null,
       activeOrg: null,
       orgs: [],
+      role: null,
+      roles: {},
       isAuthenticated: false,
       error: null,
     });
@@ -107,6 +118,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         user: session.user,
         orgs,
         activeOrg,
+        role: session.role || null,
+        roles: session.roles || {},
         isAuthenticated: true,
         isLoading: false,
       });
@@ -115,6 +128,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         user: null,
         activeOrg: null,
         orgs: [],
+        role: null,
+        roles: {},
         isAuthenticated: false,
         isLoading: false,
       });
