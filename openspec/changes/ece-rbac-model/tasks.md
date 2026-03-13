@@ -63,9 +63,9 @@
 
 ## 9. Integration & E2E Testing
 
-- [ ] 9.1 Add E2E test: user with no ECKUIRoleBinding and cluster-admin RBAC gets Platform Admin via SSAR passthrough
-- [ ] 9.2 Add E2E test: user with ECKUIRoleBinding as Deployment Viewer sees simplified sidebar and card grid
-- [ ] 9.3 Add E2E test: user with ECKUIRoleBinding overriding K8s RBAC (cluster-admin restricted to Deployment Viewer)
-- [ ] 9.4 Add E2E test: multiple ECKUIRoleBindings for same user — highest privilege wins
-- [ ] 9.5 Run full test suite (`go test ./...` and `cd web && npx vitest run`) and verify all existing and new tests pass
-- [ ] 9.6 Run `make deploy` and verify Docker build succeeds and application starts with new CRD installed
+- [x] 9.1 Add E2E test: user with no ECKUIRoleBinding and cluster-admin RBAC gets Platform Admin via SSAR passthrough
+- [x] 9.2 Add E2E test: user with ECKUIRoleBinding as Deployment Viewer sees simplified sidebar and card grid
+- [x] 9.3 Add E2E test: user with ECKUIRoleBinding overriding K8s RBAC (cluster-admin restricted to Deployment Viewer)
+- [x] 9.4 Add E2E test: multiple ECKUIRoleBindings for same user — highest privilege wins
+- [x] 9.5 Run full test suite (`go test ./...` and `cd web && npx vitest run`) and verify all existing and new tests pass
+- [x] 9.6 Run `make deploy` and verify Docker build succeeds and application starts with new CRD installed
