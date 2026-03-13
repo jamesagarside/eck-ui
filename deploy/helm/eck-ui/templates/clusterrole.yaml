@@ -75,3 +75,19 @@ rules:
       - tokenreviews
     verbs:
       - create
+  # Authorization - SSAR probes for RBAC role resolution
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - selfsubjectaccessreviews
+    verbs:
+      - create
+  # ECK UI role bindings - read for RBAC resolution
+  - apiGroups:
+      - ui.elastic.co
+    resources:
+      - eckuirolebindings
+    verbs:
+      - get
+      - list
+      - watch
