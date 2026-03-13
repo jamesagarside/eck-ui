@@ -27,6 +27,7 @@ import {
   type EuiSuperSelectOption,
 } from '@elastic/eui';
 import { useRoleBindings, useCreateRoleBinding, useDeleteRoleBinding } from '../../hooks/useRoleBindings';
+import { useAuthStore } from '../../stores/authStore';
 import type { ECKUIRoleBinding, RoleBindingSubject } from '../../types/rbac';
 import type { PlatformRole } from '../../hooks/useUserRole';
 
@@ -71,6 +72,7 @@ export function RoleManagementPage() {
   const { data: bindings, isLoading, error } = useRoleBindings();
   const createMutation = useCreateRoleBinding();
   const deleteMutation = useDeleteRoleBinding();
+  const user = useAuthStore((s) => s.user);
 
   const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ECKUIRoleBinding | null>(null);
@@ -254,6 +256,41 @@ export function RoleManagementPage() {
 
       <EuiSpacer size="l" />
 
+      <EuiCallOut
+        title="Identity source: Kubernetes TokenReview"
+        iconType="iInCircle"
+        color="primary"
+      >
+        <p>
+          Role bindings match against the <strong>username</strong> and <strong>groups</strong> returned
+          by your Kubernetes cluster's authentication backend. When a user logs in, their bearer token
+          is validated via the K8s TokenReview API, which returns their identity.
+        </p>
+        {user && (
+          <>
+            <EuiSpacer size="s" />
+            <p>
+              <strong>Your identity:</strong>{' '}
+              <EuiBadge color="hollow">User: {user.username}</EuiBadge>
+              {user.groups
+                .filter((g) => !g.startsWith('system:'))
+                .map((g) => (
+                  <EuiBadge key={g} style={{ marginLeft: 4 }}>Group: {g}</EuiBadge>
+                ))}
+            </p>
+          </>
+        )}
+        <EuiSpacer size="s" />
+        <p>
+          If your cluster uses an OIDC provider (Keycloak, Dex, Azure AD, etc.), usernames and groups
+          come from SSO claims. For ServiceAccount tokens, the username is{' '}
+          <code>system:serviceaccount:&lt;namespace&gt;:&lt;name&gt;</code>.
+          Without any role bindings, roles are inferred from Kubernetes RBAC permissions via SSAR probes.
+        </p>
+      </EuiCallOut>
+
+      <EuiSpacer size="l" />
+
       {error && (
         <>
           <EuiCallOut title="Failed to load role bindings" color="danger" iconType="warning">
@@ -337,7 +374,7 @@ export function RoleManagementPage() {
 
             <EuiFormRow
               label="Subjects"
-              helpText="Users or groups to assign this role to"
+              helpText="Usernames and groups as returned by Kubernetes TokenReview (from your OIDC provider, LDAP, or ServiceAccount identity)"
             >
               <div>
                 {formSubjects.map((subject, i) => (
