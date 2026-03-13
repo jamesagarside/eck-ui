@@ -1,69 +1,69 @@
 ## 1. CRD & Types
 
-- [ ] 1.1 Define ECKUICluster CRD YAML in `deploy/helm/eck-ui/crds/` with spec fields: `apiServerURL`, `caBundle`, `credentialSecretRef`, `displayName`, `allowedGroups`, `healthCheck`, `circuitBreaker`; and status fields: `phase`, `lastHealthCheck`, `lastError`, `version`, `eckVersion`, `resourceCounts`
-- [ ] 1.2 Create Go types in `pkg/clusters/types.go`: `ECKUICluster`, `ECKUIClusterSpec`, `ECKUIClusterStatus`, `HealthCheckConfig`, `CircuitBreakerConfig`, `CredentialSecretRef`, `ResourceCounts`
-- [ ] 1.3 Register the ECKUICluster GVR in `pkg/clusters/types.go` and add CRD discovery check function (`IsCRDInstalled`) for auto-detection of multi-cluster mode
-- [ ] 1.4 Create credential Secret type definitions and loader in `pkg/clusters/credentials.go` supporting both `token` and `kubeconfig` Secret formats
+- [x] 1.1 Define ECKUICluster CRD YAML in `deploy/helm/eck-ui/crds/` with spec fields: `apiServerURL`, `caBundle`, `credentialSecretRef`, `displayName`, `allowedGroups`, `healthCheck`, `circuitBreaker`; and status fields: `phase`, `lastHealthCheck`, `lastError`, `version`, `eckVersion`, `resourceCounts`
+- [x] 1.2 Create Go types in `pkg/clusters/types.go`: `ECKUICluster`, `ECKUIClusterSpec`, `ECKUIClusterStatus`, `HealthCheckConfig`, `CircuitBreakerConfig`, `CredentialSecretRef`, `ResourceCounts`
+- [x] 1.3 Register the ECKUICluster GVR in `pkg/clusters/types.go` and add CRD discovery check function (`IsCRDInstalled`) for auto-detection of multi-cluster mode
+- [x] 1.4 Create credential Secret type definitions and loader in `pkg/clusters/credentials.go` supporting both `token` and `kubeconfig` Secret formats
 
 ## 2. Cluster Manager
 
-- [ ] 2.1 Create `ClusterManager` struct in `pkg/clusters/manager.go` with client pool (`map[string]*ClusterClient`), circuit breaker map, stale cache, and `Start(ctx) / Stop()` lifecycle methods
-- [ ] 2.2 Implement CRD shared informer watch in `ClusterManager` that reacts to Add/Update/Delete events on ECKUICluster CRs, creating or removing `ClusterClient` instances accordingly
-- [ ] 2.3 Implement `GetClient(clusterID string) (*ClusterClient, error)` method that checks circuit breaker state, returns live client (CLOSED), stale data (OPEN), or probe client (HALF-OPEN)
-- [ ] 2.4 Implement per-cluster health reconciler goroutine that runs at `spec.healthCheck.intervalSeconds`, checks cluster connectivity via `/healthz`, and updates CRD status subresource
-- [ ] 2.5 Implement graceful shutdown: context cancellation stops all health reconcilers, closes all clients, and drains pending requests
+- [x] 2.1 Create `ClusterManager` struct in `pkg/clusters/manager.go` with client pool (`map[string]*ClusterClient`), circuit breaker map, stale cache, and `Start(ctx) / Stop()` lifecycle methods
+- [x] 2.2 Implement CRD shared informer watch in `ClusterManager` that reacts to Add/Update/Delete events on ECKUICluster CRs, creating or removing `ClusterClient` instances accordingly
+- [x] 2.3 Implement `GetClient(clusterID string) (*ClusterClient, error)` method that checks circuit breaker state, returns live client (CLOSED), stale data (OPEN), or probe client (HALF-OPEN)
+- [x] 2.4 Implement per-cluster health reconciler goroutine that runs at `spec.healthCheck.intervalSeconds`, checks cluster connectivity via `/healthz`, and updates CRD status subresource
+- [x] 2.5 Implement graceful shutdown: context cancellation stops all health reconcilers, closes all clients, and drains pending requests
 
 ## 3. Impersonation & Auth
 
-- [ ] 3.1 Create `NewImpersonatingConfig` function in `pkg/clusters/transport.go` that takes a base `rest.Config` and `auth.UserInfo`, returns a new config with `Impersonate.UserName` and `Impersonate.Groups` set
-- [ ] 3.2 Implement impersonation deny list in `pkg/clusters/transport.go`: reject usernames starting with `system:` and strip `system:masters` from groups
-- [ ] 3.3 Implement credential loading in `pkg/clusters/credentials.go`: read Secret from K8s API, extract `token` or `kubeconfig` key, construct `rest.Config` with `apiServerURL` and `caBundle` from the ECKUICluster CR
-- [ ] 3.4 Add audit logging for cross-cluster requests in `pkg/clusters/transport.go`: log cluster ID, impersonated user/groups, resource type, method, status code, and duration via `slog` and OTel span attributes
-- [ ] 3.5 Add Secret watch to `ClusterManager` to detect credential Secret changes and trigger client recreation
+- [x] 3.1 Create `NewImpersonatingConfig` function in `pkg/clusters/transport.go` that takes a base `rest.Config` and `auth.UserInfo`, returns a new config with `Impersonate.UserName` and `Impersonate.Groups` set
+- [x] 3.2 Implement impersonation deny list in `pkg/clusters/transport.go`: reject usernames starting with `system:` and strip `system:masters` from groups
+- [x] 3.3 Implement credential loading in `pkg/clusters/credentials.go`: read Secret from K8s API, extract `token` or `kubeconfig` key, construct `rest.Config` with `apiServerURL` and `caBundle` from the ECKUICluster CR
+- [x] 3.4 Add audit logging for cross-cluster requests in `pkg/clusters/transport.go`: log cluster ID, impersonated user/groups, resource type, method, status code, and duration via `slog` and OTel span attributes
+- [x] 3.5 Add Secret watch to `ClusterManager` to detect credential Secret changes and trigger client recreation
 
 ## 4. Circuit Breaker
 
-- [ ] 4.1 Create `CircuitBreaker` struct in `pkg/clusters/circuitbreaker.go` with states (CLOSED, OPEN, HALF-OPEN), failure counter, configurable thresholds (`failureThreshold`, `recoveryTimeout`, `requestTimeout`), and thread-safe state transitions
-- [ ] 4.2 Implement `RecordSuccess()` and `RecordFailure()` methods: success resets counter and closes circuit; failure increments counter and opens circuit at threshold
-- [ ] 4.3 Implement `AllowRequest() (bool, State)` method: returns true for CLOSED, false for OPEN (until recovery timeout), true-once for HALF-OPEN probe
-- [ ] 4.4 Implement stale data cache in `pkg/clusters/cache.go`: `StaleCache` with `Set(clusterID, path, response)` and `Get(clusterID, path) (*CachedResponse, bool)` methods, keyed by cluster+request path
-- [ ] 4.5 Add structured logging and OTel metrics for circuit state transitions: `level=warn` for OPEN, `level=info` for CLOSED, include cluster ID, previous state, new state, failure count
-- [ ] 4.6 Wire circuit breaker state to CRD status updates: OPEN sets `phase: Disconnected`, CLOSED sets `phase: Connected`
+- [x] 4.1 Create `CircuitBreaker` struct in `pkg/clusters/circuitbreaker.go` with states (CLOSED, OPEN, HALF-OPEN), failure counter, configurable thresholds (`failureThreshold`, `recoveryTimeout`, `requestTimeout`), and thread-safe state transitions
+- [x] 4.2 Implement `RecordSuccess()` and `RecordFailure()` methods: success resets counter and closes circuit; failure increments counter and opens circuit at threshold
+- [x] 4.3 Implement `AllowRequest() (bool, State)` method: returns true for CLOSED, false for OPEN (until recovery timeout), true-once for HALF-OPEN probe
+- [x] 4.4 Implement stale data cache in `pkg/clusters/cache.go`: `StaleCache` with `Set(clusterID, path, response)` and `Get(clusterID, path) (*CachedResponse, bool)` methods, keyed by cluster+request path
+- [x] 4.5 Add structured logging and OTel metrics for circuit state transitions: `level=warn` for OPEN, `level=info` for CLOSED, include cluster ID, previous state, new state, failure count
+- [x] 4.6 Wire circuit breaker state to CRD status updates: OPEN sets `phase: Disconnected`, CLOSED sets `phase: Connected`
 
 ## 5. API Routes
 
-- [ ] 5.1 Create cluster management handlers in `pkg/handlers/clusters.go`: `ListClusters`, `GetCluster`, `CreateCluster`, `UpdateCluster`, `DeleteCluster`, `HealthCheckCluster` — all requiring admin role for write operations
-- [ ] 5.2 Create aggregated overview handler in `pkg/handlers/overview.go`: `GetOverview` that queries all accessible clusters (respecting `allowedGroups`) and returns per-cluster resource summaries
-- [ ] 5.3 Register cluster management routes in `cmd/server/main.go`: `GET/POST /api/v1/clusters`, `GET/PUT/DELETE /api/v1/clusters/{cluster}`, `GET /api/v1/clusters/{cluster}/health`
-- [ ] 5.4 Register cluster-scoped resource routes in `cmd/server/main.go`: `GET/POST/PUT/DELETE /api/v1/clusters/{cluster}/{type}...` mirroring existing resource routes but with cluster prefix
-- [ ] 5.5 Register overview route: `GET /api/v1/overview`
-- [ ] 5.6 Implement single-cluster mode guard: when `ClusterManager` is nil (CRD not installed), all cluster routes return 404 with `"multi-cluster mode is not enabled"` message
+- [x] 5.1 Create cluster management handlers in `pkg/handlers/clusters.go`: `ListClusters`, `GetCluster`, `CreateCluster`, `UpdateCluster`, `DeleteCluster`, `HealthCheckCluster` — all requiring admin role for write operations
+- [x] 5.2 Create aggregated overview handler in `pkg/handlers/overview.go`: `GetOverview` that queries all accessible clusters (respecting `allowedGroups`) and returns per-cluster resource summaries
+- [x] 5.3 Register cluster management routes in `cmd/server/main.go`: `GET/POST /api/v1/clusters`, `GET/PUT/DELETE /api/v1/clusters/{cluster}`, `GET /api/v1/clusters/{cluster}/health`
+- [x] 5.4 Register cluster-scoped resource routes in `cmd/server/main.go`: `GET/POST/PUT/DELETE /api/v1/clusters/{cluster}/{type}...` mirroring existing resource routes but with cluster prefix
+- [x] 5.5 Register overview route: `GET /api/v1/overview`
+- [x] 5.6 Implement single-cluster mode guard: when `ClusterManager` is nil (CRD not installed), all cluster routes return 404 with `"multi-cluster mode is not enabled"` message
 
 ## 6. Middleware
 
-- [ ] 6.1 Create `ClusterContext` middleware in `pkg/middleware/cluster.go`: extract `{cluster}` from gorilla/mux route vars, resolve `local` alias, validate cluster exists in `ClusterManager`
-- [ ] 6.2 Implement access validation in `ClusterContext` middleware: check user's groups against the cluster's `allowedGroups` field, return 403 if no group matches (empty `allowedGroups` means unrestricted)
-- [ ] 6.3 Implement client injection: call `ClusterManager.GetClient()` with user's session info, inject the impersonating dynamic client into request context via `context.WithValue`
-- [ ] 6.4 Refactor `ResourceHandler` in `pkg/resources/handler.go`: add `getClient(r *http.Request) dynamic.Interface` method that checks context for injected client, falls back to `h.dynamicClient`
-- [ ] 6.5 Add stale data response headers: when `ClusterManager.GetClient()` returns stale cached data, set `X-ECK-UI-Stale: true` and `X-ECK-UI-Stale-Since` headers on the response
+- [x] 6.1 Create `ClusterContext` middleware in `pkg/middleware/cluster.go`: extract `{cluster}` from gorilla/mux route vars, resolve `local` alias, validate cluster exists in `ClusterManager`
+- [x] 6.2 Implement access validation in `ClusterContext` middleware: check user's groups against the cluster's `allowedGroups` field, return 403 if no group matches (empty `allowedGroups` means unrestricted)
+- [x] 6.3 Implement client injection: call `ClusterManager.GetClient()` with user's session info, inject the impersonating dynamic client into request context via `context.WithValue`
+- [x] 6.4 Refactor `ResourceHandler` in `pkg/resources/handler.go`: add `getClient(r *http.Request) dynamic.Interface` method that checks context for injected client, falls back to `h.dynamicClient`
+- [x] 6.5 Add stale data response headers: when `ClusterManager.GetClient()` returns stale cached data, set `X-ECK-UI-Stale: true` and `X-ECK-UI-Stale-Since` headers on the response
 
 ## 7. Frontend — Cluster Management
 
-- [ ] 7.1 Create `ClusterListPage.tsx` in `web/src/pages/clusters/` displaying cluster cards with: display name, phase (color-coded badge), K8s version, ECK version, resource counts, last health check. Include "Register Cluster" button for admin users
-- [ ] 7.2 Create `ClusterDetailPage.tsx` with tabs: Overview (metadata, health, resource summary), Resources (type list with counts linking to cluster-scoped pages), Events (recent events from cluster)
-- [ ] 7.3 Create `ClusterRegisterPage.tsx` with multi-step wizard: Connection Details (name, URL, CA), Credentials (token or kubeconfig), Access Control (allowed groups), Validation (test connection). Creates ECKUICluster CR + Secret on submit
-- [ ] 7.4 Create `useClusters` hook in `web/src/hooks/` wrapping TanStack Query for `GET /api/v1/clusters` and `GET /api/v1/clusters/{id}`
-- [ ] 7.5 Create `useOverview` hook in `web/src/hooks/` wrapping TanStack Query for `GET /api/v1/overview`
-- [ ] 7.6 Register cluster routes in `App.tsx`: `/clusters`, `/clusters/register`, `/clusters/:clusterId`, `/clusters/:clusterId/:resourceType`, `/clusters/:clusterId/:resourceType/:namespace/:name`
+- [x] 7.1 Create `ClusterListPage.tsx` in `web/src/pages/clusters/` displaying cluster cards with: display name, phase (color-coded badge), K8s version, ECK version, resource counts, last health check. Include "Register Cluster" button for admin users
+- [x] 7.2 Create `ClusterDetailPage.tsx` with tabs: Overview (metadata, health, resource summary), Resources (type list with counts linking to cluster-scoped pages), Events (recent events from cluster)
+- [x] 7.3 Create `ClusterRegisterPage.tsx` with multi-step wizard: Connection Details (name, URL, CA), Credentials (token or kubeconfig), Access Control (allowed groups), Validation (test connection). Creates ECKUICluster CR + Secret on submit
+- [x] 7.4 Create `useClusters` hook in `web/src/hooks/` wrapping TanStack Query for `GET /api/v1/clusters` and `GET /api/v1/clusters/{id}`
+- [x] 7.5 Create `useOverview` hook in `web/src/hooks/` wrapping TanStack Query for `GET /api/v1/overview`
+- [x] 7.6 Register cluster routes in `App.tsx`: `/clusters`, `/clusters/register`, `/clusters/:clusterId`, `/clusters/:clusterId/:resourceType`, `/clusters/:clusterId/:resourceType/:namespace/:name`
 
 ## 8. Frontend — Cluster Browsing
 
-- [ ] 8.1 Create `ClusterPicker` component in `web/src/components/navigation/ClusterPicker.tsx`: EUI header dropdown listing clusters with health indicators, selecting navigates to `/clusters/{id}/dashboard`. Hidden when `isMultiCluster` is false
-- [ ] 8.2 Create or extend Zustand cluster store in `web/src/stores/` with: `clusters`, `activeCluster`, `isMultiCluster`, `fetchClusters()`. Initialize on app load via `GET /api/v1/clusters`
-- [ ] 8.3 Create `ClusterResourceListPage.tsx` that wraps existing resource list components, passing `clusterId` from URL params to the API client for cluster-scoped requests. Add breadcrumb showing cluster name
-- [ ] 8.4 Create `ClusterResourceDetailPage.tsx` that wraps existing resource detail components with cluster-scoped API calls and cluster breadcrumb
-- [ ] 8.5 Update `DashboardPage.tsx` to show multi-cluster overview when `isMultiCluster` is true: cluster health summary banner, per-cluster resource cards, aggregate stats. Fall back to existing single-cluster dashboard otherwise
-- [ ] 8.6 Update `Sidebar.tsx` to add "Clusters" link when multi-cluster mode is active. When browsing `/clusters/:clusterId/...`, scope resource links to that cluster's paths
+- [x] 8.1 Create `ClusterPicker` component in `web/src/components/navigation/ClusterPicker.tsx`: EUI header dropdown listing clusters with health indicators, selecting navigates to `/clusters/{id}/dashboard`. Hidden when `isMultiCluster` is false
+- [x] 8.2 Create or extend Zustand cluster store in `web/src/stores/` with: `clusters`, `activeCluster`, `isMultiCluster`, `fetchClusters()`. Initialize on app load via `GET /api/v1/clusters`
+- [x] 8.3 Create `ClusterResourceListPage.tsx` that wraps existing resource list components, passing `clusterId` from URL params to the API client for cluster-scoped requests. Add breadcrumb showing cluster name
+- [x] 8.4 Create `ClusterResourceDetailPage.tsx` that wraps existing resource detail components with cluster-scoped API calls and cluster breadcrumb
+- [x] 8.5 Update `DashboardPage.tsx` to show multi-cluster overview when `isMultiCluster` is true: cluster health summary banner, per-cluster resource cards, aggregate stats. Fall back to existing single-cluster dashboard otherwise
+- [x] 8.6 Update `Sidebar.tsx` to add "Clusters" link when multi-cluster mode is active. When browsing `/clusters/:clusterId/...`, scope resource links to that cluster's paths
 - [ ] 8.7 Update API client in `web/src/api/client.ts` to accept optional `cluster` parameter in request functions, prefixing URL with `/clusters/{cluster}` when provided
 - [ ] 8.8 Add stale data handling: detect `X-ECK-UI-Stale` response header, display EUI callout warning on affected pages with staleness timestamp
 
