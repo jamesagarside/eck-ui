@@ -16,10 +16,20 @@ import {
   EuiButtonEmpty,
   EuiHorizontalRule,
 } from '@elastic/eui';
+import { EuiBadge } from '@elastic/eui';
 import { Sidebar } from '../navigation/Sidebar';
 import { OrganizationSwitcher } from '../navigation/OrganizationSwitcher';
 import { useAuthStore } from '../../stores/authStore';
+import { useUserRole } from '../../hooks/useUserRole';
+import type { PlatformRole } from '../../hooks/useUserRole';
 import { useUserPreferences } from '../../context/UserPreferencesContext';
+
+const ROLE_DISPLAY: Record<PlatformRole, { label: string; color: 'primary' | 'success' | 'default' | 'hollow' }> = {
+  'platform-admin': { label: 'Admin', color: 'primary' },
+  'deployment-manager': { label: 'Manager', color: 'success' },
+  'platform-viewer': { label: 'Viewer', color: 'default' },
+  'deployment-viewer': { label: 'Viewer', color: 'hollow' },
+};
 
 function buildBreadcrumbs(pathname: string) {
   const segments = pathname.split('/').filter(Boolean);
@@ -57,7 +67,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const role = useUserRole();
   const { colorMode, setColorMode } = useUserPreferences();
+  const roleDisplay = ROLE_DISPLAY[role];
 
   const breadcrumbs = buildBreadcrumbs(location.pathname).map((crumb) => ({
     ...crumb,
@@ -89,12 +101,16 @@ export function AppShell() {
           border: 'none',
           cursor: 'pointer',
           padding: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
         }}
       >
         <EuiAvatar
           name={user?.username || 'User'}
           size="s"
         />
+        <EuiBadge color={roleDisplay.color}>{roleDisplay.label}</EuiBadge>
       </button>
     </EuiHeaderSectionItem>
   );
@@ -156,11 +172,9 @@ export function AppShell() {
                       <EuiText size="s">
                         <strong>{user?.username || 'Anonymous'}</strong>
                       </EuiText>
-                      {user?.groups && user.groups.length > 0 && (
-                        <EuiText size="xs" color="subdued">
-                          {user.groups[0]}
-                        </EuiText>
-                      )}
+                      <EuiText size="xs" color="subdued">
+                        {role}
+                      </EuiText>
                     </EuiFlexItem>
                   </EuiFlexGroup>
                   <EuiHorizontalRule margin="s" />

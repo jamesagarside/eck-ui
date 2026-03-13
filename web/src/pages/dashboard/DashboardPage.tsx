@@ -21,7 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
 import { useResourceWatch } from '../../hooks/useResourceWatch';
-import { useUserRole, hasMinRole } from '../../hooks/useUserRole';
+import { useUserRole, hasMinRole, useCanManage } from '../../hooks/useUserRole';
 import { useDeployments } from '../../hooks/useDeployments';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
 import { DeploymentCardGrid } from '../../components/deployment/DeploymentCardGrid';
@@ -108,6 +108,7 @@ function countByPhase(
 export function DashboardPage() {
   const navigate = useNavigate();
   const role = useUserRole();
+  const canManage = useCanManage();
   const deploymentsHook = useDeployments();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -291,7 +292,7 @@ export function DashboardPage() {
                 </p>
               </>
             }
-            actions={[
+            actions={canManage ? [
               <EuiButton
                 key="deployment"
                 fill
@@ -307,7 +308,7 @@ export function DashboardPage() {
               >
                 Create Elasticsearch Cluster
               </EuiButtonEmpty>,
-            ]}
+            ] : undefined}
             footer={
               <EuiFlexGroup
                 gutterSize="l"

@@ -20,6 +20,7 @@ import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Elasticsearch, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -41,6 +42,7 @@ function formatAge(timestamp: string): string {
 
 export function ElasticsearchListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -185,7 +187,7 @@ export function ElasticsearchListPage() {
       <EuiPageHeader
         pageTitle="Elasticsearch Clusters"
         description={isConnected ? undefined : undefined}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton
             key="create"
             fill
@@ -194,7 +196,7 @@ export function ElasticsearchListPage() {
           >
             Create Cluster
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
 
@@ -239,6 +241,7 @@ export function ElasticsearchListPage() {
           resourceLabel="Elasticsearch Cluster"
           onCreate={() => navigate('/elasticsearch/create')}
           onCreateDeployment={() => navigate('/deployments/create')}
+          canCreate={canManage}
         />
       ) : showNoResults ? (
         <NoResultsEmptyState

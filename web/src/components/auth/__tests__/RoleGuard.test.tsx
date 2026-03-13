@@ -52,20 +52,20 @@ afterEach(() => {
 
 describe('RoleGuard', () => {
   describe('minRole="deployment-manager"', () => {
-    it('redirects deployment-viewer away', () => {
+    it('shows forbidden page for deployment-viewer', () => {
       setRole('deployment-viewer');
       renderGuarded('deployment-manager');
 
       expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-      expect(screen.getByText('Redirected to Deployments')).toBeInTheDocument();
+      expect(screen.getByText('Access Denied')).toBeInTheDocument();
     });
 
-    it('redirects platform-viewer away', () => {
+    it('shows forbidden page for platform-viewer', () => {
       setRole('platform-viewer');
       renderGuarded('deployment-manager');
 
       expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-      expect(screen.getByText('Redirected to Deployments')).toBeInTheDocument();
+      expect(screen.getByText('Access Denied')).toBeInTheDocument();
     });
 
     it('allows deployment-manager', () => {

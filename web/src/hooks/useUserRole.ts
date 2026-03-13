@@ -30,5 +30,14 @@ export function hasMinRole(role: PlatformRole, minRole: PlatformRole): boolean {
   return (roleLevel[role] ?? 0) >= (roleLevel[minRole] ?? 0);
 }
 
+/**
+ * Returns true if the current user has at least deployment-manager role
+ * (can create, edit, and delete resources).
+ */
+export function useCanManage(): boolean {
+  const role = useUserRole();
+  return hasMinRole(role, 'deployment-manager');
+}
+
 // Backward-compatible alias
 export type UserRole = PlatformRole;

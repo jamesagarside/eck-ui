@@ -20,6 +20,7 @@ import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Kibana, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -41,6 +42,7 @@ function formatAge(timestamp: string): string {
 
 export function KibanaListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -158,11 +160,11 @@ export function KibanaListPage() {
       <EuiPageHeader
         pageTitle="Kibana Instances"
         description={isConnected ? undefined : undefined}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="create" fill iconType="plusInCircle" onClick={() => navigate('/kibana/create')}>
             Create Kibana
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
 
@@ -207,6 +209,7 @@ export function KibanaListPage() {
           resourceLabel="Kibana Instance"
           onCreate={() => navigate('/kibana/create')}
           onCreateDeployment={() => navigate('/deployments/create')}
+          canCreate={canManage}
         />
       ) : showNoResults ? (
         <NoResultsEmptyState

@@ -21,6 +21,7 @@ import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Agent, HealthStatus, ResourceList } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -41,6 +42,7 @@ function formatAge(ts: string): string {
 
 export function FleetServerListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -159,11 +161,11 @@ export function FleetServerListPage() {
         pageTitle="Fleet Servers"
         description={isConnected ? undefined : undefined}
         iconType="fleetApp"
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="create" fill iconType="plusInCircle" onClick={() => navigate('/fleet-server/create')}>
             Create Fleet Server
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
 
@@ -208,6 +210,7 @@ export function FleetServerListPage() {
           resourceLabel="Fleet Server"
           onCreate={() => navigate('/fleet-server/create')}
           onCreateDeployment={() => navigate('/deployments/create')}
+          canCreate={canManage}
         />
       ) : showNoResults ? (
         <NoResultsEmptyState

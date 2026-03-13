@@ -20,6 +20,7 @@ import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Logstash, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -40,6 +41,7 @@ function formatAge(ts: string): string {
 
 export function LogstashListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -152,11 +154,11 @@ export function LogstashListPage() {
       <EuiPageHeader
         pageTitle="Logstash"
         description={isConnected ? undefined : undefined}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="create" fill iconType="plusInCircle" onClick={() => navigate('/logstash/create')}>
             Create Logstash
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
 
@@ -201,6 +203,7 @@ export function LogstashListPage() {
           resourceLabel="Logstash"
           onCreate={() => navigate('/logstash/create')}
           onCreateDeployment={() => navigate('/deployments/create')}
+          canCreate={canManage}
         />
       ) : showNoResults ? (
         <NoResultsEmptyState

@@ -20,6 +20,7 @@ import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { ElasticMapsServer, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -40,6 +41,7 @@ function formatAge(ts: string): string {
 
 export function MapsListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -153,11 +155,11 @@ export function MapsListPage() {
       <EuiPageHeader
         pageTitle="Elastic Maps Server"
         description={isConnected ? undefined : undefined}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="create" fill iconType="plusInCircle" onClick={() => navigate('/maps/create')}>
             Create Maps Server
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
 
@@ -202,6 +204,7 @@ export function MapsListPage() {
           resourceLabel="Maps Server"
           onCreate={() => navigate('/maps/create')}
           onCreateDeployment={() => navigate('/deployments/create')}
+          canCreate={canManage}
         />
       ) : showNoResults ? (
         <NoResultsEmptyState

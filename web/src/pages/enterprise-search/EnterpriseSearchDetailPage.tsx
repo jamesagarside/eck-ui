@@ -13,6 +13,7 @@ import { ManifestViewer } from '../../components/common/ManifestViewer';
 import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
 import { PodTable } from '../../components/common/PodLogsViewer';
 import { usePods, buildECKLabelSelector } from '../../hooks/usePods';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { EnterpriseSearch, HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = { green: 'success', yellow: 'warning', red: 'danger', unknown: 'subdued' };
@@ -20,6 +21,7 @@ const HEALTH_COLORS: Record<HealthStatus, string> = { green: 'success', yellow: 
 export function EnterpriseSearchDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [showDelete, setShowDelete] = useState(false);
   const { data: resource, isLoading, error } = useResource<EnterpriseSearch>('enterprise-search', namespace || '', name || '');
   const deleteMutation = useDeleteResource('enterprise-search');
@@ -104,10 +106,10 @@ export function EnterpriseSearchDetailPage() {
   return (
     <>
       <EuiPageHeader pageTitle={resource.metadata.name} iconType="logoEnterpriseSearch" description={`Namespace: ${resource.metadata.namespace}`}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="edit" onClick={() => navigate(`/enterprise-search/${namespace}/${name}/edit`)} aria-label={`Edit ${resource.metadata.name}`}>Edit</EuiButton>,
           <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDelete(true)} aria-label={`Delete ${resource.metadata.name}`}>Delete</EuiButtonEmpty>,
-        ]} />
+        ] : []} />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />
       {showDelete && (

@@ -17,6 +17,7 @@ import {
 import { useResource, useDeleteResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
 import { ManifestViewer } from '../../components/common/ManifestViewer';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { BaseResource, ResourceStatus, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -63,6 +64,7 @@ function formatSelector(
 export function StackConfigPolicyDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { data: resource, isLoading, error } = useResource<StackConfigPolicy>(
@@ -139,7 +141,7 @@ export function StackConfigPolicyDetailPage() {
         pageTitle={resource.metadata.name}
         iconType="controlsHorizontal"
         description={`Namespace: ${resource.metadata.namespace}`}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton
             key="edit"
             onClick={() => navigate(`/stackconfigpolicy/${namespace}/${name}/edit`)}
@@ -153,7 +155,7 @@ export function StackConfigPolicyDetailPage() {
           >
             Delete
           </EuiButtonEmpty>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />

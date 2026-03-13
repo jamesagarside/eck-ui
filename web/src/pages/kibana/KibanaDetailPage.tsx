@@ -23,6 +23,7 @@ import { ManifestViewer } from '../../components/common/ManifestViewer';
 import { UserSettingsEditor } from '../../components/common/UserSettingsEditor';
 import { PodTable } from '../../components/common/PodLogsViewer';
 import { usePods, buildECKLabelSelector } from '../../hooks/usePods';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Kibana, HealthStatus, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -35,6 +36,7 @@ const HEALTH_COLORS: Record<HealthStatus, string> = {
 export function KibanaDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { data: resource, isLoading, error } = useResource<Kibana>('kibana', namespace || '', name || '');
@@ -155,10 +157,10 @@ export function KibanaDetailPage() {
         pageTitle={resource.metadata.name}
         iconType="logoKibana"
         description={`Namespace: ${resource.metadata.namespace}`}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="edit" onClick={() => navigate(`/kibana/${namespace}/${name}/edit`)} aria-label={`Edit ${resource.metadata.name}`}>Edit</EuiButton>,
           <EuiButtonEmpty key="delete" color="danger" onClick={() => setShowDeleteModal(true)} aria-label={`Delete ${resource.metadata.name}`}>Delete</EuiButtonEmpty>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />

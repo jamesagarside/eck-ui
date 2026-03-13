@@ -6,6 +6,7 @@ interface ResourceEmptyStateProps {
   description?: string;
   onCreate: () => void;
   onCreateDeployment?: () => void;
+  canCreate?: boolean;
 }
 
 interface NoResultsEmptyStateProps {
@@ -51,32 +52,35 @@ export function ResourceEmptyState({
   description,
   onCreate,
   onCreateDeployment,
+  canCreate = true,
 }: ResourceEmptyStateProps) {
   const iconType = RESOURCE_ICONS[resourceType] || 'logoElastic';
   const body = description || RESOURCE_DESCRIPTIONS[resourceType] || '';
   const title = RESOURCE_TITLES[resourceType] || `No ${resourceLabel} found`;
 
+  const actions = canCreate
+    ? onCreateDeployment
+      ? [
+          <EuiButton key="create" fill iconType="plusInCircle" onClick={onCreate}>
+            Create {resourceLabel}
+          </EuiButton>,
+          <EuiButtonEmpty key="deployment" onClick={onCreateDeployment}>
+            Create Deployment
+          </EuiButtonEmpty>,
+        ]
+      : [
+          <EuiButton key="create" fill iconType="plusInCircle" onClick={onCreate}>
+            Create {resourceLabel}
+          </EuiButton>,
+        ]
+    : undefined;
+
   return (
     <EuiEmptyPrompt
       iconType={iconType}
       title={<h2>{title}</h2>}
-      body={body ? <p>{body}</p> : undefined}
-      actions={
-        onCreateDeployment
-          ? [
-              <EuiButton key="create" fill iconType="plusInCircle" onClick={onCreate}>
-                Create {resourceLabel}
-              </EuiButton>,
-              <EuiButtonEmpty key="deployment" onClick={onCreateDeployment}>
-                Create Deployment
-              </EuiButtonEmpty>,
-            ]
-          : [
-              <EuiButton key="create" fill iconType="plusInCircle" onClick={onCreate}>
-                Create {resourceLabel}
-              </EuiButton>,
-            ]
-      }
+      body={body ? <p>{body}</p> : canCreate ? undefined : <p>Contact your platform administrator to create resources.</p>}
+      actions={actions}
     />
   );
 }

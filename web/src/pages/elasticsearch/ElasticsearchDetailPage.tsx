@@ -31,6 +31,7 @@ import { VersionUpgrade } from '../../components/elasticsearch/VersionUpgrade';
 import { CredentialsDisplay } from '../../components/elasticsearch/CredentialsDisplay';
 import { MonitoringConfig } from '../../components/elasticsearch/MonitoringConfig';
 import { RemoteClusters } from '../../components/elasticsearch/RemoteClusters';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Elasticsearch, HealthStatus, NodeSet, ResourceEvent } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -46,6 +47,7 @@ export function ElasticsearchDetailPage() {
     name: string;
   }>();
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showUpgradeFlyout, setShowUpgradeFlyout] = useState(false);
 
@@ -284,7 +286,7 @@ export function ElasticsearchDetailPage() {
         pageTitle={resource.metadata.name}
         iconType="logoElasticsearch"
         description={`Namespace: ${resource.metadata.namespace}`}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton
             key="upgrade"
             iconType="sortUp"
@@ -313,7 +315,7 @@ export function ElasticsearchDetailPage() {
           >
             Delete
           </EuiButtonEmpty>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />

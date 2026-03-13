@@ -21,6 +21,7 @@ import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { ErrorCallout } from '../../components/common/ErrorCallout';
 import { ResourceEmptyState, NoResultsEmptyState } from '../../components/common/ResourceEmptyState';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { Agent, HealthStatus, ResourceList } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -46,6 +47,7 @@ function getDisplayMode(agent: Agent): string {
 
 export function AgentListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
@@ -171,11 +173,11 @@ export function AgentListPage() {
       <EuiPageHeader
         pageTitle="Elastic Agents"
         description={isConnected ? undefined : undefined}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton key="create" fill iconType="plusInCircle" onClick={() => navigate('/agent/create')}>
             Create Agent
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
 
@@ -220,6 +222,7 @@ export function AgentListPage() {
           resourceLabel="Elastic Agent"
           onCreate={() => navigate('/agent/create')}
           onCreateDeployment={() => navigate('/deployments/create')}
+          canCreate={canManage}
         />
       ) : showNoResults ? (
         <NoResultsEmptyState

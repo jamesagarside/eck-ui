@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useResourceList } from '../../hooks/useResources';
 import { ListSkeleton } from '../../components/common/Skeletons';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { BaseResource, ResourceStatus, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -55,6 +56,7 @@ function formatAge(timestamp: string): string {
 
 export function AutoscalerListPage() {
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const { data, isLoading, error } = useResourceList<ElasticsearchAutoscaler>('elasticsearchautoscaler');
 
   if (isLoading) return <ListSkeleton />;
@@ -135,7 +137,7 @@ export function AutoscalerListPage() {
     <>
       <EuiPageHeader
         pageTitle="Elasticsearch Autoscalers"
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton
             key="create"
             fill
@@ -144,7 +146,7 @@ export function AutoscalerListPage() {
           >
             Create Autoscaler
           </EuiButton>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
       {error && (

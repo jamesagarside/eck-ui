@@ -19,6 +19,7 @@ import {
 import { useResource, useDeleteResource } from '../../hooks/useResources';
 import { DetailSkeleton } from '../../components/common/Skeletons';
 import { ManifestViewer } from '../../components/common/ManifestViewer';
+import { useCanManage } from '../../hooks/useUserRole';
 import type { BaseResource, ResourceStatus, HealthStatus } from '../../types/resources';
 
 const HEALTH_COLORS: Record<HealthStatus, string> = {
@@ -54,6 +55,7 @@ interface ElasticsearchAutoscaler extends BaseResource {
 export function AutoscalerDetailPage() {
   const { namespace, name } = useParams<{ namespace: string; name: string }>();
   const navigate = useNavigate();
+  const canManage = useCanManage();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { data: resource, isLoading, error } = useResource<ElasticsearchAutoscaler>(
@@ -181,7 +183,7 @@ export function AutoscalerDetailPage() {
         pageTitle={resource.metadata.name}
         iconType="scale"
         description={`Namespace: ${resource.metadata.namespace}`}
-        rightSideItems={[
+        rightSideItems={canManage ? [
           <EuiButton
             key="edit"
             onClick={() => navigate(`/elasticsearchautoscaler/${namespace}/${name}/edit`)}
@@ -195,7 +197,7 @@ export function AutoscalerDetailPage() {
           >
             Delete
           </EuiButtonEmpty>,
-        ]}
+        ] : []}
       />
       <EuiSpacer size="l" />
       <EuiTabbedContent tabs={tabs} autoFocus="selected" />
