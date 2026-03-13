@@ -1,7 +1,8 @@
 import { createElement } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useMatch } from 'react-router-dom';
 import { EuiSideNav, EuiIcon, type EuiSideNavItemType } from '@elastic/eui';
 import { useUserRole, hasMinRole } from '../../hooks/useUserRole';
+import { useClusterStore } from '../../stores/clusterStore';
 
 function createItem(
   name: string,
@@ -24,6 +25,12 @@ export function Sidebar() {
   const navigate = useNavigate();
   const currentPath = location.pathname;
   const role = useUserRole();
+  const { isMultiCluster } = useClusterStore();
+  const clusterMatch = useMatch('/clusters/:clusterId/*');
+  const clusterId = clusterMatch?.params.clusterId;
+
+  // When browsing a specific cluster, scope resource paths under that cluster
+  const pathPrefix = clusterId ? `/clusters/${clusterId}` : '';
 
   if (!hasMinRole(role, 'platform-viewer')) {
     const viewerNav: EuiSideNavItemType<object>[] = [
@@ -48,36 +55,40 @@ export function Sidebar() {
       isSelected: currentPath === '/',
       items: [],
     },
-    createItem('Deployments', '/deployments', currentPath, navigate, 'layers'),
+    createItem('Deployments', `${pathPrefix}/deployments`, currentPath, navigate, 'layers'),
     {
       id: 'resources',
       name: 'Resources',
       items: [
-        createItem('Elasticsearch', '/elasticsearch', currentPath, navigate),
-        createItem('Kibana', '/kibana', currentPath, navigate),
-        createItem('Fleet Server', '/fleet-server', currentPath, navigate),
-        createItem('Elastic Agent', '/agent', currentPath, navigate),
-        createItem('APM Server', '/apm', currentPath, navigate),
-        createItem('Beats', '/beats', currentPath, navigate),
-        createItem('Logstash', '/logstash', currentPath, navigate),
+        createItem('Elasticsearch', `${pathPrefix}/elasticsearch`, currentPath, navigate),
+        createItem('Kibana', `${pathPrefix}/kibana`, currentPath, navigate),
+        createItem('Fleet Server', `${pathPrefix}/fleet-server`, currentPath, navigate),
+        createItem('Elastic Agent', `${pathPrefix}/agent`, currentPath, navigate),
+        createItem('APM Server', `${pathPrefix}/apm`, currentPath, navigate),
+        createItem('Beats', `${pathPrefix}/beats`, currentPath, navigate),
+        createItem('Logstash', `${pathPrefix}/logstash`, currentPath, navigate),
         createItem(
           'Enterprise Search',
-          '/enterprise-search',
+          `${pathPrefix}/enterprise-search`,
           currentPath,
           navigate,
         ),
-        createItem('Elastic Maps', '/maps', currentPath, navigate),
+        createItem('Elastic Maps', `${pathPrefix}/maps`, currentPath, navigate),
       ],
     },
     {
       id: 'stack',
       name: 'Stack Management',
       items: [
-        createItem('Config Policies', '/stackconfigpolicy', currentPath, navigate),
-        createItem('Autoscalers', '/elasticsearchautoscaler', currentPath, navigate),
+        createItem('Config Policies', `${pathPrefix}/stackconfigpolicy`, currentPath, navigate),
+        createItem('Autoscalers', `${pathPrefix}/elasticsearchautoscaler`, currentPath, navigate),
       ],
     },
   ];
+
+  if (isMultiCluster) {
+    navItems.splice(1, 0, createItem('Clusters', '/clusters', currentPath, navigate, 'cluster'));
+  }
 
   if (hasMinRole(role, 'platform-admin')) {
     navItems.push({

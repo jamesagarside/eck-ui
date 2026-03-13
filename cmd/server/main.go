@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jamesagarside/eck-ui/pkg/audit"
 	"github.com/jamesagarside/eck-ui/pkg/auth"
+	"github.com/jamesagarside/eck-ui/pkg/clusters"
 	"github.com/jamesagarside/eck-ui/pkg/config"
 	"github.com/jamesagarside/eck-ui/pkg/errors"
 	"github.com/jamesagarside/eck-ui/pkg/handlers"
@@ -173,6 +174,45 @@ func main() {
 	api.HandleFunc("/events/{namespace}", resourceHandler.Events()).Methods("GET")
 	api.HandleFunc("/watch/{type}", resourceHandler.Watch()).Methods("GET")
 
+	// Multi-cluster support: auto-detect ECKUICluster CRD and start ClusterManager if present.
+	var clusterManager *clusters.ClusterManager
+	if clusters.IsCRDInstalled(k8sClient.Discovery) {
+		slog.Info("ECKUICluster CRD detected, enabling multi-cluster mode")
+		clusterManager = clusters.NewClusterManager(k8sClient.Dynamic, k8sClient.Clientset)
+		if err := clusterManager.Start(context.Background()); err != nil {
+			slog.Error("failed to start cluster manager", "error", err)
+		}
+
+		// Cluster management routes
+		api.HandleFunc("/clusters", handlers.ListClustersHandler(clusterManager)).Methods("GET")
+		api.HandleFunc("/clusters", handlers.CreateClusterHandler(k8sClient.Dynamic, k8sClient.Clientset)).Methods("POST")
+		api.HandleFunc("/clusters/{cluster}", handlers.GetClusterHandler(clusterManager)).Methods("GET")
+		api.HandleFunc("/clusters/{cluster}", handlers.UpdateClusterHandler(k8sClient.Dynamic)).Methods("PUT")
+		api.HandleFunc("/clusters/{cluster}", handlers.DeleteClusterHandler(k8sClient.Dynamic, k8sClient.Clientset)).Methods("DELETE")
+		api.HandleFunc("/clusters/{cluster}/health", handlers.HealthCheckClusterHandler(clusterManager)).Methods("GET")
+
+		// Aggregated overview
+		api.HandleFunc("/overview", handlers.GetOverviewHandler(clusterManager)).Methods("GET")
+
+		// Cluster-scoped resource routes
+		clusterAPI := api.PathPrefix("/clusters/{cluster}").Subrouter()
+		clusterAPI.Use(middleware.ClusterContext(clusterManager, k8sClient.Dynamic))
+		for _, rt := range resourceTypes {
+			clusterAPI.HandleFunc("/"+rt, resourceHandler.List(rt)).Methods("GET")
+			clusterAPI.HandleFunc("/"+rt+"/{namespace}/{name}", resourceHandler.Get(rt)).Methods("GET")
+			clusterAPI.HandleFunc("/"+rt+"/{namespace}", resourceHandler.Create(rt)).Methods("POST")
+			clusterAPI.HandleFunc("/"+rt+"/{namespace}/{name}", resourceHandler.Update(rt)).Methods("PUT")
+			clusterAPI.HandleFunc("/"+rt+"/{namespace}/{name}", resourceHandler.Delete(rt)).Methods("DELETE")
+		}
+		clusterAPI.HandleFunc("/events/{namespace}", resourceHandler.Events()).Methods("GET")
+	} else {
+		slog.Info("ECKUICluster CRD not detected, running in single-cluster mode")
+		// Register 404 handlers for cluster routes in single-cluster mode.
+		api.HandleFunc("/clusters", handlers.SingleClusterModeHandler()).Methods("GET", "POST")
+		api.HandleFunc("/clusters/{cluster}", handlers.SingleClusterModeHandler()).Methods("GET", "PUT", "DELETE")
+		api.HandleFunc("/overview", handlers.SingleClusterModeHandler()).Methods("GET")
+	}
+
 	// SPA static file serving with fallback to index.html
 	spaHandler := handlers.NewSPAHandler(staticFS(), "")
 	r.PathPrefix("/").Handler(spaHandler)
@@ -206,6 +246,10 @@ func main() {
 
 		if err := srv.Shutdown(ctx); err != nil {
 			slog.Error("server shutdown error", "error", err)
+		}
+
+		if clusterManager != nil {
+			clusterManager.Stop()
 		}
 
 		bindingCache.Stop()

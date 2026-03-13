@@ -33,8 +33,10 @@ async function parseErrorResponse(response: Response): Promise<ApiError> {
 async function request<T>(
   path: string,
   options: RequestInit = {},
+  cluster?: string,
 ): Promise<T> {
-  const url = `${BASE_URL}${path}`;
+  const clusterPrefix = cluster ? `/clusters/${cluster}` : '';
+  const url = `${BASE_URL}${clusterPrefix}${path}`;
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -66,26 +68,34 @@ async function request<T>(
 }
 
 export const apiClient = {
-  get<T>(path: string): Promise<T> {
-    return request<T>(path, { method: 'GET' });
+  get<T>(path: string, cluster?: string): Promise<T> {
+    return request<T>(path, { method: 'GET' }, cluster);
   },
 
-  post<T>(path: string, body?: unknown): Promise<T> {
-    return request<T>(path, {
-      method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  post<T>(path: string, body?: unknown, cluster?: string): Promise<T> {
+    return request<T>(
+      path,
+      {
+        method: 'POST',
+        body: body ? JSON.stringify(body) : undefined,
+      },
+      cluster,
+    );
   },
 
-  put<T>(path: string, body?: unknown): Promise<T> {
-    return request<T>(path, {
-      method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  put<T>(path: string, body?: unknown, cluster?: string): Promise<T> {
+    return request<T>(
+      path,
+      {
+        method: 'PUT',
+        body: body ? JSON.stringify(body) : undefined,
+      },
+      cluster,
+    );
   },
 
-  del<T = void>(path: string): Promise<T> {
-    return request<T>(path, { method: 'DELETE' });
+  del<T = void>(path: string, cluster?: string): Promise<T> {
+    return request<T>(path, { method: 'DELETE' }, cluster);
   },
 };
 

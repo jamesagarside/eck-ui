@@ -69,6 +69,20 @@ config:
   sessionSecret: ""
   roleBindingCacheTTL: "30s"
 
+# Install ECKUICluster CRD for multi-cluster management.
+# When false, the CRD must be applied manually before enabling multi-cluster.
+installCRDs: false
+
+# Multi-cluster configuration. Mode is auto-detected based on CRD presence.
+multiCluster:
+  # Force disable multi-cluster even when CRD is present.
+  # enabled: auto  # auto | true | false
+  healthCheck:
+    interval: 30
+  circuitBreaker:
+    failureThreshold: 3
+    recoveryTimeout: 30
+
 # Stack versions available in the version dropdown.
 # Updated via the UI or by running POST /api/v1/versions/sync.
 versions:

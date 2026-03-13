@@ -27,6 +27,7 @@ import {
   AutoscalerEditPage,
 } from './pages/stack';
 import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage, RoleManagementPage } from './pages/admin';
+import { ClusterListPage, ClusterDetailPage, ClusterRegisterPage, ClusterResourceListPage, ClusterResourceDetailPage } from './pages/clusters';
 import { RoleGuard } from './components/auth/RoleGuard';
 import './App.css';
 
@@ -119,6 +120,13 @@ function App() {
           <Route path="/admin/templates" element={<RoleGuard minRole="platform-admin"><DeploymentTemplatesPage /></RoleGuard>} />
           <Route path="/admin/system" element={<RoleGuard minRole="platform-admin"><SystemInfoPage /></RoleGuard>} />
           <Route path="/admin/roles" element={<RoleGuard minRole="platform-admin"><RoleManagementPage /></RoleGuard>} />
+
+          {/* Clusters (multi-cluster mode) */}
+          <Route path="/clusters" element={<RoleGuard minRole="platform-viewer"><ClusterListPage /></RoleGuard>} />
+          <Route path="/clusters/register" element={<RoleGuard minRole="platform-admin"><ClusterRegisterPage /></RoleGuard>} />
+          <Route path="/clusters/:clusterId" element={<RoleGuard minRole="platform-viewer"><ClusterDetailPage /></RoleGuard>} />
+          <Route path="/clusters/:clusterId/:resourceType" element={<RoleGuard minRole="platform-viewer"><ClusterResourceListPage /></RoleGuard>} />
+          <Route path="/clusters/:clusterId/:resourceType/:namespace/:name" element={<RoleGuard minRole="platform-viewer"><ClusterResourceDetailPage /></RoleGuard>} />
 
           {/* Wizard redirect */}
           <Route path="/wizard" element={<Navigate to="/deployments/create" replace />} />

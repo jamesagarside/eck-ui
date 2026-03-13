@@ -23,6 +23,7 @@ import { useResourceList } from '../../hooks/useResources';
 import { useResourceWatch } from '../../hooks/useResourceWatch';
 import { useUserRole, hasMinRole, useCanManage } from '../../hooks/useUserRole';
 import { useDeployments } from '../../hooks/useDeployments';
+import { useClusterStore } from '../../stores/clusterStore';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
 import { DeploymentCardGrid } from '../../components/deployment/DeploymentCardGrid';
 import { routePath } from '../../utils/routePaths';
@@ -111,6 +112,7 @@ export function DashboardPage() {
   const canManage = useCanManage();
   const deploymentsHook = useDeployments();
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const { clusters, isMultiCluster } = useClusterStore();
 
   // SSE live updates: auto-invalidate TanStack Query cache when resources change.
   // When SSE is connected, disable polling to avoid redundant network requests.
@@ -503,6 +505,9 @@ export function DashboardPage() {
     { field: 'message', name: 'Details', truncateText: true },
   ];
 
+  const connectedClusters = clusters.filter((c) => c.status.phase === 'Connected').length;
+  const disconnectedClusters = clusters.filter((c) => c.status.phase !== 'Connected').length;
+
   return (
     <>
       <EuiFlexGroup justifyContent="spaceBetween" alignItems="center">
@@ -521,6 +526,40 @@ export function DashboardPage() {
         </EuiFlexItem>
       </EuiFlexGroup>
       <EuiSpacer size="l" />
+
+      {/* Multi-Cluster Overview */}
+      {isMultiCluster && clusters.length > 0 && (
+        <>
+          <EuiPanel hasBorder>
+            <EuiFlexGroup>
+              <EuiFlexItem>
+                <EuiStat
+                  title={clusters.length}
+                  description="Total Clusters"
+                  titleSize="m"
+                />
+              </EuiFlexItem>
+              <EuiFlexItem>
+                <EuiStat
+                  title={connectedClusters}
+                  description="Connected"
+                  titleColor="success"
+                  titleSize="m"
+                />
+              </EuiFlexItem>
+              <EuiFlexItem>
+                <EuiStat
+                  title={disconnectedClusters}
+                  description="Disconnected"
+                  titleColor="danger"
+                  titleSize="m"
+                />
+              </EuiFlexItem>
+            </EuiFlexGroup>
+          </EuiPanel>
+          <EuiSpacer />
+        </>
+      )}
 
       {/* Summary Stats */}
       <EuiFlexGroup>

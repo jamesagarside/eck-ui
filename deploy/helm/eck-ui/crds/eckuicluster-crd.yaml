@@ -1,0 +1,137 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: eckuiclusters.ui.eck.elastic.co
+spec:
+  group: ui.eck.elastic.co
+  names:
+    kind: ECKUICluster
+    listKind: ECKUIClusterList
+    plural: eckuiclusters
+    singular: eckuicluster
+    shortNames:
+      - euc
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - apiServerURL
+                - credentialSecretRef
+              properties:
+                apiServerURL:
+                  type: string
+                  description: URL of the workload cluster's Kubernetes API server.
+                caBundle:
+                  type: string
+                  description: Base64-encoded CA certificate for TLS verification.
+                credentialSecretRef:
+                  type: object
+                  required:
+                    - name
+                    - namespace
+                  properties:
+                    name:
+                      type: string
+                      description: Name of the Secret containing cluster credentials.
+                    namespace:
+                      type: string
+                      description: Namespace of the credential Secret.
+                  description: Reference to a Secret containing authentication credentials.
+                displayName:
+                  type: string
+                  description: Human-readable display name for the cluster.
+                allowedGroups:
+                  type: array
+                  items:
+                    type: string
+                  description: Groups allowed to access this cluster. Empty means unrestricted.
+                healthCheck:
+                  type: object
+                  properties:
+                    intervalSeconds:
+                      type: integer
+                      default: 30
+                      minimum: 5
+                      description: Interval between health checks in seconds.
+                    timeoutSeconds:
+                      type: integer
+                      default: 5
+                      minimum: 1
+                      description: Timeout for each health check in seconds.
+                circuitBreaker:
+                  type: object
+                  properties:
+                    failureThreshold:
+                      type: integer
+                      default: 3
+                      minimum: 1
+                      description: Number of consecutive failures before opening the circuit.
+                    recoveryTimeoutSeconds:
+                      type: integer
+                      default: 30
+                      minimum: 5
+                      description: Seconds to wait before attempting recovery.
+                    requestTimeoutSeconds:
+                      type: integer
+                      default: 5
+                      minimum: 1
+                      description: Per-request timeout in seconds.
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Connected
+                    - Disconnected
+                    - Error
+                  description: Current connection phase of the cluster.
+                lastHealthCheck:
+                  type: string
+                  format: date-time
+                  description: Timestamp of the last health check.
+                lastError:
+                  type: string
+                  description: Last error message, if any.
+                version:
+                  type: string
+                  description: Kubernetes server version of the workload cluster.
+                eckVersion:
+                  type: string
+                  description: ECK operator version detected on the workload cluster.
+                resourceCounts:
+                  type: object
+                  additionalProperties:
+                    type: integer
+                  description: Count of ECK resources by type on the workload cluster.
+      additionalPrinterColumns:
+        - name: Display Name
+          type: string
+          jsonPath: .spec.displayName
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: K8s Version
+          type: string
+          jsonPath: .status.version
+        - name: ECK Version
+          type: string
+          jsonPath: .status.eckVersion
+        - name: Last Check
+          type: date
+          jsonPath: .status.lastHealthCheck
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

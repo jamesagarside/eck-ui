@@ -1,0 +1,64 @@
+{{- /*
+  Workload Cluster RBAC Template
+
+  This template renders the ClusterRole and ClusterRoleBinding needed on
+  each workload cluster to enable ECK UI multi-cluster management.
+
+  Apply the output of `helm template ... -s templates/workload-cluster-rbac.yaml`
+  to each workload cluster that should be managed by ECK UI.
+
+  The eck-ui-proxy Service Account needs:
+  1. Impersonation rights (to proxy requests as the authenticated user)
+  2. Read access to ECK CRDs (for resource listing)
+  3. Read access to core resources (events, pods, logs)
+*/ -}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: eck-ui-proxy
+  labels:
+    app.kubernetes.io/component: proxy
+    {{- include "eck-ui.labels" . | nindent 4 }}
+rules:
+  # Impersonation permissions — required for identity propagation
+  - apiGroups: [""]
+    resources: ["users", "groups"]
+    verbs: ["impersonate"]
+  # ECK CRD access — read-only (write is gated by impersonated user's RBAC)
+  - apiGroups:
+      - elasticsearch.k8s.elastic.co
+      - kibana.k8s.elastic.co
+      - apm.k8s.elastic.co
+      - beat.k8s.elastic.co
+      - agent.k8s.elastic.co
+      - maps.k8s.elastic.co
+      - logstash.k8s.elastic.co
+      - enterprisesearch.k8s.elastic.co
+      - autoscaling.k8s.elastic.co
+      - stackconfigpolicy.k8s.elastic.co
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Core resources for events and pod inspection
+  - apiGroups: [""]
+    resources: ["events", "pods", "pods/log"]
+    verbs: ["get", "list"]
+  # Server version for health checks
+  - nonResourceURLs: ["/healthz", "/version"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: eck-ui-proxy
+  labels:
+    app.kubernetes.io/component: proxy
+    {{- include "eck-ui.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: eck-ui-proxy
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: eck-ui-proxy
+  apiGroup: rbac.authorization.k8s.io

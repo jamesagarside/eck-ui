@@ -91,3 +91,22 @@ rules:
       - get
       - list
       - watch
+  # ECK UI cluster management CRD - for multi-cluster mode
+  - apiGroups:
+      - ui.eck.elastic.co
+    resources:
+      - eckuiclusters
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - ui.eck.elastic.co
+    resources:
+      - eckuiclusters/status
+    verbs:
+      - get
+      - update

@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jamesagarside/eck-ui/pkg/clusters"
 	apierrors "github.com/jamesagarside/eck-ui/pkg/errors"
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 )
 
 // Handler provides HTTP handlers for CRUD operations on ECK Kubernetes resources.
@@ -25,6 +28,81 @@ type Handler struct {
 // NewHandler creates a new resource Handler with the given Kubernetes client.
 func NewHandler(k8sClient *k8s.Client) *Handler {
 	return &Handler{k8sClient: k8sClient}
+}
+
+// getClient returns the dynamic client for the current request. If a cluster-scoped
+// client has been injected into the context (by ClusterContext middleware), it is
+// returned. Otherwise, the handler falls back to the local k8s client.
+func (h *Handler) getClient(r *http.Request) dynamic.Interface {
+	if client, ok := clusters.ClientFromContext(r.Context()); ok {
+		return client
+	}
+	return h.k8sClient.Dynamic
+}
+
+// listResources uses the context-aware client to list resources.
+func (h *Handler) listResources(r *http.Request, resourceType, namespace string) (*unstructured.UnstructuredList, error) {
+	client := h.getClient(r)
+	if client == h.k8sClient.Dynamic {
+		return h.k8sClient.ListResources(r.Context(), resourceType, namespace)
+	}
+	gvr, err := k8s.ResolveGVR(resourceType)
+	if err != nil {
+		return nil, err
+	}
+	return client.Resource(gvr).Namespace(namespace).List(r.Context(), metav1.ListOptions{})
+}
+
+// getResource uses the context-aware client to get a single resource.
+func (h *Handler) getResource(r *http.Request, resourceType, namespace, name string) (*unstructured.Unstructured, error) {
+	client := h.getClient(r)
+	if client == h.k8sClient.Dynamic {
+		return h.k8sClient.GetResource(r.Context(), resourceType, namespace, name)
+	}
+	gvr, err := k8s.ResolveGVR(resourceType)
+	if err != nil {
+		return nil, err
+	}
+	return client.Resource(gvr).Namespace(namespace).Get(r.Context(), name, metav1.GetOptions{})
+}
+
+// createResource uses the context-aware client to create a resource.
+func (h *Handler) createResource(r *http.Request, resourceType, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	client := h.getClient(r)
+	if client == h.k8sClient.Dynamic {
+		return h.k8sClient.CreateResource(r.Context(), resourceType, namespace, obj)
+	}
+	gvr, err := k8s.ResolveGVR(resourceType)
+	if err != nil {
+		return nil, err
+	}
+	return client.Resource(gvr).Namespace(namespace).Create(r.Context(), obj, metav1.CreateOptions{})
+}
+
+// updateResource uses the context-aware client to update a resource.
+func (h *Handler) updateResource(r *http.Request, resourceType, namespace string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	client := h.getClient(r)
+	if client == h.k8sClient.Dynamic {
+		return h.k8sClient.UpdateResource(r.Context(), resourceType, namespace, obj)
+	}
+	gvr, err := k8s.ResolveGVR(resourceType)
+	if err != nil {
+		return nil, err
+	}
+	return client.Resource(gvr).Namespace(namespace).Update(r.Context(), obj, metav1.UpdateOptions{})
+}
+
+// deleteResource uses the context-aware client to delete a resource.
+func (h *Handler) deleteResource(r *http.Request, resourceType, namespace, name string) error {
+	client := h.getClient(r)
+	if client == h.k8sClient.Dynamic {
+		return h.k8sClient.DeleteResource(r.Context(), resourceType, namespace, name)
+	}
+	gvr, err := k8s.ResolveGVR(resourceType)
+	if err != nil {
+		return err
+	}
+	return client.Resource(gvr).Namespace(namespace).Delete(r.Context(), name, metav1.DeleteOptions{})
 }
 
 // paginatedResponse wraps a list of resources with pagination metadata.
@@ -185,7 +263,7 @@ func (h *Handler) List(resourceType string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := parseListParams(r)
 
-		list, err := h.k8sClient.ListResources(r.Context(), resourceType, params.Namespace)
+		list, err := h.listResources(r, resourceType, params.Namespace)
 		if err != nil {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
@@ -257,7 +335,7 @@ func (h *Handler) Get(resourceType string) http.HandlerFunc {
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		resource, err := h.k8sClient.GetResource(r.Context(), resourceType, namespace, name)
+		resource, err := h.getResource(r, resourceType, namespace, name)
 		if err != nil {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
@@ -316,7 +394,7 @@ func (h *Handler) Create(resourceType string) http.HandlerFunc {
 			obj.SetNamespace(namespace)
 		}
 
-		created, err := h.k8sClient.CreateResource(r.Context(), resourceType, namespace, &obj)
+		created, err := h.createResource(r, resourceType, namespace, &obj)
 		if err != nil {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
@@ -374,7 +452,7 @@ func (h *Handler) Update(resourceType string) http.HandlerFunc {
 			obj.SetNamespace(namespace)
 		}
 
-		updated, err := h.k8sClient.UpdateResource(r.Context(), resourceType, namespace, &obj)
+		updated, err := h.updateResource(r, resourceType, namespace, &obj)
 		if err != nil {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
@@ -391,7 +469,7 @@ func (h *Handler) Delete(resourceType string) http.HandlerFunc {
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		if err := h.k8sClient.DeleteResource(r.Context(), resourceType, namespace, name); err != nil {
+		if err := h.deleteResource(r, resourceType, namespace, name); err != nil {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
 		}

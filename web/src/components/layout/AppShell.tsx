@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   EuiPageTemplate,
@@ -19,7 +19,9 @@ import {
 import { EuiBadge } from '@elastic/eui';
 import { Sidebar } from '../navigation/Sidebar';
 import { OrganizationSwitcher } from '../navigation/OrganizationSwitcher';
+import { ClusterPicker } from '../navigation/ClusterPicker';
 import { useAuthStore } from '../../stores/authStore';
+import { useClusterStore } from '../../stores/clusterStore';
 import { useUserRole } from '../../hooks/useUserRole';
 import type { PlatformRole } from '../../hooks/useUserRole';
 import { useUserPreferences } from '../../context/UserPreferencesContext';
@@ -70,6 +72,11 @@ export function AppShell() {
   const role = useUserRole();
   const { colorMode, setColorMode } = useUserPreferences();
   const roleDisplay = ROLE_DISPLAY[role];
+  const fetchClusters = useClusterStore((s) => s.fetchClusters);
+
+  useEffect(() => {
+    fetchClusters();
+  }, [fetchClusters]);
 
   const breadcrumbs = buildBreadcrumbs(location.pathname).map((crumb) => ({
     ...crumb,
@@ -141,6 +148,7 @@ export function AppShell() {
           {
             items: [
               <EuiHeaderLinks key="links" aria-label="App navigation links">
+                <ClusterPicker />
                 <OrganizationSwitcher />
                 <EuiHeaderLink
                   iconType={colorMode === 'light' ? 'moon' : 'sun'}
