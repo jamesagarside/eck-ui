@@ -5,10 +5,10 @@
 
 ## 2. ECKUIRoleBinding CRD
 
-- [ ] 2.1 Create `deploy/helm/eck-ui/templates/eckuirolebinding-crd.yaml` with cluster-scoped CRD definition: `spec.role` (enum), `spec.subjects` (array of kind+name), `spec.eckInstance` (string, default "local")
-- [ ] 2.2 Define Go types in `pkg/rbac/types.go`: `ECKUIRoleBinding`, `ECKUIRoleBindingSpec`, `RoleBindingSubject`, `ECKUIRoleBindingList` structs matching the CRD schema
-- [ ] 2.3 Create `pkg/rbac/crd_client.go` with a client that lists/watches ECKUIRoleBinding resources using the dynamic Kubernetes client
-- [ ] 2.4 Add unit tests for CRD Go types: serialization/deserialization round-trip, validation of role enum values
+- [x] 2.1 Create `deploy/helm/eck-ui/templates/eckuirolebinding-crd.yaml` with cluster-scoped CRD definition: `spec.role` (enum), `spec.subjects` (array of kind+name), `spec.eckInstance` (string, default "local")
+- [x] 2.2 Define Go types in `pkg/rbac/types.go`: `ECKUIRoleBinding`, `ECKUIRoleBindingSpec`, `RoleBindingSubject`, `ECKUIRoleBindingList` structs matching the CRD schema
+- [x] 2.3 Create `pkg/rbac/crd_client.go` with a client that lists/watches ECKUIRoleBinding resources using the dynamic Kubernetes client
+- [x] 2.4 Add unit tests for CRD Go types: serialization/deserialization round-trip, validation of role enum values
 
 ## 3. Role Resolution Chain
 

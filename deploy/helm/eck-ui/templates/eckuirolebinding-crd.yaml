@@ -1,0 +1,85 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: eckuirolebindings.ui.elastic.co
+  labels:
+    {{- include "eck-ui.labels" . | nindent 4 }}
+spec:
+  group: ui.elastic.co
+  names:
+    kind: ECKUIRoleBinding
+    listKind: ECKUIRoleBindingList
+    plural: eckuirolebindings
+    singular: eckuirolebinding
+    shortNames:
+      - eckrb
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: ECKUIRoleBinding assigns a platform role to users or groups for a specific ECK instance.
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - role
+                - subjects
+              properties:
+                role:
+                  type: string
+                  description: The platform role to assign.
+                  enum:
+                    - platform-admin
+                    - deployment-manager
+                    - platform-viewer
+                    - deployment-viewer
+                eckInstance:
+                  type: string
+                  description: The ECK instance this binding applies to. Defaults to "local".
+                  default: local
+                  minLength: 1
+                  maxLength: 253
+                subjects:
+                  type: array
+                  description: Users or groups to assign the role to.
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - kind
+                      - name
+                    properties:
+                      kind:
+                        type: string
+                        description: The type of subject.
+                        enum:
+                          - User
+                          - Group
+                      name:
+                        type: string
+                        description: The name of the user or group.
+                        minLength: 1
+      additionalPrinterColumns:
+        - name: Role
+          type: string
+          jsonPath: .spec.role
+        - name: ECK Instance
+          type: string
+          jsonPath: .spec.eckInstance
+        - name: Subjects
+          type: integer
+          jsonPath: .spec.subjects
+          description: Number of subjects
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
