@@ -12,14 +12,14 @@
 
 ## 3. Role Resolution Chain
 
-- [ ] 3.1 Define `RoleResolver` interface in `pkg/rbac/resolver.go` with `ResolveRole(ctx, userInfo, eckInstance) (PlatformRole, error)` method
-- [ ] 3.2 Implement `CRDResolver` in `pkg/rbac/crd_resolver.go`: queries cached ECKUIRoleBinding list, matches by username or group, returns highest-privilege match
-- [ ] 3.3 Implement `SSARResolver` in `pkg/rbac/ssar_resolver.go`: submits 3-4 SelfSubjectAccessReview probes to derive role from K8s RBAC (probe strategy from design D4)
-- [ ] 3.4 Implement `DefaultResolver` in `pkg/rbac/default_resolver.go`: returns Platform Admin (fallback)
-- [ ] 3.5 Implement `ChainResolver` in `pkg/rbac/chain_resolver.go`: tries CRD → SSAR → Default in order, returns first resolved role
-- [ ] 3.6 Add unit tests for `CRDResolver`: direct user match, group match, multiple bindings (highest wins), no match returns error, ECK instance filtering
-- [ ] 3.7 Add unit tests for `SSARResolver`: mock SSAR responses for each role classification, SSAR failure falls through
-- [ ] 3.8 Add unit tests for `ChainResolver`: CRD match stops chain, CRD miss falls to SSAR, full fallthrough to default
+- [x] 3.1 Define `RoleResolver` interface in `pkg/rbac/resolver.go` with `ResolveRole(ctx, userInfo, eckInstance) (PlatformRole, error)` method
+- [x] 3.2 Implement `CRDResolver` in `pkg/rbac/crd_resolver.go`: queries cached ECKUIRoleBinding list, matches by username or group, returns highest-privilege match
+- [x] 3.3 Implement `SSARResolver` in `pkg/rbac/ssar_resolver.go`: submits 3-4 SelfSubjectAccessReview probes to derive role from K8s RBAC (probe strategy from design D4)
+- [x] 3.4 Implement `DefaultResolver` in `pkg/rbac/default_resolver.go`: returns Platform Admin (fallback)
+- [x] 3.5 Implement `ChainResolver` in `pkg/rbac/chain_resolver.go`: tries CRD → SSAR → Default in order, returns first resolved role
+- [x] 3.6 Add unit tests for `CRDResolver`: direct user match, group match, multiple bindings (highest wins), no match returns error, ECK instance filtering
+- [x] 3.7 Add unit tests for `SSARResolver`: mock SSAR responses for each role classification, SSAR failure falls through
+- [x] 3.8 Add unit tests for `ChainResolver`: CRD match stops chain, CRD miss falls to SSAR, full fallthrough to default
 
 ## 4. ECKUIRoleBinding Cache
 
