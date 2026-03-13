@@ -140,6 +140,12 @@ func main() {
 	// System info endpoint
 	api.HandleFunc("/system-info", handlers.SystemInfoHandler(k8sClient)).Methods("GET")
 
+	// Role binding management endpoints
+	rbacCRDClient := rbac.NewCRDClient(k8sClient.Dynamic)
+	api.HandleFunc("/rolebindings", handlers.RoleBindingsListHandler(rbacCRDClient)).Methods("GET")
+	api.HandleFunc("/rolebindings", handlers.RoleBindingCreateHandler(rbacCRDClient)).Methods("POST")
+	api.HandleFunc("/rolebindings/{name}", handlers.RoleBindingDeleteHandler(rbacCRDClient)).Methods("DELETE")
+
 	// Deployment intent endpoints (backend-assembled K8s resources)
 	api.HandleFunc("/deployments/{namespace}", handlers.DeploymentCreateHandler(k8sClient, crdRegistry)).Methods("POST")
 	api.HandleFunc("/deployments/{namespace}/{name}", handlers.DeploymentUpdateHandler(k8sClient, crdRegistry)).Methods("PUT")

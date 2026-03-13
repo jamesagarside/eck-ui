@@ -86,6 +86,7 @@ export function Sidebar() {
       items: [
         createItem('Versions', '/admin/versions', currentPath, navigate),
         createItem('Templates', '/admin/templates', currentPath, navigate),
+        createItem('Role Bindings', '/admin/roles', currentPath, navigate),
         createItem('System Info', '/admin/system', currentPath, navigate),
       ],
     });

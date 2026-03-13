@@ -26,7 +26,7 @@ import {
   AutoscalerDetailPage,
   AutoscalerEditPage,
 } from './pages/stack';
-import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage } from './pages/admin';
+import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage, RoleManagementPage } from './pages/admin';
 import { RoleGuard } from './components/auth/RoleGuard';
 import './App.css';
 
@@ -118,6 +118,7 @@ function App() {
           <Route path="/admin/versions" element={<RoleGuard minRole="platform-admin"><VersionManagementPage /></RoleGuard>} />
           <Route path="/admin/templates" element={<RoleGuard minRole="platform-admin"><DeploymentTemplatesPage /></RoleGuard>} />
           <Route path="/admin/system" element={<RoleGuard minRole="platform-admin"><SystemInfoPage /></RoleGuard>} />
+          <Route path="/admin/roles" element={<RoleGuard minRole="platform-admin"><RoleManagementPage /></RoleGuard>} />
 
           {/* Wizard redirect */}
           <Route path="/wizard" element={<Navigate to="/deployments/create" replace />} />
