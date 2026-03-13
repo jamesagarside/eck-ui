@@ -18,11 +18,13 @@ const (
 
 // Session holds the server-side session state for an authenticated user.
 type Session struct {
-	ID           string    `json:"id"`
-	User         *UserInfo `json:"user"`
-	Organization string    `json:"organization,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
-	ExpiresAt    time.Time `json:"expiresAt"`
+	ID           string            `json:"id"`
+	User         *UserInfo         `json:"user"`
+	Organization string            `json:"organization,omitempty"`
+	Role         string            `json:"role,omitempty"`
+	Roles        map[string]string `json:"roles,omitempty"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	ExpiresAt    time.Time         `json:"expiresAt"`
 }
 
 // IsExpired returns true if the session has passed its expiry time.

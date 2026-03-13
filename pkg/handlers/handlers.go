@@ -31,10 +31,12 @@ type loginResponse struct {
 
 // sessionResponse is the JSON body returned by GET /api/v1/auth/session.
 type sessionResponse struct {
-	User               *auth.UserInfo `json:"user"`
-	Organizations      []orgResponse  `json:"organizations"`
-	ActiveOrganization string         `json:"activeOrganization"`
-	ExpiresAt          string         `json:"expiresAt"`
+	User               *auth.UserInfo    `json:"user"`
+	Organizations      []orgResponse     `json:"organizations"`
+	ActiveOrganization string            `json:"activeOrganization"`
+	Role               string            `json:"role,omitempty"`
+	Roles              map[string]string `json:"roles,omitempty"`
+	ExpiresAt          string            `json:"expiresAt"`
 }
 
 // HealthzHandler returns 200 OK unconditionally, indicating the process is alive.
@@ -188,6 +190,8 @@ func SessionHandler(authService *auth.Service, orgStore *organization.Store) htt
 			User:               session.User,
 			Organizations:      orgList,
 			ActiveOrganization: activeOrg,
+			Role:               session.Role,
+			Roles:              session.Roles,
 			ExpiresAt:          session.ExpiresAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}

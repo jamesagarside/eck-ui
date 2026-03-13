@@ -86,7 +86,7 @@ func main() {
 		rbac.NewSSARResolver(k8sClient.Clientset),
 		rbac.NewDefaultResolver(),
 	)
-	_ = roleResolver // TODO: wire into middleware in task 5.1
+	// roleResolver is used by RBAC middleware below
 
 	// Initialize CRD registry for dynamic resource discovery
 	crdRegistry := k8s.NewCRDRegistry(k8sClient)
@@ -117,7 +117,7 @@ func main() {
 	// API routes (authenticated)
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.Use(middleware.Auth(authService))
-	api.Use(middleware.RBAC())
+	api.Use(middleware.RBAC(roleResolver, authService))
 	api.Use(audit.Middleware(auditLogger, cfg.AuditReadRequests))
 
 	// Versions endpoints: list, update, and sync from Elastic artifacts API.

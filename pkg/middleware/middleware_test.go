@@ -1,16 +1,17 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/jamesagarside/eck-ui/pkg/rbac"
 )
 
 func TestRequestID_GeneratesID(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify the request ID is available in the context.
 		id := RequestIDFromContext(r.Context())
 		if id == "" {
 			t.Error("expected non-empty request ID in context")
@@ -31,8 +32,6 @@ func TestRequestID_GeneratesID(t *testing.T) {
 	if headerVal == "" {
 		t.Error("expected X-Request-ID response header to be set")
 	}
-
-	// UUID format check: 8-4-4-4-12 = 36 characters.
 	if len(headerVal) != 36 {
 		t.Errorf("X-Request-ID length = %d, want 36 (UUID format)", len(headerVal))
 	}
@@ -74,7 +73,6 @@ func TestRecovery_CatchesPanics(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 	rec := httptest.NewRecorder()
 
-	// The recovery middleware should catch the panic without propagating it.
 	handler.ServeHTTP(rec, req)
 
 	res := rec.Result()
@@ -89,7 +87,6 @@ func TestRecovery_CatchesPanics(t *testing.T) {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
-	// The response should contain an error structure from apierrors.ErrInternal.
 	if reason, ok := body["reason"]; ok {
 		if reason != "InternalError" {
 			t.Errorf("body[\"reason\"] = %v, want \"InternalError\"", reason)
@@ -166,7 +163,6 @@ func TestCORS_DefaultOrigin(t *testing.T) {
 	})
 
 	handler := CORS(inner)
-	// Request without an Origin header.
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	rec := httptest.NewRecorder()
 
@@ -222,7 +218,6 @@ func TestLogger_SetsStatus(t *testing.T) {
 	res := rec.Result()
 	defer res.Body.Close()
 
-	// Logger middleware should pass through the status code.
 	if res.StatusCode != http.StatusCreated {
 		t.Errorf("status = %d, want %d", res.StatusCode, http.StatusCreated)
 	}
@@ -246,111 +241,62 @@ func TestRequestIDFromContext_NoValue(t *testing.T) {
 	}
 }
 
-func TestDeriveRole(t *testing.T) {
-	tests := []struct {
-		name   string
-		groups []string
-		want   string
-	}{
-		{"no groups defaults to admin", nil, "admin"},
-		{"empty groups defaults to admin", []string{}, "admin"},
-		{"admin group", []string{"cluster-admin"}, "admin"},
-		{"editor group", []string{"content-editor"}, "editor"},
-		{"unrecognized group defaults to admin", []string{"readers"}, "admin"},
-		{"admin takes precedence", []string{"editor-team", "super-admin"}, "admin"},
-		{"service account is admin", []string{"system:serviceaccounts"}, "admin"},
-		{"namespaced service account is admin", []string{"system:serviceaccounts:default"}, "admin"},
-		{"service account with authenticated", []string{"system:serviceaccounts", "system:authenticated"}, "admin"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := deriveRole(tt.groups)
-			if got != tt.want {
-				t.Errorf("deriveRole(%v) = %q, want %q", tt.groups, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestRequiredRole(t *testing.T) {
+func TestRequiredPlatformRole(t *testing.T) {
 	tests := []struct {
 		method string
-		want   string
+		want   rbac.PlatformRole
 	}{
-		{http.MethodGet, "viewer"},
-		{http.MethodHead, "viewer"},
-		{http.MethodOptions, "viewer"},
-		{http.MethodPost, "editor"},
-		{http.MethodPut, "editor"},
-		{http.MethodPatch, "editor"},
-		{http.MethodDelete, "admin"},
-		{"UNKNOWN", "admin"},
+		{http.MethodGet, rbac.RoleDeploymentViewer},
+		{http.MethodHead, rbac.RoleDeploymentViewer},
+		{http.MethodOptions, rbac.RoleDeploymentViewer},
+		{http.MethodPost, rbac.RoleDeploymentManager},
+		{http.MethodPut, rbac.RoleDeploymentManager},
+		{http.MethodPatch, rbac.RoleDeploymentManager},
+		{http.MethodDelete, rbac.RoleDeploymentManager},
+		{"UNKNOWN", rbac.RolePlatformAdmin},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.method, func(t *testing.T) {
-			got := requiredRole(tt.method)
+			got := requiredPlatformRole(tt.method)
 			if got != tt.want {
-				t.Errorf("requiredRole(%q) = %q, want %q", tt.method, got, tt.want)
+				t.Errorf("requiredPlatformRole(%q) = %q, want %q", tt.method, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestHasPermission(t *testing.T) {
-	tests := []struct {
-		name     string
-		userRole string
-		required string
-		want     bool
-	}{
-		{"admin can do admin", "admin", "admin", true},
-		{"admin can do editor", "admin", "editor", true},
-		{"admin can do viewer", "admin", "viewer", true},
-		{"editor can do editor", "editor", "editor", true},
-		{"editor can do viewer", "editor", "viewer", true},
-		{"editor cannot do admin", "editor", "admin", false},
-		{"viewer can do viewer", "viewer", "viewer", true},
-		{"viewer cannot do editor", "viewer", "editor", false},
-		{"viewer cannot do admin", "viewer", "admin", false},
-		{"unknown role denied", "unknown", "viewer", false},
+func TestPlatformRoleFromContext(t *testing.T) {
+	// Default when no role set
+	ctx := context.Background()
+	if got := PlatformRoleFromContext(ctx); got != rbac.RolePlatformAdmin {
+		t.Errorf("default = %q, want %q", got, rbac.RolePlatformAdmin)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := hasPermission(tt.userRole, tt.required)
-			if got != tt.want {
-				t.Errorf("hasPermission(%q, %q) = %v, want %v", tt.userRole, tt.required, got, tt.want)
-			}
-		})
+	// With role set
+	ctx = context.WithValue(ctx, platformRoleKey, rbac.RoleDeploymentViewer)
+	if got := PlatformRoleFromContext(ctx); got != rbac.RoleDeploymentViewer {
+		t.Errorf("got = %q, want %q", got, rbac.RoleDeploymentViewer)
 	}
 }
 
-func TestContainsSubstring(t *testing.T) {
+func TestRoleFromContext_BackwardCompatibility(t *testing.T) {
 	tests := []struct {
-		s      string
-		substr string
-		want   bool
+		role rbac.PlatformRole
+		want string
 	}{
-		{"cluster-admin", "admin", true},
-		{"content-editor", "editor", true},
-		{"readonly", "admin", false},
-		{"", "admin", false},
-		{"admin", "", true},
+		{rbac.RolePlatformAdmin, "admin"},
+		{rbac.RoleDeploymentManager, "editor"},
+		{rbac.RolePlatformViewer, "viewer"},
+		{rbac.RoleDeploymentViewer, "viewer"},
 	}
 
 	for _, tt := range tests {
-		name := tt.s + "_contains_" + tt.substr
-		if name == "_contains_" {
-			name = "empty_strings"
-		}
-		// Replace any problematic characters in test name.
-		name = strings.ReplaceAll(name, "-", "_")
-		t.Run(name, func(t *testing.T) {
-			got := containsSubstring(tt.s, tt.substr)
+		t.Run(string(tt.role), func(t *testing.T) {
+			ctx := context.WithValue(context.Background(), platformRoleKey, tt.role)
+			got := RoleFromContext(ctx)
 			if got != tt.want {
-				t.Errorf("containsSubstring(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
+				t.Errorf("RoleFromContext() = %q, want %q", got, tt.want)
 			}
 		})
 	}

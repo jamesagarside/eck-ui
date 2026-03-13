@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jamesagarside/eck-ui/pkg/auth"
 	apierrors "github.com/jamesagarside/eck-ui/pkg/errors"
+	"github.com/jamesagarside/eck-ui/pkg/rbac"
 )
 
 // contextKey is an unexported type used for context value keys to avoid collisions.
@@ -23,6 +24,9 @@ const (
 
 	// requestIDKey is the context key for storing the request ID.
 	requestIDKey contextKey = "requestID"
+
+	// platformRoleKey is the context key for the resolved platform role.
+	platformRoleKey contextKey = "platformRole"
 )
 
 // ContextUserInfo holds user information stored in the request context.
@@ -83,11 +87,11 @@ func Auth(authService *auth.Service) mux.MiddlewareFunc {
 	}
 }
 
-// RBAC returns middleware that checks the user's role against the HTTP method.
-// GET/HEAD/OPTIONS require viewer, POST/PUT/PATCH require editor, and DELETE
-// requires admin. The role is determined from the user's group membership:
-// groups containing "admin" grant admin, "editor" grants editor, otherwise viewer.
-func RBAC() mux.MiddlewareFunc {
+// RBAC returns middleware that resolves the user's platform role via the
+// RoleResolver chain and checks it against the required role for the HTTP method.
+// GET/HEAD/OPTIONS require deployment-viewer, POST/PUT/PATCH require
+// deployment-manager, DELETE requires deployment-manager.
+func RBAC(resolver rbac.RoleResolver, authService *auth.Service) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userInfo := UserInfoFromContext(r.Context())
@@ -96,10 +100,40 @@ func RBAC() mux.MiddlewareFunc {
 				return
 			}
 
-			role := deriveRole(userInfo.Groups)
-			required := requiredRole(r.Method)
+			// Resolve platform role via the chain (CRD → SSAR → Default)
+			session := authService.Sessions().GetFromRequest(r)
+			var role rbac.PlatformRole
+			if session != nil && session.Role != "" {
+				// Use cached role from session
+				role, _ = rbac.ParseRole(session.Role)
+				if role == "" {
+					role = rbac.RolePlatformAdmin
+				}
+			} else {
+				authUserInfo := &auth.UserInfo{
+					Username: userInfo.Username,
+					UID:      userInfo.UID,
+					Groups:   userInfo.Groups,
+				}
+				var err error
+				role, err = resolver.ResolveRole(r.Context(), authUserInfo, rbac.DefaultECKInstance)
+				if err != nil {
+					slog.Warn("role resolution failed, defaulting to platform-admin",
+						"user", userInfo.Username, "error", err)
+					role = rbac.RolePlatformAdmin
+				}
+				// Cache on session
+				if session != nil {
+					session.Role = string(role)
+					if session.Roles == nil {
+						session.Roles = make(map[string]string)
+					}
+					session.Roles[rbac.DefaultECKInstance] = string(role)
+				}
+			}
 
-			if !hasPermission(role, required) {
+			required := requiredPlatformRole(r.Method)
+			if !rbac.HasMinRole(role, required) {
 				apierrors.WriteError(w, apierrors.New(
 					http.StatusForbidden,
 					"Forbidden",
@@ -108,89 +142,54 @@ func RBAC() mux.MiddlewareFunc {
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			// Store resolved role in context
+			ctx := context.WithValue(r.Context(), platformRoleKey, role)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-// RoleFromContext derives the user's role from the request context.
-// Returns empty string if no user info is present.
+// PlatformRoleFromContext extracts the resolved platform role from the context.
+func PlatformRoleFromContext(ctx context.Context) rbac.PlatformRole {
+	val := ctx.Value(platformRoleKey)
+	if val == nil {
+		return rbac.RolePlatformAdmin
+	}
+	role, ok := val.(rbac.PlatformRole)
+	if !ok {
+		return rbac.RolePlatformAdmin
+	}
+	return role
+}
+
+// RoleFromContext returns the legacy role string for backward compatibility.
+// Maps platform roles to the old admin/editor/viewer strings.
 func RoleFromContext(ctx context.Context) string {
-	userInfo := UserInfoFromContext(ctx)
-	if userInfo == nil {
-		return ""
-	}
-	return deriveRole(userInfo.Groups)
-}
-
-// deriveRole determines the highest role from the user's group membership.
-// Service accounts (system:serviceaccounts) are treated as admin because
-// K8s RBAC is the real authorization gate. When no organization-based roles
-// are configured, the default is admin to avoid blocking mutations.
-func deriveRole(groups []string) string {
-	hasEditor := false
-	for _, g := range groups {
-		switch {
-		case containsSubstring(g, "admin"):
-			return "admin"
-		case containsSubstring(g, "system:serviceaccounts"):
-			return "admin"
-		case containsSubstring(g, "editor"):
-			hasEditor = true
-		}
-	}
-	if hasEditor {
-		return "editor"
-	}
-	// Default to admin — K8s RBAC is the real authorization gate.
-	return "admin"
-}
-
-// requiredRole returns the minimum role required for the given HTTP method.
-func requiredRole(method string) string {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return "viewer"
-	case http.MethodPost, http.MethodPut, http.MethodPatch:
-		return "editor"
-	case http.MethodDelete:
+	role := PlatformRoleFromContext(ctx)
+	switch role {
+	case rbac.RolePlatformAdmin:
 		return "admin"
+	case rbac.RoleDeploymentManager:
+		return "editor"
+	case rbac.RolePlatformViewer, rbac.RoleDeploymentViewer:
+		return "viewer"
 	default:
 		return "admin"
 	}
 }
 
-// hasPermission checks if the user's role meets or exceeds the required role.
-func hasPermission(userRole, requiredRole string) bool {
-	roleLevel := map[string]int{
-		"viewer": 1,
-		"editor": 2,
-		"admin":  3,
+// requiredPlatformRole returns the minimum platform role for an HTTP method.
+func requiredPlatformRole(method string) rbac.PlatformRole {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return rbac.RoleDeploymentViewer
+	case http.MethodPost, http.MethodPut, http.MethodPatch:
+		return rbac.RoleDeploymentManager
+	case http.MethodDelete:
+		return rbac.RoleDeploymentManager
+	default:
+		return rbac.RolePlatformAdmin
 	}
-
-	userLevel, ok := roleLevel[userRole]
-	if !ok {
-		return false
-	}
-	requiredLevel, ok := roleLevel[requiredRole]
-	if !ok {
-		return false
-	}
-	return userLevel >= requiredLevel
-}
-
-// containsSubstring checks if s contains substr (case-sensitive).
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && searchSubstring(s, substr)
-}
-
-func searchSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // CORS returns middleware that sets CORS headers. It handles preflight OPTIONS

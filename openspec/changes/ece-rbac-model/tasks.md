@@ -30,12 +30,12 @@
 
 ## 5. Backend RBAC Middleware Update
 
-- [ ] 5.1 Update `pkg/middleware/middleware.go` to replace `deriveRole` group-convention logic with `RoleResolver.ResolveRole()` call
-- [ ] 5.2 Update RBAC permission matrix to use new 4-role hierarchy: GET→deployment-viewer, POST/PUT/PATCH→deployment-manager, DELETE→deployment-manager (deployments) or platform-admin (system resources)
-- [ ] 5.3 Add `PlatformRoleFromContext(ctx)` function to extract resolved role from request context
-- [ ] 5.4 Cache resolved role on session object — add `Role` and `Roles` fields to `auth.Session` struct
-- [ ] 5.5 Update `pkg/handlers/handlers.go` session response to include `role` (current ECK instance) and `roles` (map of instance→role) in JSON output
-- [ ] 5.6 Add integration tests for middleware: Deployment Viewer denied POST, Deployment Manager allowed POST, Platform Admin allowed DELETE on system resources
+- [x] 5.1 Update `pkg/middleware/middleware.go` to replace `deriveRole` group-convention logic with `RoleResolver.ResolveRole()` call
+- [x] 5.2 Update RBAC permission matrix to use new 4-role hierarchy: GET→deployment-viewer, POST/PUT/PATCH→deployment-manager, DELETE→deployment-manager (deployments) or platform-admin (system resources)
+- [x] 5.3 Add `PlatformRoleFromContext(ctx)` function to extract resolved role from request context
+- [x] 5.4 Cache resolved role on session object — add `Role` and `Roles` fields to `auth.Session` struct
+- [x] 5.5 Update `pkg/handlers/handlers.go` session response to include `role` (current ECK instance) and `roles` (map of instance→role) in JSON output
+- [x] 5.6 Add integration tests for middleware: Deployment Viewer denied POST, Deployment Manager allowed POST, Platform Admin allowed DELETE on system resources
 
 ## 6. Frontend Role Model Update
 
