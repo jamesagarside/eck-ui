@@ -1,0 +1,50 @@
+# Example ECKUIRoleBinding manifests for each platform role.
+# These are cluster-scoped resources that assign ECK UI roles to users/groups.
+---
+apiVersion: ui.elastic.co/v1alpha1
+kind: ECKUIRoleBinding
+metadata:
+  name: platform-admins
+spec:
+  role: platform-admin
+  eckInstance: local
+  subjects:
+    - kind: User
+      name: admin@example.com
+    - kind: Group
+      name: platform-admins
+---
+apiVersion: ui.elastic.co/v1alpha1
+kind: ECKUIRoleBinding
+metadata:
+  name: deployment-managers
+spec:
+  role: deployment-manager
+  eckInstance: local
+  subjects:
+    - kind: User
+      name: devops@example.com
+    - kind: Group
+      name: deployment-managers
+---
+apiVersion: ui.elastic.co/v1alpha1
+kind: ECKUIRoleBinding
+metadata:
+  name: platform-viewers
+spec:
+  role: platform-viewer
+  eckInstance: local
+  subjects:
+    - kind: Group
+      name: platform-viewers
+---
+apiVersion: ui.elastic.co/v1alpha1
+kind: ECKUIRoleBinding
+metadata:
+  name: deployment-viewers
+spec:
+  role: deployment-viewer
+  eckInstance: local
+  subjects:
+    - kind: Group
+      name: developers

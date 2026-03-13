@@ -39,27 +39,27 @@
 
 ## 6. Frontend Role Model Update
 
-- [ ] 6.1 Update `web/src/types/` to define `PlatformRole` type with the 4 role values and add `role` and `roles` fields to session/auth types
-- [ ] 6.2 Update `web/src/stores/authStore.ts` to store `role: PlatformRole` and `roles: Record<string, PlatformRole>` from session API response
-- [ ] 6.3 Rewrite `web/src/hooks/useUserRole.ts` to return `PlatformRole` from auth store instead of deriving from groups
-- [ ] 6.4 Update `web/src/components/auth/RoleGuard.tsx` to accept any of the 4 roles as `minRole` and use hierarchy comparison
-- [ ] 6.5 Add unit tests for updated `useUserRole`: returns role from store for each of the 4 values
-- [ ] 6.6 Add unit tests for updated `RoleGuard`: test all 4 roles against each `minRole` threshold
+- [x] 6.1 Update `web/src/types/` to define `PlatformRole` type with the 4 role values and add `role` and `roles` fields to session/auth types
+- [x] 6.2 Update `web/src/stores/authStore.ts` to store `role: PlatformRole` and `roles: Record<string, PlatformRole>` from session API response
+- [x] 6.3 Rewrite `web/src/hooks/useUserRole.ts` to return `PlatformRole` from auth store instead of deriving from groups
+- [x] 6.4 Update `web/src/components/auth/RoleGuard.tsx` to accept any of the 4 roles as `minRole` and use hierarchy comparison
+- [x] 6.5 Add unit tests for updated `useUserRole`: returns role from store for each of the 4 values
+- [x] 6.6 Add unit tests for updated `RoleGuard`: test all 4 roles against each `minRole` threshold
 
 ## 7. Frontend Navigation & UI Adaptation
 
-- [ ] 7.1 Update `web/src/components/navigation/Sidebar.tsx` to render navigation based on 4 roles: Platform Admin (full), Deployment Manager (no Administration), Platform Viewer (full read-only), Deployment Viewer (simplified)
-- [ ] 7.2 Update `web/src/App.tsx` route guards to use new role values: resource routes → `minRole="deployment-manager"`, admin routes → `minRole="platform-admin"`, read-only resource routes → `minRole="deployment-viewer"`
-- [ ] 7.3 Update `web/src/pages/dashboard/DashboardPage.tsx` to handle Platform Viewer (full dashboard, read-only) vs Deployment Viewer (card grid)
-- [ ] 7.4 Update `web/src/pages/deployment/DeploymentListPage.tsx` to hide Create button for viewers (both Platform Viewer and Deployment Viewer)
-- [ ] 7.5 Update `web/src/pages/deployment/DeploymentDetailPage.tsx` to hide Edit/Delete for non-managers
-- [ ] 7.6 Add unit tests for Sidebar with 4 roles: Platform Admin sees all, Deployment Manager sees no Administration, Platform Viewer sees all without create/edit, Deployment Viewer sees simplified nav
+- [x] 7.1 Update `web/src/components/navigation/Sidebar.tsx` to render navigation based on 4 roles: Platform Admin (full), Deployment Manager (no Administration), Platform Viewer (full read-only), Deployment Viewer (simplified)
+- [x] 7.2 Update `web/src/App.tsx` route guards to use new role values: resource routes → `minRole="platform-viewer"`, create/edit routes → `minRole="deployment-manager"`, admin routes → `minRole="platform-admin"`
+- [x] 7.3 Update `web/src/pages/dashboard/DashboardPage.tsx` to handle Platform Viewer (full dashboard, read-only) vs Deployment Viewer (card grid)
+- [x] 7.4 Update `web/src/pages/deployment/DeploymentListPage.tsx` to hide Create button for viewers (both Platform Viewer and Deployment Viewer)
+- [x] 7.5 Update `web/src/pages/deployment/DeploymentDetailPage.tsx` to hide Edit/Delete for non-managers
+- [x] 7.6 Add unit tests for Sidebar with 4 roles: Platform Admin sees all, Deployment Manager sees no Administration, Platform Viewer sees all without create/edit, Deployment Viewer sees simplified nav
 
 ## 8. Helm Chart & Configuration
 
-- [ ] 8.1 Add `ROLE_BINDING_CACHE_TTL` to Helm chart values and deployment template environment variables
-- [ ] 8.2 Add example ECKUIRoleBinding manifests to `deploy/kubernetes/examples/` for each role
-- [ ] 8.3 Verify Helm install creates ECKUIRoleBinding CRD and existing Organization CRD is preserved
+- [x] 8.1 Add `ROLE_BINDING_CACHE_TTL` to Helm chart values and deployment template environment variables
+- [x] 8.2 Add example ECKUIRoleBinding manifests to `deploy/kubernetes/examples/` for each role
+- [x] 8.3 Verify Helm install creates ECKUIRoleBinding CRD and existing Organization CRD is preserved
 
 ## 9. Integration & E2E Testing
 

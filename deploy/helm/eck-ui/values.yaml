@@ -67,6 +67,7 @@ affinity: {}
 config:
   logLevel: info
   sessionSecret: ""
+  roleBindingCacheTTL: "30s"
 
 # Stack versions available in the version dropdown.
 # Updated via the UI or by running POST /api/v1/versions/sync.

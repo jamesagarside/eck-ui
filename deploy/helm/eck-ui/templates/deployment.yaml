@@ -49,6 +49,10 @@ spec:
             - name: SESSION_SECRET
               value: {{ .Values.config.sessionSecret | quote }}
             {{- end }}
+            {{- if .Values.config.roleBindingCacheTTL }}
+            - name: ROLE_BINDING_CACHE_TTL
+              value: {{ .Values.config.roleBindingCacheTTL | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
