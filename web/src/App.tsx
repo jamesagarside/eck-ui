@@ -26,7 +26,7 @@ import {
   AutoscalerDetailPage,
   AutoscalerEditPage,
 } from './pages/stack';
-import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage, AdminGuard } from './pages/admin';
+import { VersionManagementPage, DeploymentTemplatesPage, SystemInfoPage } from './pages/admin';
 import { RoleGuard } from './components/auth/RoleGuard';
 import './App.css';
 

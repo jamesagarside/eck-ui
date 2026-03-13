@@ -1,3 +1,4 @@
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen } from '../../../test/utils';
 import { Sidebar } from '../Sidebar';
 import { useAuthStore } from '../../../stores/authStore';

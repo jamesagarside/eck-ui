@@ -11,7 +11,7 @@ export function extractEndpoints(deployment: Deployment): ServiceEndpoint[] {
   const endpoints: ServiceEndpoint[] = [];
 
   for (const component of deployment.components) {
-    const status = (component.resource as Record<string, unknown>).status as
+    const status = (component.resource as unknown as Record<string, unknown>).status as
       | Record<string, unknown>
       | undefined;
     const serviceName = (status?.service as string) || '';

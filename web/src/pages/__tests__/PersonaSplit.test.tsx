@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { render } from '../../test/utils';
 import { handlers } from '../../test/mocks';

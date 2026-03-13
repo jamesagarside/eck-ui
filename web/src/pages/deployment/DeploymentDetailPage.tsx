@@ -18,8 +18,6 @@ import {
   EuiBasicTable,
   EuiIcon,
   EuiCopy,
-  EuiDescriptionList,
-  EuiLink,
   type EuiTabbedContentTab,
   type EuiBasicTableColumn,
 } from '@elastic/eui';

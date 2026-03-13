@@ -22,11 +22,11 @@ const TYPE_LABELS: Record<string, string> = {
   maps: 'Maps',
 };
 
-const HEALTH_BADGE_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'default'> = {
-  green: 'success',
+const HEALTH_BADGE_COLOR: Record<string, 'accent' | 'warning' | 'subdued' | 'hollow'> = {
+  green: 'accent',
   yellow: 'warning',
-  red: 'danger',
-  unknown: 'default',
+  red: 'subdued',
+  unknown: 'hollow',
 };
 
 interface DeploymentCardProps {
