@@ -23,10 +23,10 @@
 
 ## 4. ECKUIRoleBinding Cache
 
-- [ ] 4.1 Create `pkg/rbac/cache.go` with in-memory cache that stores all ECKUIRoleBinding resources, backed by a background list+watch goroutine
-- [ ] 4.2 Add `ROLE_BINDING_CACHE_TTL` environment variable to `pkg/config/config.go` (default 30 seconds)
-- [ ] 4.3 Wire cache startup and shutdown into `cmd/server/main.go` lifecycle (start watch on boot, stop on graceful shutdown)
-- [ ] 4.4 Add unit tests for cache: initial load, TTL refresh, concurrent read safety
+- [x] 4.1 Create `pkg/rbac/cache.go` with in-memory cache that stores all ECKUIRoleBinding resources, backed by a background list+watch goroutine
+- [x] 4.2 Add `ROLE_BINDING_CACHE_TTL` environment variable to `pkg/config/config.go` (default 30 seconds)
+- [x] 4.3 Wire cache startup and shutdown into `cmd/server/main.go` lifecycle (start watch on boot, stop on graceful shutdown)
+- [x] 4.4 Add unit tests for cache: initial load, TTL refresh, concurrent read safety
 
 ## 5. Backend RBAC Middleware Update
 

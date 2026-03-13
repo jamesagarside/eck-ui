@@ -30,6 +30,9 @@ type Config struct {
 	// AuditReadRequests controls whether GET requests are included in audit logs.
 	// When false (the default), only mutating operations (POST, PUT, PATCH, DELETE) are audited.
 	AuditReadRequests bool
+
+	// RoleBindingCacheTTL controls how frequently ECKUIRoleBinding resources are refreshed.
+	RoleBindingCacheTTL time.Duration
 }
 
 // Load reads configuration from environment variables and returns a validated Config.
@@ -55,6 +58,13 @@ func Load() (*Config, error) {
 	cfg.TokenCacheTTL = ttl
 
 	cfg.AuditReadRequests = parseBool(os.Getenv("AUDIT_READ_REQUESTS"))
+
+	rbCacheTTLStr := envOrDefault("ROLE_BINDING_CACHE_TTL", "30s")
+	rbCacheTTL, err := time.ParseDuration(rbCacheTTLStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ROLE_BINDING_CACHE_TTL %q: %w", rbCacheTTLStr, err)
+	}
+	cfg.RoleBindingCacheTTL = rbCacheTTL
 
 	return cfg, nil
 }

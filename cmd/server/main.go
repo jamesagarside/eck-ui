@@ -20,6 +20,7 @@ import (
 	"github.com/jamesagarside/eck-ui/pkg/k8s"
 	"github.com/jamesagarside/eck-ui/pkg/middleware"
 	"github.com/jamesagarside/eck-ui/pkg/organization"
+	"github.com/jamesagarside/eck-ui/pkg/rbac"
 	"github.com/jamesagarside/eck-ui/pkg/resources"
 )
 
@@ -72,6 +73,20 @@ func main() {
 	if err := orgStore.LoadFromConfigMaps(context.Background(), k8sClient.Clientset, "default"); err != nil {
 		slog.Warn("failed to load organizations from configmaps", "error", err)
 	}
+
+	// Initialize role binding cache
+	bindingCache := rbac.NewBindingCache(k8sClient.Dynamic, cfg.RoleBindingCacheTTL)
+	if err := bindingCache.Start(context.Background()); err != nil {
+		slog.Warn("failed to start role binding cache", "error", err)
+	}
+
+	// Initialize role resolver chain (CRD → SSAR → Default)
+	roleResolver := rbac.NewChainResolver(
+		rbac.NewCRDResolver(bindingCache),
+		rbac.NewSSARResolver(k8sClient.Clientset),
+		rbac.NewDefaultResolver(),
+	)
+	_ = roleResolver // TODO: wire into middleware in task 5.1
 
 	// Initialize CRD registry for dynamic resource discovery
 	crdRegistry := k8s.NewCRDRegistry(k8sClient)
@@ -186,6 +201,8 @@ func main() {
 		if err := srv.Shutdown(ctx); err != nil {
 			slog.Error("server shutdown error", "error", err)
 		}
+
+		bindingCache.Stop()
 
 		if err := auditLogger.Shutdown(ctx); err != nil {
 			slog.Error("audit logger shutdown error", "error", err)
