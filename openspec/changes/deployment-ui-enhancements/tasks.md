@@ -36,4 +36,4 @@
 - [x] 5.1 Add MSW handlers for pod list and pod log endpoints in `web/src/test/mocks.ts`
 - [x] 5.2 Add frontend tests for `PodTable`, `PodLogsViewer`, and `UserSettingsEditor` components
 - [x] 5.3 Verify TypeScript compiles (`tsc --noEmit` and `tsc -b`) and all existing tests pass
-- [ ] 5.4 Build Docker image and deploy to local cluster, verify all three features end-to-end
+- [x] 5.4 Build Docker image and deploy to local cluster, verify all three features end-to-end

@@ -29,7 +29,8 @@ beforeEach(() => {
   // jsdom does not implement scrollIntoView
   Element.prototype.scrollIntoView = vi.fn();
 
-  const MockES = function (this: Record<string, unknown>, url: string, opts?: { withCredentials?: boolean }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const MockES: any = function (this: Record<string, unknown>, url: string, opts?: { withCredentials?: boolean }) {
     this.url = url;
     this.withCredentials = opts?.withCredentials ?? false;
     this.readyState = 0;
@@ -44,7 +45,7 @@ beforeEach(() => {
     this.OPEN = 1;
     this.CLOSED = 2;
     constructedEventSources.push({ url, close: this.close as ReturnType<typeof vi.fn> });
-  } as unknown as typeof EventSource;
+  };
   MockES.CONNECTING = 0;
   MockES.OPEN = 1;
   MockES.CLOSED = 2;
