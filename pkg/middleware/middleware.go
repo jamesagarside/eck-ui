@@ -50,6 +50,18 @@ func UserInfoFromContext(ctx context.Context) *ContextUserInfo {
 	return info
 }
 
+// WithUserInfo returns a new context with the given user info attached.
+// This is intended for use in tests and internal callers.
+func WithUserInfo(ctx context.Context, info *ContextUserInfo) context.Context {
+	return context.WithValue(ctx, userInfoKey, info)
+}
+
+// WithPlatformRole returns a new context with the given platform role attached.
+// This is intended for use in tests and internal callers.
+func WithPlatformRole(ctx context.Context, role rbac.PlatformRole) context.Context {
+	return context.WithValue(ctx, platformRoleKey, role)
+}
+
 // RequestIDFromContext extracts the request ID from the context.
 func RequestIDFromContext(ctx context.Context) string {
 	val := ctx.Value(requestIDKey)

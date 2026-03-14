@@ -64,26 +64,26 @@
 - [x] 8.4 Create `ClusterResourceDetailPage.tsx` that wraps existing resource detail components with cluster-scoped API calls and cluster breadcrumb
 - [x] 8.5 Update `DashboardPage.tsx` to show multi-cluster overview when `isMultiCluster` is true: cluster health summary banner, per-cluster resource cards, aggregate stats. Fall back to existing single-cluster dashboard otherwise
 - [x] 8.6 Update `Sidebar.tsx` to add "Clusters" link when multi-cluster mode is active. When browsing `/clusters/:clusterId/...`, scope resource links to that cluster's paths
-- [ ] 8.7 Update API client in `web/src/api/client.ts` to accept optional `cluster` parameter in request functions, prefixing URL with `/clusters/{cluster}` when provided
-- [ ] 8.8 Add stale data handling: detect `X-ECK-UI-Stale` response header, display EUI callout warning on affected pages with staleness timestamp
+- [x] 8.7 Update API client in `web/src/api/client.ts` to accept optional `cluster` parameter in request functions, prefixing URL with `/clusters/{cluster}` when provided
+- [x] 8.8 Add stale data handling: detect `X-ECK-UI-Stale` response header, display EUI callout warning on affected pages with staleness timestamp
 
 ## 9. Helm Chart
 
-- [ ] 9.1 Add ECKUICluster CRD to Helm chart under `crds/` directory, controlled by `installCRDs: true` value (default: false)
-- [ ] 9.2 Add ClusterRole and ClusterRoleBinding for ECKUICluster CR access (list, get, watch, update status) to the ECK UI Service Account
-- [ ] 9.3 Add RBAC for credential Secret access: Role in the `eck-ui-system` namespace for reading Secrets
-- [ ] 9.4 Add workload cluster RBAC template in `deploy/helm/eck-ui/templates/workload-cluster-rbac.yaml`: `eck-ui-proxy` ClusterRole (impersonate + ECK CRD read) and ClusterRoleBinding, rendered as a standalone template for operators to apply to workload clusters
-- [ ] 9.5 Add Helm values for multi-cluster configuration: `multiCluster.enabled` (auto-detected, but can force disable), `multiCluster.healthCheck.interval`, `multiCluster.circuitBreaker.failureThreshold`, `multiCluster.circuitBreaker.recoveryTimeout`
+- [x] 9.1 Add ECKUICluster CRD to Helm chart under `crds/` directory, controlled by `installCRDs: true` value (default: false)
+- [x] 9.2 Add ClusterRole and ClusterRoleBinding for ECKUICluster CR access (list, get, watch, update status) to the ECK UI Service Account
+- [x] 9.3 Add RBAC for credential Secret access: Role in the `eck-ui-system` namespace for reading Secrets
+- [x] 9.4 Add workload cluster RBAC template in `deploy/helm/eck-ui/templates/workload-cluster-rbac.yaml`: `eck-ui-proxy` ClusterRole (impersonate + ECK CRD read) and ClusterRoleBinding, rendered as a standalone template for operators to apply to workload clusters
+- [x] 9.5 Add Helm values for multi-cluster configuration: `multiCluster.enabled` (auto-detected, but can force disable), `multiCluster.healthCheck.interval`, `multiCluster.circuitBreaker.failureThreshold`, `multiCluster.circuitBreaker.recoveryTimeout`
 
 ## 10. Testing & Security
 
-- [ ] 10.1 Add Go unit tests for `CircuitBreaker` in `pkg/clusters/circuitbreaker_test.go`: state transitions (CLOSED→OPEN→HALF-OPEN→CLOSED), failure counting, recovery timeout, concurrent access safety
-- [ ] 10.2 Add Go unit tests for impersonation transport in `pkg/clusters/transport_test.go`: correct header propagation, deny list enforcement (system: prefix blocked), session-only identity sourcing
-- [ ] 10.3 Add Go unit tests for `ClusterManager` in `pkg/clusters/manager_test.go`: client pool lifecycle (add/remove/update), health reconciliation, credential loading from Secret
-- [ ] 10.4 Add Go unit tests for cluster management handlers in `pkg/handlers/clusters_test.go`: CRUD operations, admin role enforcement, `allowedGroups` filtering
-- [ ] 10.5 Add Go unit tests for `ClusterContext` middleware in `pkg/middleware/cluster_test.go`: cluster extraction, access validation, client injection, local alias resolution
-- [ ] 10.6 Add Go unit tests for stale cache in `pkg/clusters/cache_test.go`: set/get, cache miss, TTL-based eviction
-- [ ] 10.7 Add frontend tests for `ClusterPicker` component: renders clusters, shows health indicators, hides in single-cluster mode
-- [ ] 10.8 Add frontend tests for `ClusterListPage`: displays cluster cards, register button visibility by role, empty state
-- [ ] 10.9 Add frontend tests for cluster store: initialization, cluster switching, single-cluster mode detection
-- [ ] 10.10 Security audit checklist: verify impersonation deny list covers all system identities, verify credential Secrets are not logged or exposed in API responses, verify `allowedGroups` enforcement on all cluster routes, verify circuit breaker cannot be bypassed, verify stale data is marked and write operations are blocked when circuit is OPEN
+- [x] 10.1 Add Go unit tests for `CircuitBreaker` in `pkg/clusters/circuitbreaker_test.go`: state transitions (CLOSED→OPEN→HALF-OPEN→CLOSED), failure counting, recovery timeout, concurrent access safety
+- [x] 10.2 Add Go unit tests for impersonation transport in `pkg/clusters/transport_test.go`: correct header propagation, deny list enforcement (system: prefix blocked), session-only identity sourcing
+- [x] 10.3 Add Go unit tests for `ClusterManager` in `pkg/clusters/manager_test.go`: client pool lifecycle (add/remove/update), health reconciliation, credential loading from Secret
+- [x] 10.4 Add Go unit tests for cluster management handlers in `pkg/handlers/clusters_test.go`: CRUD operations, admin role enforcement, `allowedGroups` filtering
+- [x] 10.5 Add Go unit tests for `ClusterContext` middleware in `pkg/middleware/cluster_test.go`: cluster extraction, access validation, client injection, local alias resolution
+- [x] 10.6 Add Go unit tests for stale cache in `pkg/clusters/cache_test.go`: set/get, cache miss, TTL-based eviction
+- [x] 10.7 Add frontend tests for `ClusterPicker` component: renders clusters, shows health indicators, hides in single-cluster mode
+- [x] 10.8 Add frontend tests for `ClusterListPage`: displays cluster cards, register button visibility by role, empty state
+- [x] 10.9 Add frontend tests for cluster store: initialization, cluster switching, single-cluster mode detection
+- [x] 10.10 Security audit checklist: verify impersonation deny list covers all system identities, verify credential Secrets are not logged or exposed in API responses, verify `allowedGroups` enforcement on all cluster routes, verify circuit breaker cannot be bypassed, verify stale data is marked and write operations are blocked when circuit is OPEN
