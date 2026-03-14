@@ -40,7 +40,7 @@ docker-build:
 HELM_RELEASE := eck-ui
 HELM_NAMESPACE := default
 
-## deploy: Build image and redeploy to local Kubernetes
+## deploy: Build image and redeploy to local Kubernetes (includes CRDs and multi-cluster support)
 deploy: docker-build
 	helm upgrade --install $(HELM_RELEASE) deploy/helm/eck-ui \
 		--namespace $(HELM_NAMESPACE) \
@@ -49,7 +49,8 @@ deploy: docker-build
 		--set image.tag=latest \
 		--set image.pullPolicy=Never \
 		--set config.sessionSecret=$${SESSION_SECRET:-dev-secret-do-not-use-in-prod} \
-		--set ingress.enabled=true
+		--set ingress.enabled=true \
+		--set installCRDs=true
 	kubectl rollout restart deployment/$(HELM_RELEASE) -n $(HELM_NAMESPACE)
 	kubectl rollout status deployment/$(HELM_RELEASE) -n $(HELM_NAMESPACE) --timeout=120s
 
