@@ -200,6 +200,32 @@ func getStatusField(item unstructured.Unstructured, field string) string {
 	return strings.ToLower(v)
 }
 
+// normalizeStatus ensures status.phase is populated for all ECK resources.
+// Some resource types (Kibana, APM, Beat, Agent) may only populate status.health
+// without setting status.phase. This derives a meaningful phase from health so
+// the frontend never shows a misleading "Unknown" badge.
+func normalizeStatus(items []unstructured.Unstructured) {
+	for i := range items {
+		status, ok := items[i].Object["status"].(map[string]interface{})
+		if !ok || status == nil {
+			continue
+		}
+		phase, _ := status["phase"].(string)
+		if phase != "" {
+			continue
+		}
+		health, _ := status["health"].(string)
+		switch strings.ToLower(health) {
+		case "green":
+			status["phase"] = "Ready"
+		case "yellow":
+			status["phase"] = "ApplyingChanges"
+		case "red":
+			status["phase"] = "Degraded"
+		}
+	}
+}
+
 func filterItems(items []unstructured.Unstructured, params listParams) []unstructured.Unstructured {
 	if params.Search == "" && len(params.Health) == 0 {
 		return items
@@ -278,6 +304,9 @@ func (h *Handler) List(resourceType string) http.HandlerFunc {
 
 		items := list.Items
 
+		// Ensure status.phase is populated for all resource types
+		normalizeStatus(items)
+
 		// Filter
 		items = filterItems(items, params)
 
@@ -340,6 +369,9 @@ func (h *Handler) Get(resourceType string) http.HandlerFunc {
 			apierrors.WriteError(w, apierrors.FromK8sError(err))
 			return
 		}
+
+		// Ensure status.phase is populated
+		normalizeStatus([]unstructured.Unstructured{*resource})
 
 		writeJSON(w, http.StatusOK, resource)
 	}

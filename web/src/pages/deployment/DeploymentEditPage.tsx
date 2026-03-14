@@ -57,7 +57,7 @@ interface ComponentEditState extends ComponentFormState {
   agentInstances: AgentInstance[];
 }
 
-type ComponentKey = 'elasticsearch' | 'kibana' | 'apm' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
+type ComponentKey = 'elasticsearch' | 'kibana' | 'fleet-server' | 'apm' | 'beat' | 'agent' | 'logstash' | 'enterprise-search' | 'maps';
 
 interface ComponentDef {
   key: ComponentKey;
@@ -70,6 +70,7 @@ interface ComponentDef {
 const COMPONENT_ORDER: ComponentDef[] = [
   { key: 'elasticsearch', label: 'Elasticsearch' },
   { key: 'kibana', label: 'Kibana' },
+  { key: 'fleet-server', label: 'Fleet Server' },
   { key: 'apm', label: 'APM Server', deprecatedInMajor: 8, deprecationNote: 'Deprecated since 8.0. Use Elastic Agent with Fleet instead.' },
   { key: 'beat', label: 'Beats' },
   { key: 'agent', label: 'Elastic Agent' },
@@ -154,12 +155,24 @@ export function DeploymentEditPage() {
           existed: true,
         });
       } else if (comp.type === 'agent') {
-        agentInstances.push({
-          id: crypto.randomUUID(),
-          mode: (spec?.mode as 'standalone' | 'fleet') || 'standalone',
-          count: (spec?.deployment as { replicas?: number })?.replicas || 1,
-          existed: true,
-        });
+        const agentMode = (spec?.mode as string) || 'standalone';
+        const fleetEnabled = spec?.fleetServerEnabled === true;
+        // Fleet server agents are displayed as a separate fleet-server component
+        if (agentMode === 'fleet' && fleetEnabled) {
+          state['fleet-server'] = {
+            ...state['fleet-server'],
+            enabled: true,
+            existed: true,
+            count: (spec?.deployment as { replicas?: number })?.replicas || 1,
+          };
+        } else {
+          agentInstances.push({
+            id: crypto.randomUUID(),
+            mode: agentMode as 'standalone' | 'fleet',
+            count: (spec?.deployment as { replicas?: number })?.replicas || 1,
+            existed: true,
+          });
+        }
       } else {
         const key = comp.type as ComponentKey;
         state[key] = {
@@ -434,7 +447,7 @@ export function DeploymentEditPage() {
 
         {availableComponents.map((c) => {
           const isDeprecated = c.deprecatedInMajor != null && selectedMajor >= c.deprecatedInMajor;
-          const backendTypeMap: Record<string, string> = { 'apm': 'apmserver', 'enterprise-search': 'enterprisesearch', 'maps': 'elasticmapsserver' };
+          const backendTypeMap: Record<string, string> = { 'fleet-server': 'agent', 'apm': 'apmserver', 'enterprise-search': 'enterprisesearch', 'maps': 'elasticmapsserver' };
           const backendType = backendTypeMap[c.key] ?? c.key;
           const specFields = resourceTypes.find((r) => r.name === backendType)?.specFields ?? [];
           const esName = name ? buildComponentName(name, 'elasticsearch') : undefined;
