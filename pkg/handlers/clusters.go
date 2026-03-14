@@ -392,6 +392,19 @@ func HealthCheckClusterHandler(manager *clusters.ClusterManager) http.HandlerFun
 	}
 }
 
+// SingleClusterModeListHandler returns a 200 with singleClusterMode: true and empty items,
+// allowing the frontend to detect single-cluster mode without logging console errors.
+func SingleClusterModeListHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"items":             []interface{}{},
+			"singleClusterMode": true,
+		})
+	}
+}
+
 // SingleClusterModeHandler returns a 404 indicating multi-cluster mode is not enabled.
 func SingleClusterModeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -207,8 +207,10 @@ func main() {
 		clusterAPI.HandleFunc("/events/{namespace}", resourceHandler.Events()).Methods("GET")
 	} else {
 		slog.Info("ECKUICluster CRD not detected, running in single-cluster mode")
-		// Register 404 handlers for cluster routes in single-cluster mode.
-		api.HandleFunc("/clusters", handlers.SingleClusterModeHandler()).Methods("GET", "POST")
+		// GET /clusters returns a valid response so the frontend can detect single-cluster mode without errors.
+		api.HandleFunc("/clusters", handlers.SingleClusterModeListHandler()).Methods("GET")
+		// All other cluster routes return 404 in single-cluster mode.
+		api.HandleFunc("/clusters", handlers.SingleClusterModeHandler()).Methods("POST")
 		api.HandleFunc("/clusters/{cluster}", handlers.SingleClusterModeHandler()).Methods("GET", "PUT", "DELETE")
 		api.HandleFunc("/overview", handlers.SingleClusterModeHandler()).Methods("GET")
 	}
